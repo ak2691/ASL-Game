@@ -1,0 +1,14 @@
+:root {
+  --bg: #323437;
+  --main: #e2b714;
+  --text: #d1d0c5;
+  --sub: #646669;
+  --sub-alt: #2c2e31;
+  --thumb: #e2738a;
+  font-family: 'Roboto Mono', ui-monospace, Menlo, Consolas, monospace;
+  color: var(--text);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+h1 { color: var(--main); margin: 0; }
