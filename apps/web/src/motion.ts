@@ -1,10 +1,9 @@
 // J and Z are drawn in the air, so a single frame can't recognize them.
-// We keep a short history of the hand and check two things:
-//   1. the starting handshape (J: pinky up like I; Z: index finger up)
-//   2. the path the fingertip draws (J: down then hook; Z: across, back, across)
-// All distances are in "palm units" (wrist -> middle knuckle), so they don't depend
-// on how far the player sits from the camera. Directions are left/right agnostic,
-// so this works for both hands and mirrored video.
+// A small trained model (ml/train_motion.py -> /models/motion.json) looks at the last 1.5 s
+// of hand points and says none / J / Z. No hand-written path rules (see skills.md).
+// Webcam frame rates vary, so the history is resampled to the model's fixed frame count.
+
+import { runLayer, type Dense } from './recognition'
 
 export interface Point {
   x: number
@@ -12,161 +11,191 @@ export interface Point {
   z?: number
 }
 
-interface Frame {
-  t: number
-  tip: { x: number; y: number } // the drawing fingertip, in image coordinates
-  scale: number // palm size this frame
-  shapeOk: boolean // start handshape held this frame
+const MOTION_MODEL_URL = '/models/motion.json'
+const DEFAULT_WINDOW_MS = 1000 // models without windowMs were trained on 1 s clips
+const GAP_MS = 400 // tolerate the hand dropping out this long (fast moves lose tracking)
+const ACCEPT_PROB = 0.8 // model must be this sure...
+const ACCEPT_FRAMES = 2 // ...for this many frames in a row
+const MIN_HISTORY_MS = 600 // after a J/Z is accepted, the next needs this much fresh history
+
+interface MotionModel {
+  labels: string[]
+  frames: number
+  windowMs?: number // how much history one model input covers (1.5 s since v3)
+  pathPoints: number[]
+  shapeStep: number
+  shapeDims?: number // 2 = hand shape x/y only (no depth; since v14), 3 = x/y/z (older models)
+  nets: Dense[][] // one network, or several whose answers are averaged (an ensemble)
 }
 
-const WINDOW_MS = 2500 // look at the last 2.5 s of movement (long enough for a slow Z)
-const MIN_MS = 200 // anything faster is noise
-const SHAPE_SHARE = 0.5 // start shape must be seen in this share of the frames (fast moves blur the fingers)
-const GAP_MS = 400 // tolerate the hand dropping out for this long mid-motion (fast moves can lose tracking)
+type LayerJson = Dense & { w: number[]; b: number[] }
+const toDense = (layers: LayerJson[]) => layers.map((l) => ({ ...l, w: Float32Array.from(l.w), b: Float32Array.from(l.b) }))
 
-const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
+let model: MotionModel | null = null
+fetch(MOTION_MODEL_URL)
+  .then((r) => r.json())
+  .then((m) => {
+    // Ensembles store "models": [{layers}, ...]; older single models store "layers".
+    const nets = m.models ? m.models.map((n: { layers: LayerJson[] }) => toDense(n.layers)) : [toDense(m.layers)]
+    model = { ...m, nets }
+  })
+  .catch((e) => console.error('motion model failed to load', e))
 
-/** Finger is extended if its tip is clearly farther from the wrist than its base knuckle. */
-function extended(lm: Point[], tip: number, mcp: number) {
-  return dist(lm[tip], lm[0]) > dist(lm[mcp], lm[0]) * 1.5
-}
-function curled(lm: Point[], tip: number, mcp: number) {
-  return dist(lm[tip], lm[0]) < dist(lm[mcp], lm[0]) * 1.3
+/** Average the ensemble's probabilities. */
+function predict(m: MotionModel, x: Float32Array): Float32Array {
+  const avg = new Float32Array(m.labels.length)
+  for (const net of m.nets) {
+    let y = x
+    for (const layer of net) y = runLayer(layer, y)
+    for (let i = 0; i < avg.length; i++) avg[i] += y[i] / m.nets.length
+  }
+  return avg
 }
 
-const SHAPES = {
-  // J starts like I: pinky up, other fingers curled.
-  J: { tip: 20, ok: (lm: Point[]) => extended(lm, 20, 17) && curled(lm, 8, 5) && curled(lm, 12, 9) && curled(lm, 16, 13) },
-  // Z starts with the index finger up, other fingers curled.
-  Z: { tip: 8, ok: (lm: Point[]) => extended(lm, 8, 5) && curled(lm, 12, 9) && curled(lm, 16, 13) && curled(lm, 20, 17) },
-}
-export type MotionLetter = keyof typeof SHAPES
+export type MotionLetter = 'J' | 'Z'
 export const isMotionLetter = (l: string): l is MotionLetter => l === 'J' || l === 'Z'
 
+interface Frame {
+  t: number
+  lm: Point[]
+}
+
+/** Linear interpolation of the hand at time t from the buffered frames. */
+function sampleAt(f: Frame[], t: number): Point[] {
+  if (t <= f[0].t) return f[0].lm
+  for (let i = 1; i < f.length; i++) {
+    if (f[i].t >= t) {
+      const a = f[i - 1], b = f[i]
+      const w = (t - a.t) / (b.t - a.t || 1)
+      return a.lm.map((p, k) => ({
+        x: p.x + (b.lm[k].x - p.x) * w,
+        y: p.y + (b.lm[k].y - p.y) * w,
+        z: (p.z ?? 0) + ((b.lm[k].z ?? 0) - (p.z ?? 0)) * w,
+      }))
+    }
+  }
+  return f[f.length - 1].lm
+}
+
+/** Same features as ml/train_motion.py: fingertip/wrist path + hand shape every few frames. */
+function features(m: MotionModel, clip: Point[][]): Float32Array {
+  const c0 = clip[0]
+  const s = Math.hypot(c0[9].x - c0[0].x, c0[9].y - c0[0].y) || 1
+  const nShape = Math.ceil(m.frames / m.shapeStep)
+  const dims = m.shapeDims ?? 3
+  const x = new Float32Array(m.frames * m.pathPoints.length * 2 + nShape * 21 * dims)
+  let k = 0
+  for (const fr of clip)
+    for (const p of m.pathPoints) {
+      x[k++] = (fr[p].x - c0[0].x) / s
+      x[k++] = (fr[p].y - c0[0].y) / s
+    }
+  for (let i = 0; i < m.frames; i += m.shapeStep) {
+    const fr = clip[i], w = fr[0]
+    const ps = Math.hypot(fr[9].x - w.x, fr[9].y - w.y) + 1e-6
+    for (const p of fr) {
+      x[k++] = (p.x - w.x) / ps
+      x[k++] = (p.y - w.y) / ps
+      if (dims === 3) x[k++] = ((p.z ?? 0) - (w.z ?? 0)) / ps
+    }
+  }
+  return x
+}
+
+/**
+ * Always-on motion history: fed every frame whatever the target letter, so a J or Z that
+ * starts while the previous letter is still being confirmed is seen in full.
+ * History is cleared only when a J/Z is accepted (so it can't count twice) or the hand
+ * is lost for longer than GAP_MS.
+ */
 export class MotionTracker {
   private frames: Frame[] = []
   private lastProgress = 0
+  private sureFrames = 0
+  private letter: MotionLetter | null = null
+  private acceptedAt: number | null = null
+  private sureLetter: MotionLetter | null = null // free mode: which letter the sure-frame count is for
+  prob = 0 // latest model probability for the target letter (for the debug recorder)
 
-  private letter: MotionLetter
-  constructor(letter: MotionLetter) {
-    this.letter = letter
-  }
-
-  /** Add this frame's hand (or null if no hand). Returns progress 0..1 (1 = letter done). */
-  update(lm: Point[] | null, t: number): number {
-    if (!lm) {
-      // Brief dropouts are common during fast moves: keep the path unless the hand is gone a while.
-      const last = this.frames[this.frames.length - 1]
-      if (!last || t - last.t > GAP_MS) {
-        this.frames = []
-        this.lastProgress = 0
-      }
-      return this.lastProgress
+  /**
+   * Add this frame's hand (or null if no hand). `letter` is the target if it's J or Z, else null
+   * (the history is still kept). Returns progress 0..1 for the target (1 = letter done).
+   */
+  update(lm: Point[] | null, t: number, letter: MotionLetter | null): number {
+    if (letter !== this.letter) {
+      this.letter = letter
+      this.sureFrames = 0
+      this.lastProgress = 0
+      this.prob = 0
     }
-    this.lastProgress = this.track(lm, t)
-    return this.lastProgress
+    const probs = this.run(lm, t)
+    if (!probs || !letter || !model) return (this.lastProgress = lm ? 0 : this.lastProgress)
+    const prob = (this.prob = probs[model.labels.indexOf(letter)])
+
+    // Right after an accept the history is short and padded with its first frame, so the
+    // tail of the last J/Z can look like a new one (user saw J counted twice). Only then,
+    // wait for MIN_HISTORY_MS of fresh history. A J/Z after any other letter has no wait.
+    const fresh = this.acceptedAt === null || t - this.acceptedAt >= MIN_HISTORY_MS
+    this.sureFrames = prob >= ACCEPT_PROB && fresh ? this.sureFrames + 1 : 0
+    if (this.sureFrames >= ACCEPT_FRAMES) {
+      this.frames = []
+      this.sureFrames = 0
+      this.lastProgress = 0
+      this.acceptedAt = t
+      return 1
+    }
+    return (this.lastProgress = 0.9 * prob)
   }
 
-  private track(lm: Point[], t: number): number {
-    const shape = SHAPES[this.letter]
-    this.frames.push({ t, tip: { x: lm[shape.tip].x, y: lm[shape.tip].y }, scale: dist(lm[0], lm[9]) || 1, shapeOk: shape.ok(lm) })
-    while (this.frames.length && t - this.frames[0].t > WINDOW_MS) this.frames.shift()
+  /**
+   * Free signing (no target letter): returns 'J' or 'Z' on the frame one is recognized, else null.
+   * The winning class must beat "none" and the other letter, at >= ACCEPT_PROB for ACCEPT_FRAMES.
+   */
+  updateFree(lm: Point[] | null, t: number): MotionLetter | null {
+    const probs = this.run(lm, t)
+    if (!probs || !model) return null
+    let best: MotionLetter | null = null
+    for (const L of ['J', 'Z'] as const) {
+      const p = probs[model.labels.indexOf(L)]
+      if (p >= ACCEPT_PROB && (!best || p > probs[model.labels.indexOf(best)])) best = L
+    }
+    this.prob = best ? probs[model.labels.indexOf(best)] : Math.max(probs[model.labels.indexOf('J')], probs[model.labels.indexOf('Z')])
+    const fresh = this.acceptedAt === null || t - this.acceptedAt >= MIN_HISTORY_MS
+    if (best && fresh && best === this.sureLetter) this.sureFrames++
+    else this.sureFrames = best && fresh ? 1 : 0
+    this.sureLetter = best
+    if (best && this.sureFrames >= ACCEPT_FRAMES) {
+      this.frames = []
+      this.sureFrames = 0
+      this.sureLetter = null
+      this.acceptedAt = t
+      return best
+    }
+    return null
+  }
 
-    const f = this.frames
-    if (f.length < 4 || t - f[0].t < MIN_MS) return f[f.length - 1].shapeOk ? 0.3 : 0
-    if (f.filter((x) => x.shapeOk).length / f.length < SHAPE_SHARE) return 0
-
-    const done = this.letter === 'J' ? isJPath(f) : isZPath(f)
-    if (done) this.frames = []
-    return done ? 1 : 0.3 + 0.6 * pathProgress(f)
+  /** Buffer this frame and run the model on the window. Returns class probabilities, or null. */
+  private run(lm: Point[] | null, t: number): Float32Array | null {
+    if (!lm) {
+      const last = this.frames[this.frames.length - 1]
+      if (last && t - last.t > GAP_MS) this.frames = []
+      return null
+    }
+    this.frames.push({ t, lm: lm.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 })) })
+    const win = model?.windowMs ?? DEFAULT_WINDOW_MS
+    while (this.frames.length > 1 && t - this.frames[1].t > win) this.frames.shift()
+    if (!model || this.frames.length < 4) return null
+    // Resample the window to the model's frame count (holding the first frame if shorter).
+    const clip: Point[][] = []
+    for (let i = 0; i < model.frames; i++) clip.push(sampleAt(this.frames, t - win + (i * win) / (model.frames - 1)))
+    return predict(model, features(model, clip))
   }
 
   reset() {
     this.frames = []
     this.lastProgress = 0
+    this.sureFrames = 0
+    this.sureLetter = null
+    this.acceptedAt = null
   }
-}
-
-/** How far the fingertip has moved from where it started (palm units), as a rough
- *  "how far into the motion" indicator for the ring. Ignores small jitter. */
-function pathProgress(f: Frame[]) {
-  const scale = f[0].scale
-  let reach = 0
-  for (const x of f) reach = Math.max(reach, dist(x.tip, f[0].tip) / scale)
-  return Math.min(1, Math.max(0, reach - 0.1) / 0.4)
-}
-
-/**
- * J: the pinky tip goes mostly straight down, then hooks sideways AND curves back up.
- * Requiring the upward curl stops "just tip the pinky down" from counting as J.
- */
-function isJPath(f: Frame[]) {
-  const scale = f[0].scale
-  // The lowest point of the path = the bottom of the J. Use the latest such point.
-  let low = 0
-  for (let i = 1; i < f.length; i++) if (f[i].tip.y >= f[low].tip.y) low = i
-  // The descent starts from the highest point before the bottom (ignores lead-in wobble).
-  let top = 0
-  for (let i = 1; i <= low; i++) if (f[i].tip.y < f[top].tip.y) top = i
-  const end = f[f.length - 1].tip
-  const down = (f[low].tip.y - f[top].tip.y) / scale
-  const drift = Math.abs(f[low].tip.x - f[top].tip.x) / scale // sideways movement on the way down
-  const hook = Math.abs(end.x - f[top].tip.x) / scale // total sideways reach of the hook
-  const lift = (f[low].tip.y - end.y) / scale // curling back up after the bottom
-  return down > 0.35 && drift < down * 0.8 && hook > 0.2 && lift > 0.07
-}
-
-interface Stroke {
-  start: { x: number; y: number }
-  end: { x: number; y: number }
-}
-
-/** Splits the fingertip path into left/right strokes (in palm units). */
-function horizontalStrokes(f: Frame[]): Stroke[] {
-  const scale = f[0].scale
-  const P = (i: number) => ({ x: f[i].tip.x / scale, y: f[i].tip.y / scale })
-  const MIN_SEG = 0.25 // a turn must go back at least this far (palm units) to start a new stroke
-  const strokes: Stroke[] = []
-  let dir = 0
-  let turn = P(0) // furthest point of the current stroke = where the next stroke starts
-  for (let i = 1; i < f.length; i++) {
-    const p = P(i)
-    if (dir !== 0 && (p.x - turn.x) * dir > 0) {
-      // still moving the same way: extend the current stroke
-      turn = p
-      strokes[strokes.length - 1].end = p
-      continue
-    }
-    if (Math.abs(p.x - turn.x) >= MIN_SEG) {
-      // moved far enough the other way: a new stroke starts at the turning point
-      dir = Math.sign(p.x - turn.x)
-      strokes.push({ start: turn, end: p })
-      turn = p
-    }
-  }
-  return strokes
-}
-
-/**
- * Z: three strokes - across the top, diagonally back down, across the bottom.
- * All three must be clearly drawn: similar widths, the middle one going down,
- * and the bottom bar below the top bar.
- */
-function isZPath(f: Frame[]) {
-  const s = horizontalStrokes(f)
-  if (s.length < 3) return false
-  const [top, diag, bottom] = s.slice(-3)
-  const width = (k: Stroke) => Math.abs(k.end.x - k.start.x)
-  const drop = (k: Stroke) => k.end.y - k.start.y
-  const widest = Math.max(width(top), width(diag), width(bottom))
-  // Forgiving on neatness (hand-drawn Zs are sloppy), strict on the three-part structure.
-  const level = (k: Stroke) => Math.abs(drop(k)) < width(k) * 1.2 // bars can slope up to ~50°
-  const avgY = (k: Stroke) => (k.start.y + k.end.y) / 2
-  return (
-    [top, diag, bottom].every((k) => width(k) >= 0.3 && width(k) >= widest * 0.35) &&
-    level(top) &&
-    level(bottom) &&
-    drop(diag) >= 0.2 &&
-    avgY(bottom) - avgY(top) >= 0.2
-  )
 }

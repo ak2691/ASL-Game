@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Recording Viewer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { margin:0; padding:16px; background:#f6f6f4; color:#222; font:14px system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; } p { color:#777; margin:0 0 12px; max-width:800px; }
+  .card { background:#fff; border-radius:8px; padding:10px; box-shadow:0 1px 3px #0002; margin-bottom:12px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+  canvas { display:block; } .hand { width:300px; height:300px; cursor:grab; }
+  .tl { width:min(640px, 100%); height:160px; }
+  .meta { font-size:13px; line-height:1.6; min-width:220px; }
+  .bad { color:#c92a2a; font-weight:600; } .ok { color:#2b8a3e; font-weight:600; }
+  input[type=range] { width:300px; }
+</style></head><body>
+<h1>Recording viewer</h1>
+<p>Load a <code>recordings-*.json</code> from the app's "Save clip" / "Download" buttons. Left: the raw tracked hand (drag to rotate, slider to scrub). Right: timeline. Grey ticks = frames with a hand, red = hand lost, orange = letter model used a frozen hand. Blue line = motion model probability (J/Z), green = target progress shown to the player; dashed line = 0.8 accept level.</p>
+<input type="file" id="file" accept=".json" multiple>
+<div id="out"></div>
+<script>
+const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+const COL = i => i===0?'#888': i<=4?'#e8590c': i<=8?'#2f9e44': i<=12?'#1c7ed6': i<=16?'#9c36b5':'#f08c00';
+const dpr = devicePixelRatio || 1;
+document.getElementById('file').onchange = async e => {
+  const out = document.getElementById('out'); out.innerHTML = '';
+  for (const f of e.target.files) { const d = JSON.parse(await f.text()); d.clips.forEach((c, i) => show(out, c, `${f.name} #${i+1}`)); }
+};
+function stats(c) {
+  const fr = c.frames, t0 = fr[0].t, dur = fr[fr.length-1].t - t0;
+  const seen = fr.filter(f => f.raw);
+  let maxGap = 0, gapStart = null;
+  for (const f of fr) { if (!f.raw) { gapStart ??= f.t; } else { if (gapStart !== null) maxGap = Math.max(maxGap, f.t - gapStart); gapStart = null; } }
+  const dts = fr.slice(1).map((f, i) => f.t - fr[i].t);
+  const mp = fr.map(f => f.motionP).filter(v => v !== null);
+  return { dur, fps: (fr.length - 1) / (dur / 1000), lostPct: 100 * (1 - seen.length / fr.length), maxGap, maxDt: Math.max(...dts), peakMotion: mp.length ? Math.max(...mp) : null };
+}
+function show(out, c, name) {
+  const s = stats(c);
+  const card = document.createElement('div'); card.className = 'card';
+  card.innerHTML = `<b>${c.label}</b> <span class="${c.outcome==='worked'?'ok':'bad'}">${c.outcome}</span> <span style="color:#999">${name} · ${c.savedAt}</span>`;
+  const row = document.createElement('div'); row.className = 'row'; card.appendChild(row);
+  const left = document.createElement('div');
+  const hand = document.createElement('canvas'); hand.className = 'hand'; left.appendChild(hand);
+  const slider = document.createElement('input'); slider.type = 'range'; slider.min = 0; slider.max = c.frames.length - 1; slider.value = c.frames.length - 1; left.appendChild(slider);
+  const play = document.createElement('button'); play.textContent = 'Play'; left.appendChild(play);
+  row.appendChild(left);
+  const right = document.createElement('div');
+  const tl = document.createElement('canvas'); tl.className = 'tl'; right.appendChild(tl);
+  const meta = document.createElement('div'); meta.className = 'meta';
+  const su = c.setup || {};
+  meta.innerHTML = `clip ${(s.dur/1000).toFixed(1)} s · <b>${s.fps.toFixed(1)} fps</b> (longest frame gap ${Math.round(s.maxDt)} ms)<br>
+    hand lost <b class="${s.lostPct>10?'bad':''}">${s.lostPct.toFixed(0)}%</b> of frames · longest loss ${Math.round(s.maxGap)} ms<br>
+    ${s.peakMotion!==null ? `peak motion prob <b class="${s.peakMotion>=0.8?'ok':'bad'}">${s.peakMotion.toFixed(2)}</b><br>` : ''}
+    setup: ${Object.entries(su).map(([k,v]) => `${k} ${v}`).join(' · ')}<br>
+    <span id="fi"></span>`;
+  right.appendChild(meta); row.appendChild(right);
+  out.appendChild(card);
+
+  const seen = c.frames.map(f => f.raw).filter(Boolean);
+  const all = seen.flat(); const cx = all.reduce((a,p)=>a+p[0],0)/all.length, cy = all.reduce((a,p)=>a+p[1],0)/all.length;
+  const span = Math.max(Math.max(...all.map(p=>p[0]))-Math.min(...all.map(p=>p[0])), Math.max(...all.map(p=>p[1]))-Math.min(...all.map(p=>p[1]))) * 1.2 || 0.3;
+  const v = { yaw: 0, pitch: 0 }; let drag = null;
+  hand.onpointerdown = e => { drag = [e.clientX, e.clientY, v.yaw, v.pitch]; hand.setPointerCapture(e.pointerId); };
+  hand.onpointermove = e => { if (drag) { v.yaw = drag[2] + (e.clientX-drag[0])/80; v.pitch = drag[3] + (e.clientY-drag[1])/80; draw(); } };
+  hand.onpointerup = () => drag = null; hand.ondblclick = () => { v.yaw = v.pitch = 0; draw(); };
+  const proj = (p, W) => { let x = p[0]-cx, y = p[1]-cy, z = p[2]; const a=Math.cos(v.yaw), b=Math.sin(v.yaw); [x,z]=[x*a+z*b,-x*b+z*a]; const c2=Math.cos(v.pitch), d=Math.sin(v.pitch); [y,z]=[y*c2-z*d,y*d+z*c2]; return [W/2+x/span*W, W/2+y/span*W]; };
+  const tipIdx = c.label === 'J' ? 20 : 8;
+  function draw() {
+    const i = +slider.value, W = hand.clientWidth * dpr; hand.width = hand.height = W;
+    const g = hand.getContext('2d');
+    // fingertip trail up to now; breaks where the hand was lost
+    g.lineWidth = 2*dpr; g.strokeStyle = '#0004'; g.beginPath(); let pen = false;
+    c.frames.slice(0, i+1).forEach(f => { if (!f.raw) { pen = false; return; } const q = proj(f.raw[tipIdx], W); pen ? g.lineTo(...q) : g.moveTo(...q); pen = true; });
+    g.stroke();
+    let j = i; while (j >= 0 && !c.frames[j].raw) j--;
+    if (j >= 0) {
+      const pts = c.frames[j].raw.map(p => proj(p, W));
+      g.globalAlpha = j === i ? 1 : 0.3; g.lineWidth = 3*dpr; g.lineCap = 'round';
+      for (const [a,b] of BONES) { g.strokeStyle = COL(b); g.beginPath(); g.moveTo(...pts[a]); g.lineTo(...pts[b]); g.stroke(); }
+      g.globalAlpha = 1;
+    }
+    if (j !== i) { g.fillStyle = '#c92a2a'; g.font = `${14*dpr}px system-ui`; g.fillText('hand lost', 8*dpr, 20*dpr); }
+    const f = c.frames[i];
+    meta.querySelector('#fi').textContent = `frame ${i+1}/${c.frames.length} · t ${((f.t-c.frames[0].t)/1000).toFixed(2)} s · letter model: ${f.top.map(([l,p]) => `${l} ${Math.round(p*100)}%`).join(' ') || '–'}${f.motionP!==null ? ` · motion ${f.motionP.toFixed(2)}` : ''}${f.accepted ? ' · ACCEPTED' : ''}`;
+    drawTL(i);
+  }
+  function drawTL(cur) {
+    const W = tl.clientWidth * dpr, H = tl.clientHeight * dpr; tl.width = W; tl.height = H;
+    const g = tl.getContext('2d'), t0 = c.frames[0].t, dur = c.frames[c.frames.length-1].t - t0 || 1;
+    const X = t => 4*dpr + (t - t0) / dur * (W - 8*dpr), Y = p => H - 20*dpr - p * (H - 30*dpr);
+    g.strokeStyle = '#ccc'; g.setLineDash([4*dpr, 4*dpr]); g.beginPath(); g.moveTo(0, Y(0.8)); g.lineTo(W, Y(0.8)); g.stroke(); g.setLineDash([]);
+    for (const f of c.frames) { g.fillStyle = !f.raw ? (f.held ? '#f08c00' : '#e03131') : '#adb5bd'; g.fillRect(X(f.t) - dpr, H - 14*dpr, 2*dpr, 10*dpr); if (f.accepted) { g.fillStyle = '#2b8a3e'; g.fillRect(X(f.t)-dpr, 0, 2*dpr, H - 16*dpr); } }
+    const line = (key, col) => { g.strokeStyle = col; g.lineWidth = 2*dpr; g.beginPath(); let pen = false; for (const f of c.frames) { if (f[key] === null || f[key] === undefined) { pen = false; continue; } pen ? g.lineTo(X(f.t), Y(f[key])) : g.moveTo(X(f.t), Y(f[key])); pen = true; } g.stroke(); };
+    line('targetP', '#40c057'); line('motionP', '#1c7ed6');
+    g.fillStyle = '#000'; g.fillRect(X(c.frames[cur].t) - dpr/2, 0, dpr, H);
+  }
+  slider.oninput = draw;
+  let timer = null;
+  play.onclick = () => { if (timer) { clearInterval(timer); timer = null; play.textContent = 'Play'; return; } if (+slider.value >= c.frames.length-1) slider.value = 0; play.textContent = 'Pause';
+    let last = performance.now(); timer = setInterval(() => { const i = +slider.value; if (i >= c.frames.length-1) { clearInterval(timer); timer = null; play.textContent = 'Play'; return; } const now = performance.now(); if (now - last >= c.frames[i+1].t - c.frames[i].t) { slider.value = i + 1; last = now; draw(); } }, 5); };
+  draw();
+}
+</script></body></html>

@@ -8,7 +8,7 @@ export type TrackerKind = 'new' | 'old'
 
 export interface HandTracker {
   /** Returns the hand's 21 points for this frame, or null if no hand was found. */
-  detect(video: HTMLVideoElement, now: number): Promise<NormalizedLandmark[] | null>
+  detect(frame: HTMLVideoElement | HTMLCanvasElement, now: number): Promise<NormalizedLandmark[] | null>
 }
 
 // ---- New: MediaPipe Tasks Hand Landmarker ---------------------------------------------
@@ -31,7 +31,7 @@ async function createNewTracker(): Promise<HandTracker> {
     minTrackingConfidence: 0.15,
   })
   return {
-    detect: async (video, now) => landmarker.detectForVideo(video, now).landmarks[0] ?? null,
+    detect: async (frame, now) => landmarker.detectForVideo(frame, now).landmarks[0] ?? null,
   }
 }
 
@@ -47,7 +47,7 @@ interface LegacyHands {
   setOptions(o: Record<string, unknown>): void
   onResults(cb: (r: LegacyResults) => void): void
   initialize(): Promise<void>
-  send(input: { image: HTMLVideoElement }): Promise<void>
+  send(input: { image: HTMLVideoElement | HTMLCanvasElement }): Promise<void>
 }
 declare global {
   interface Window {
@@ -81,8 +81,8 @@ async function createOldTracker(): Promise<HandTracker> {
   })
   await hands.initialize()
   return {
-    detect: async (video) => {
-      await hands.send({ image: video }) // results arrive via onResults before this resolves
+    detect: async (frame) => {
+      await hands.send({ image: frame }) // results arrive via onResults before this resolves
       return latest
     },
   }

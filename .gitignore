@@ -4,3 +4,6 @@ ASL Spell Duel Game Design Overview.md
 Tech Stack.md
 Typing Page Spec.md
 skills.md
+
+# Local Claude Code config (preview server launch settings)
+.claude/

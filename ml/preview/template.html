@@ -1,0 +1,76 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Motion Preview</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --bg:#f6f6f4; --card:#fff; --ink:#222; --muted:#777; --J:#d9480f; --Z:#1971c2; --none:#555; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:14px system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; } p { color:var(--muted); margin:0 0 12px; max-width:760px; }
+  .controls { margin-bottom:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+  .card { background:var(--card); border-radius:8px; padding:8px; box-shadow:0 1px 3px #0002; }
+  .card b { font-size:13px; } canvas { width:100%; aspect-ratio:1; cursor:grab; display:block; }
+</style></head><body>
+<h1>Synthetic J / Z / none clips</h1>
+<p>Camera view (not mirrored; some clips are flipped on purpose, like left-handed signers). Drag a hand to rotate it in 3D, double-click to reset. The faint line is the drawing fingertip's path (pinky for J, index for Z). Dots on the right of each card show the 30 frames (1 s).</p>
+<div class="controls">
+  <label>Speed <input id="speed" type="range" min="0.25" max="2" step="0.25" value="1"></label>
+  <label><input id="trail" type="checkbox" checked> Fingertip trail</label>
+  <button id="pause">Pause</button>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+const CLIPS = /*DATA*/[];
+const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+const FINGER = i => i===0?'#888': i<=4?'#e8590c': i<=8?'#2f9e44': i<=12?'#1c7ed6': i<=16?'#9c36b5':'#f08c00';
+let speed = 1, paused = false, showTrail = true, t0 = performance.now();
+speedEl = document.getElementById('speed'); speedEl.oninput = e => speed = +e.target.value;
+document.getElementById('trail').onchange = e => showTrail = e.target.checked;
+document.getElementById('pause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'Play' : 'Pause'; };
+const views = CLIPS.map((c, idx) => {
+  const card = document.createElement('div'); card.className = 'card';
+  const tipIdx = c.label === 'J' ? 20 : 8;
+  card.innerHTML = `<b style="color:var(--${c.label})">${c.label === 'none' ? 'none: ' + c.kind.replace('_',' ') : c.label}</b> <span style="color:#999">#${idx+1}</span>`;
+  const cv = document.createElement('canvas'); card.appendChild(cv); document.getElementById('grid').appendChild(card);
+  // center of clip for rotation
+  const all = c.frames.flat(); const cx = all.reduce((s,p)=>s+p[0],0)/all.length, cy = all.reduce((s,p)=>s+p[1],0)/all.length;
+  const xs = all.map(p=>p[0]), ys = all.map(p=>p[1]);
+  const span = Math.max(Math.max(...xs)-Math.min(...xs), Math.max(...ys)-Math.min(...ys)) * 1.3;
+  const v = { c, cv, tipIdx, cx, cy, span, yaw:0, pitch:0 };
+  let drag = null;
+  cv.onpointerdown = e => { drag = [e.clientX, e.clientY, v.yaw, v.pitch]; cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (drag) { v.yaw = drag[2] + (e.clientX-drag[0])/80; v.pitch = drag[3] + (e.clientY-drag[1])/80; } };
+  cv.onpointerup = () => drag = null; cv.ondblclick = () => { v.yaw = 0; v.pitch = 0; };
+  return v;
+});
+function project(v, p, W) {
+  let x = p[0]-v.cx, y = p[1]-v.cy, z = p[2];
+  const cy_ = Math.cos(v.yaw), sy = Math.sin(v.yaw); [x, z] = [x*cy_ + z*sy, -x*sy + z*cy_];
+  const cp = Math.cos(v.pitch), sp = Math.sin(v.pitch); [y, z] = [y*cp - z*sp, y*sp + z*cp];
+  return [W/2 + x/v.span*W, W/2 + y/v.span*W, z];
+}
+function draw(now) {
+  if (!paused) t0 += 0;
+  const ft = paused ? (window._ft||0) : ((now - t0) / 1000 * 30 * speed);
+  window._ft = ft;
+  for (const v of views) {
+    const W = v.cv.clientWidth * devicePixelRatio; if (v.cv.width !== W) { v.cv.width = W; v.cv.height = W; }
+    const g = v.cv.getContext('2d'); g.clearRect(0,0,W,W);
+    const n = v.c.frames.length, loop = n + 15; const f = Math.min(Math.floor(ft % loop), n-1);
+    if (showTrail) {
+      g.strokeStyle = '#0003'; g.lineWidth = 2*devicePixelRatio; g.beginPath();
+      v.c.frames.forEach((fr, i) => { const q = project(v, fr[v.tipIdx], W); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); });
+      g.stroke();
+      g.strokeStyle = 'var(--' + v.c.label + ')'; g.strokeStyle = v.c.label==='J'?'#d9480f':v.c.label==='Z'?'#1971c2':'#555';
+      g.beginPath(); for (let i = 0; i <= f; i++) { const q = project(v, v.c.frames[i][v.tipIdx], W); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); } g.stroke();
+    }
+    const pts = v.c.frames[f].map(p => project(v, p, W));
+    g.lineWidth = 3*devicePixelRatio; g.lineCap = 'round';
+    for (const [a,b] of BONES) { g.strokeStyle = FINGER(b); g.beginPath(); g.moveTo(pts[a][0], pts[a][1]); g.lineTo(pts[b][0], pts[b][1]); g.stroke(); }
+    for (const [i, q] of pts.entries()) { g.fillStyle = FINGER(i); g.beginPath(); g.arc(q[0], q[1], (i%4===0&&i?4:2.5)*devicePixelRatio, 0, 7); g.fill(); }
+    // frame dots
+    for (let i = 0; i < n; i++) { g.fillStyle = i <= f ? '#333' : '#ccc'; g.fillRect(W - 8*devicePixelRatio, 6*devicePixelRatio + i*(W-12*devicePixelRatio)/n, 4*devicePixelRatio, 3*devicePixelRatio); }
+  }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script></body></html>

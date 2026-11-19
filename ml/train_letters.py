@@ -10,20 +10,26 @@ Training also mirrors samples so the model works for both hands.
 Data:
   - data/aslnow   sid220/asl-now-fingerspelling  (MIT, several people)
   - data/siruyy   Siruyy/asl-static-landmarks-v1 (CC BY 4.0)
+  - data/aslhg    ASL-HG, Pranto et al. 2026 (CC BY 4.0, 10 signers), points from extract_aslhg.py
 
 Usage:  .venv/Scripts/python train_letters.py
 Output: ../apps/web/public/models/letters.json
 """
 
 import json
+import os
+import time
 from pathlib import Path
 
 import numpy as np
+import torch
 from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
+from torch import nn
 
-OUT = Path("../apps/web/public/models/letters.json")
+OUT = Path(os.environ.get("LETTERS_OUT", "../apps/web/public/models/letters.json"))
+# 3 = x/y/z (shipped so far); 2 = no depth. Live-webcam depth is on a different scale from the photo
+# datasets' (it broke the motion model, see skills.md). LETTER_DIMS=2 trains a no-depth model.
+DIMS = int(os.environ.get("LETTER_DIMS", 3))
 LETTERS = list("ABCDEFGHIKLMNOPQRSTUVWXY")  # static letters only (no J, Z yet)
 TIPS = [4, 8, 12, 16, 20]
 KNUCKLES = [5, 9, 13, 17]
@@ -34,7 +40,7 @@ rng = np.random.default_rng(0)
 def features(points: np.ndarray) -> np.ndarray:
     """points: (21, 3) raw MediaPipe coordinates -> 77 features."""
     p = points - points[0]
-    p = p / (np.linalg.norm(p[9, :2]) or 1.0)
+    p = (p / (np.linalg.norm(p[9, :2]) or 1.0))[:, :DIMS]
     dists = [np.linalg.norm(p[a] - p[b]) for a, b in PAIRS]
     return np.concatenate([p.reshape(-1), dists])
 
@@ -102,15 +108,90 @@ def load_siruyy():
     return X[keep, :63].reshape(-1, 21, 3).astype(np.float32), y
 
 
-def train(raw, y, copies=9):
+ASLHG_SKIP: set[str] = set()  # letters to leave out of ASL-HG if they're signed differently (see skills.md)
+HOLDOUT_SIGNERS = {"P3", "P8"}  # ASL-HG signers kept out of training to measure "new player" accuracy
+
+
+def load_aslhg():
+    """ASL-HG hand points from extract_aslhg.py. Returns points, labels, signer ids."""
+    d = np.load("data/aslhg/points.npz")
+    letters, signers = d["letters"], d["signers"]
+    keep = np.isin(letters, LETTERS) & ~np.isin(letters, list(ASLHG_SKIP))
+    y = np.array([LETTERS.index(c) for c in letters[keep]])
+    return d["points"][keep], y, signers[keep]
+
+
+class LetterMLP:
+    """77 -> 128 -> 64 -> 24 network (same shape as before), trained with PyTorch on the GPU
+    when available. Keeps a scikit-learn-like interface (fit / predict / score / coefs_)."""
+
+    # 60 epochs was too few: it was still improving at the limit (see skills.md).
+    def __init__(self, epochs=200, batch=1024, lr=1e-3, weight_decay=1e-4, patience=15, seed=0):
+        self.epochs, self.batch, self.lr, self.wd, self.patience, self.seed = epochs, batch, lr, weight_decay, patience, seed
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    def fit(self, X, y):
+        torch.manual_seed(self.seed)
+        g = np.random.default_rng(self.seed)
+        idx = g.permutation(len(X))
+        n_val = len(X) // 10  # 10% held back for early stopping
+        Xt = torch.tensor(X, dtype=torch.float32, device=self.device)
+        yt = torch.tensor(y, dtype=torch.long, device=self.device)
+        tr, va = torch.tensor(idx[n_val:], device=self.device), torch.tensor(idx[:n_val], device=self.device)
+        self.net = nn.Sequential(nn.Linear(X.shape[1], 128), nn.ReLU(), nn.Linear(128, 64), nn.ReLU(),
+                                 nn.Linear(64, len(LETTERS))).to(self.device)
+        opt = torch.optim.AdamW(self.net.parameters(), lr=self.lr, weight_decay=self.wd)
+        best, best_state, bad = -1.0, None, 0
+        for epoch in range(self.epochs):
+            self.net.train()
+            for b in tr[torch.randperm(len(tr), device=self.device)].split(self.batch):
+                opt.zero_grad()
+                nn.functional.cross_entropy(self.net(Xt[b]), yt[b]).backward()
+                opt.step()
+            self.net.eval()
+            with torch.no_grad():
+                acc = (self.net(Xt[va]).argmax(1) == yt[va]).float().mean().item()
+            if acc > best:
+                best, bad = acc, 0
+                best_state = {k: v.clone() for k, v in self.net.state_dict().items()}
+            else:
+                bad += 1
+                if bad >= self.patience:
+                    break
+        self.net.load_state_dict(best_state)
+        self.net.eval()
+        print(f"  trained on {self.device}: {epoch + 1} epochs, validation {best:.3f}", flush=True)
+        return self
+
+    def predict(self, X):
+        with torch.no_grad():
+            return self.net(torch.tensor(X, dtype=torch.float32, device=self.device)).argmax(1).cpu().numpy()
+
+    def score(self, X, y):
+        return float((self.predict(X) == np.asarray(y)).mean())
+
+    @property
+    def coefs_(self):  # [inputs x outputs] per layer, like scikit-learn (the web app's format)
+        return [m.weight.detach().cpu().numpy().T for m in self.net if isinstance(m, nn.Linear)]
+
+    @property
+    def intercepts_(self):
+        return [m.bias.detach().cpu().numpy() for m in self.net if isinstance(m, nn.Linear)]
+
+
+def train(raw, y, copies=4):
+    t0 = time.time()
     X = [features(p) for p in raw]
     Y = list(y)
     for _ in range(copies):
         X += [features(augment(p)) for p in raw]
         Y += list(y)
-    model = MLPClassifier(hidden_layer_sizes=(128, 64), alpha=1e-3, max_iter=300,
-                          early_stopping=True, random_state=0)
-    return model.fit(np.array(X), np.array(Y))
+    X, Y = np.array(X, dtype=np.float32), np.array(Y)
+    print(f"  prepared {len(X)} training rows in {time.time() - t0:.0f}s", flush=True)
+    t0 = time.time()
+    model = LetterMLP().fit(X, Y)
+    print(f"  training took {time.time() - t0:.0f}s", flush=True)
+    return model
 
 
 def score(model, raw, y):
@@ -126,48 +207,59 @@ def predict_json(model_json: dict, X: np.ndarray) -> np.ndarray:
     return x.argmax(1)
 
 
+REPORT = Path(os.environ.get("LETTERS_REPORT", "data/holdout-report.json"))  # unseen-signer results of the last run
+
+
 def compare_with_previous(model, X_te, X_te_messy, y_te, warn_drop=0.03):
-    """Per-letter accuracy vs the currently shipped model, so one letter can't silently get worse.
-    (Lesson: overall accuracy rose while tilted P got worse. See skills.md.)"""
-    if not OUT.exists():
-        return
-    old = json.loads(OUT.read_text())
-    if old.get("labels") != LETTERS or len(old["layers"][0]["w"]) != X_te.shape[1] * old["layers"][0]["outputs"]:
-        print("previous model has a different format; skipping per-letter comparison")
-        return
-    print("\nper-letter accuracy vs previous model (clean / one finger messed up):")
-    worse = []
+    """Per-letter accuracy on the unseen signers vs the LAST RUN's unseen-signer accuracy, so one
+    letter can't silently get worse. (Lesson: overall accuracy rose while tilted P got worse.)
+    Compares saved reports, not the shipped model: the shipped model was trained on every signer,
+    including the held-out ones, so testing it on them would be unfair (it scores ~100%)."""
+    report = {"holdout": sorted(HOLDOUT_SIGNERS), "letters": {}}
     for name, X in [("clean", X_te), ("messy", X_te_messy)]:
-        new_pred, old_pred = model.predict(X), predict_json(old, X)
-        for i, letter in enumerate(LETTERS):
-            m = y_te == i
-            n, o = (new_pred[m] == i).mean(), (old_pred[m] == i).mean()
-            if n < o - warn_drop:
-                worse.append(f"  {letter} ({name}): {o:.0%} -> {n:.0%}")
-    print("\n".join(worse) if worse else "  no letter got worse by more than 3 points")
+        pred = model.predict(X)
+        report["letters"][name] = {l: float((pred[y_te == i] == i).mean()) for i, l in enumerate(LETTERS)}
+        report[f"overall_{name}"] = float((pred == y_te).mean())
+    old = json.loads(REPORT.read_text()) if REPORT.exists() else None
+    if old and old.get("holdout") == report["holdout"]:
+        print(f"\nvs last run on the same unseen signers: overall {old['overall_clean']:.1%} -> "
+              f"{report['overall_clean']:.1%}")
+        changes = []
+        for name in ["clean", "messy"]:
+            for l in LETTERS:
+                o, n = old["letters"][name][l], report["letters"][name][l]
+                if abs(n - o) > warn_drop:
+                    changes.append(f"  {l} ({name}): {o:.0%} -> {n:.0%}  {'WORSE' if n < o else 'better'}")
+        print("\n".join(changes) if changes else "  no letter changed by more than 3 points")
+    else:
+        print("\nno earlier report for these unseen signers; saving this run as the baseline")
+    REPORT.write_text(json.dumps(report, indent=1))
 
 
 def main():
     a_raw, a_y = load_aslnow()
     s_raw, s_y = load_siruyy()
-    print(f"ASLNow: {len(a_raw)} samples   Siruyy: {len(s_raw)} samples")
+    h_raw, h_y, h_signer = load_aslhg()
+    print(f"ASLNow: {len(a_raw)}  Siruyy: {len(s_raw)}  ASL-HG: {len(h_raw)} samples "
+          f"({len(set(h_signer))} signers)")
 
-    # How well does a model trained on one dataset handle the other (= new people)?
-    print(f"trained on ASLNow -> tested on Siruyy: {score(train(a_raw, a_y), s_raw, s_y):.3f}")
-    print(f"trained on Siruyy -> tested on ASLNow: {score(train(s_raw, s_y), a_raw, a_y):.3f}")
-
-    raw = np.concatenate([a_raw, s_raw])
-    y = np.concatenate([a_y, s_y])
-    raw_tr, raw_te, y_tr, y_te = train_test_split(raw, y, test_size=0.2, stratify=y, random_state=0)
+    # The honest test: ASL-HG signers the model never saw (= a brand-new player).
+    held = np.isin(h_signer, list(HOLDOUT_SIGNERS))
+    raw_tr = np.concatenate([a_raw, s_raw, h_raw[~held]])
+    y_tr = np.concatenate([a_y, s_y, h_y[~held]])
+    raw_te, y_te = h_raw[held], h_y[held]
     model = train(raw_tr, y_tr)
     X_te = np.array([features(p) for p in raw_te])
-    print(f"combined, held-out test accuracy: {model.score(X_te, y_te):.3f}")
     X_te_messy = np.array([features(mess_up_finger(p)) for p in raw_te])
-    print(f"same test, one finger messed up:  {model.score(X_te_messy, y_te):.3f}")
+    print(f"unseen signers {sorted(HOLDOUT_SIGNERS)}: {model.score(X_te, y_te):.3f}"
+          f"   (one finger messed up: {model.score(X_te_messy, y_te):.3f})")
     print(classification_report(y_te, model.predict(X_te), target_names=LETTERS, digits=2))
 
+    # Per-letter changes vs the last run's results on the same unseen signers.
     compare_with_previous(model, X_te, X_te_messy, y_te)
 
+    raw = np.concatenate([a_raw, s_raw, h_raw])
+    y = np.concatenate([a_y, s_y, h_y])
     final = train(raw, y)  # ship a model trained on everything
     OUT.parent.mkdir(parents=True, exist_ok=True)
     layers = []
@@ -177,7 +269,7 @@ def main():
                        "activation": "softmax" if last else "relu",
                        "w": [round(float(v), 6) for v in w.reshape(-1)],
                        "b": [round(float(v), 6) for v in b]})
-    OUT.write_text(json.dumps({"labels": LETTERS, "pairs": PAIRS, "layers": layers}))
+    OUT.write_text(json.dumps({"labels": LETTERS, "pairs": PAIRS, "dims": DIMS, "layers": layers}))
     print(f"saved {OUT} ({OUT.stat().st_size // 1024} KB)")
 
 

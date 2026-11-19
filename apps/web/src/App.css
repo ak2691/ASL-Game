@@ -78,6 +78,7 @@ header { display: flex; justify-content: space-between; align-items: center; fle
 .seeing { display: flex; align-items: center; gap: 10px; color: var(--sub); }
 .seeing b { color: var(--text); font-size: 20px; }
 .top-guess { font-size: 13px; margin-left: 8px; }
+.top3 { color: var(--sub); font-size: 12px; }
 
 .guide {
   width: 240px;
@@ -93,3 +94,12 @@ header { display: flex; justify-content: space-between; align-items: center; fle
 .guide-legend { color: var(--sub); font-size: 11px; margin-bottom: 10px; }
 
 footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
+
+/* Free mode: what was just signed */
+.free { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; margin: 8px 0 12px; }
+.free-last { display: flex; align-items: baseline; gap: 12px; }
+.free-last b { font-size: 64px; line-height: 1; color: var(--main); min-width: 1ch; }
+.free-label { color: var(--sub); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+.free-now { color: var(--sub); font-size: 18px; }
+.free-now b { color: var(--text); }
+.free-history { flex-basis: 100%; display: flex; align-items: center; gap: 12px; font-size: 24px; letter-spacing: 0.15em; color: var(--text); overflow-wrap: anywhere; }
