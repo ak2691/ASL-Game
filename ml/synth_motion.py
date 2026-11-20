@@ -10,8 +10,12 @@ Textbook paths (signer's view, right hand):
      signer; the pinky tip sweeps toward the thumb side and curls slightly up (a hook).
   Z: index finger out. Whole hand draws Z: across (thumb side -> pinky side), diagonally
      back and down, across again.
+  wiggle: quick side-to-side shake of the hand (any handshape), 2+ back-and-forths. The
+     "erase" gesture (signers shake off a fingerspelling mistake).
   none: holding letters (incl. I and D still), moving between letters, partial J/Z
-     (drop with no twist, only 1-2 strokes), waving, wandering.
+     (drop with no twist, only 1-2 strokes), slow sways / one swing / tremor, wandering.
+  Any class may end with the hand leaving (sign, then drop the hand or move away at once),
+  so the model is sure right as the sign ends instead of after a still moment.
 
 Each clip: FRAMES x 21 x 3 in image coordinates (x right, y down, z depth), like MediaPipe.
 Clips are randomly mirrored (left-handed signers / mirrored video).
@@ -33,7 +37,7 @@ import numpy as np
 from train_letters import HOLDOUT_SIGNERS, LETTERS, load_aslhg, load_aslnow, load_siruyy
 
 FRAMES = 45  # 1.5 s at 30 fps (long enough for slow or big Js and Zs)
-CLASSES = ["none", "J", "Z"]
+CLASSES = ["none", "J", "Z", "wiggle"]
 rng = np.random.default_rng(0)
 
 
@@ -93,10 +97,13 @@ def ease(u: np.ndarray) -> np.ndarray:
     return u * u * (3 - 2 * u)
 
 
+END_AT: int | None = None  # set by generate(): the motion ends this many frames before the window ends
+
+
 def timeline(dmin: int = 10, dmax: int = 40) -> np.ndarray:
     """Per-frame progress 0..1: hold, move (random speed), hold."""
     dur = rng.integers(dmin, dmax)  # default: motion lasts ~0.33-1.3 s
-    start = rng.integers(0, FRAMES - dur + 1)
+    start = rng.integers(0, FRAMES - dur + 1) if END_AT is None else max(FRAMES - dur - END_AT, 0)
     t = (np.arange(FRAMES) - start) / dur
     # uneven speed: warp time a little
     w = rng.uniform(0.7, 1.4)
@@ -264,13 +271,82 @@ def clip_partial_Z(pose):
     return np.array([p0 + [x, y, 0] for x, y in xy])
 
 
-def clip_wave(pose):
+def shake_env(cycles_min: float, cycles_max: float, fmin: float, fmax: float):
+    """Side-to-side phase (radians) and envelope per frame: still, shake for a few cycles, still."""
+    f = rng.uniform(fmin, fmax)  # back-and-forths per second
+    cycles = rng.uniform(cycles_min, cycles_max)
+    dur = int(np.clip(round(cycles / f * 30), 4, FRAMES))
+    start = rng.integers(0, FRAMES - dur + 1) if END_AT is None else max(FRAMES - dur - END_AT, 0)
+    t = (np.arange(FRAMES) - start) / 30.0
+    on = (t >= 0) & (t <= dur / 30)
+    ramp = np.clip(np.minimum(t, dur / 30 - t) / 0.08, 0, 1) * on  # quick fade in/out
+    phase = 2 * np.pi * f * np.clip(t, 0, dur / 30) * (1 + rng.normal(0, 0.05) * np.sin(t * 7))
+    return phase, ramp
+
+
+def open_hand(pose: np.ndarray) -> np.ndarray:
+    """A B pose with the fingers spread and the thumb out (a "5" hand, which no letter uses).
+    Each finger turns about its knuckle in the image plane: index toward the thumb, pinky away."""
+    p = pose.copy()
+    side = thumb_side(p)
+    a = rng.uniform(0.0, 0.45)  # spread (radians) of the outer fingers
+    for mcp, k in ((5, 1.0), (9, 0.35), (13, -0.35), (17, -1.0)):
+        p[mcp + 1:mcp + 4] = rot_z(p[mcp + 1:mcp + 4] - p[mcp], side * a * k) + p[mcp]
+    p[2:5] = rot_z(p[2:5] - p[1], side * rng.uniform(0.2, 0.8)) + p[1]  # thumb out from the palm
+    return p
+
+
+def clip_wiggle(pose):
+    """Erase gesture: the OPEN hand shakes side to side 2-6 times, quickly (2.5-6 per second).
+    Whole-hand shake, wrist wag, or both; a little up/down bob. The same shake with a letter
+    handshape (a fist, ...) is "none" (letter_shake): user test, a shaken fist read as S after."""
     p0 = base_tilt(pose)
-    f, amp = rng.uniform(1.5, 4), rng.uniform(0.1, 0.5)
-    t = np.arange(FRAMES) / FRAMES
-    if rng.random() < 0.5:  # side-to-side shake (the cancel gesture)
-        return np.array([p0 + [amp * np.sin(2 * np.pi * f * k), 0, 0] for k in t])
-    return np.array([rot_z(p0, amp * np.sin(2 * np.pi * f * k)) for k in t])  # wrist wag
+    phase, env = shake_env(2, 6, 2.5, 6)
+    kind = rng.random()
+    amp = rng.uniform(0.25, 0.9) if kind < 0.7 else rng.uniform(0.05, 0.3)  # palm units
+    wag = rng.uniform(0.25, 0.7) if kind >= 0.4 else 0.0  # radians
+    bob = rng.uniform(0, 0.15)
+    out = []
+    for ph, e in zip(phase, env):
+        p = rot_z(p0, wag * e * np.sin(ph + 0.3))
+        out.append(p + [amp * e * np.sin(ph), bob * e * np.sin(2 * ph), 0])
+    return np.array(out)
+
+
+def clip_wave(pose):
+    """Not a wiggle: a slow sway, a single swing, or a tiny tremor."""
+    p0 = base_tilt(pose)
+    r = rng.random()
+    if r < 0.4:  # slow sway (under 1.5 per second)
+        phase, env = shake_env(0.5, 2.5, 0.4, 1.5)
+        amp = rng.uniform(0.1, 0.8)
+    elif r < 0.7:  # one swing over and back (half to one cycle)
+        phase, env = shake_env(0.5, 1.2, 1.5, 4)
+        amp = rng.uniform(0.2, 0.9)
+    else:  # tremor: fast but tiny
+        phase, env = shake_env(2, 6, 3, 7)
+        amp = rng.uniform(0.01, 0.05)
+    if rng.random() < 0.5:
+        return np.array([p0 + [amp * e * np.sin(ph), 0, 0] for ph, e in zip(phase, env)])
+    return np.array([rot_z(p0, amp * 0.8 * e * np.sin(ph)) for ph, e in zip(phase, env)])  # wrist wag
+
+
+def add_exit(clip: np.ndarray, n: int) -> np.ndarray:
+    """The hand leaves right after the sign: over the last n frames it speeds away (mostly down,
+    out of view) and often relaxes/turns. The window then ends mid-exit, like a hand that just left."""
+    if n <= 0:
+        return clip
+    out = clip.copy()
+    ang = rng.normal(np.pi / 2, 0.6) if rng.random() < 0.7 else rng.uniform(0, 2 * np.pi)  # image y is down
+    dist = rng.uniform(0.6, 3.5)
+    k = (np.arange(n) + 1) / n
+    disp = (k ** rng.uniform(1.3, 2.2)) * dist  # accelerating
+    spin = rng.normal(0, 0.4)
+    for i, d in enumerate(disp):
+        j = len(out) - n + i
+        w = out[j, :1]
+        out[j] = rot_z(out[j] - w, spin * k[i]) + w + [np.cos(ang) * d, np.sin(ang) * d, 0]
+    return out
 
 
 def clip_wander(pose):
@@ -376,6 +452,8 @@ def finger_snap(clip: np.ndarray, keep: int | None = None) -> np.ndarray:
     return out
 
 
+CLASS_SHARE = [0.4, 0.2, 0.2, 0.2]  # none, J, Z, wiggle
+EXIT_SHARE = 0.4  # share of clips that end with the hand leaving
 BAD_SHARE = 0.7  # share of clips filmed with a bad camera
 LOST_LIMIT = float(os.environ.get('LOST_LIMIT', 0.5))  # a J/Z that lost more than this much of its motion is relabeled "none"
 
@@ -390,22 +468,41 @@ def generate(n: int, poses: dict[str, np.ndarray], bad_share: float = BAD_SHARE)
         else clip_transition(pick(rng.choice(["I", "D"])), any_letter()),
         "partial_J": lambda: clip_partial_J(pick("I")),
         "partial_Z": lambda: clip_partial_Z(pick("D")),
-        "wave": lambda: clip_wave(any_letter()),
+        "sway": lambda: clip_wave(any_letter()),
+        # The open hand without a real shake (user, v16: just opening the hand erased letters,
+        # because open hands only ever appeared in wiggle clips): hold, open up, sway, one swing, move.
+        "open_hold": lambda: clip_hold(open_hand(pick("B"))),
+        "open_up": lambda: clip_transition(any_letter(), open_hand(pick("B"))) if rng.random() < 0.7
+        else clip_transition(open_hand(pick("B")), any_letter()),
+        "open_sway": lambda: clip_wave(open_hand(pick("B"))),
+        "open_wander": lambda: clip_wander(open_hand(pick("B"))),
+        "letter_shake": lambda: clip_wiggle(pick([L for L in LETTERS if L != "B"][rng.integers(len(LETTERS) - 1)] if rng.random() < 0.5 else rng.choice(["A", "S", "E", "O", "C", "W", "V", "I", "D"]))),
         "wander": lambda: clip_wander(any_letter()),
     }
+    global END_AT
     X, y, kinds = [], [], []
     for i in range(n):
-        c = i % 3
+        c = int(rng.choice(4, p=CLASS_SHARE))
+        # Sign, then leave at once: the motion ends just before the window does, and the hand
+        # speeds away (or is gone: a 0-2 frame tail). Also on "none", so leaving isn't a clue.
+        n_exit = int(rng.integers(0, 10)) if rng.random() < EXIT_SHARE else -1
+        END_AT = max(n_exit + int(rng.integers(-1, 3)), 0) if n_exit >= 0 else None
         if c == 1:
             clip, kind = clip_J(pick("I")), "J"
         elif c == 2:
             clip, kind = clip_Z(pick("D")), "Z"
+        elif c == 3:
+            clip, kind = clip_wiggle(open_hand(pick("B")) if rng.random() < 0.8 else pick("B")), "wiggle"
         else:
             kind = list(none_kinds)[rng.integers(len(none_kinds))]
             clip = none_kinds[kind]()
+        END_AT = None
+        if n_exit >= 0:
+            clip = add_exit(clip, n_exit)
+            kind += "+exit"
         img = to_image(clip)
         if c == 0 and rng.random() < SNAP_SHARE * (bad_share > 0):  # glitches only on "none" (glitch != sign); clean test stays glitch-free
-            img = finger_snap(img, keep={1: 4, 2: 1}.get(c))  # J: pinky draws, Z: index draws
+            img = finger_snap(img)  # J: pinky draws, Z: index draws
         if rng.random() < bad_share:
             img, lost = bad_camera(img)
             if c != 0 and lost > LOST_LIMIT:

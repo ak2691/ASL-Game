@@ -17,6 +17,9 @@ const GAP_MS = 400 // tolerate the hand dropping out this long (fast moves lose 
 const ACCEPT_PROB = 0.8 // model must be this sure...
 const ACCEPT_FRAMES = 2 // ...for this many frames in a row
 const MIN_HISTORY_MS = 600 // after a J/Z is accepted, the next needs this much fresh history
+// Sign, then drop the hand at once: if the hand vanishes within this long of a frame where the
+// model was sure, accept that frame (the 2nd sure frame never comes once the hand is gone).
+const LEAVE_MS = 300
 
 interface MotionModel {
   labels: string[]
@@ -54,6 +57,8 @@ function predict(m: MotionModel, x: Float32Array): Float32Array {
 
 export type MotionLetter = 'J' | 'Z'
 export const isMotionLetter = (l: string): l is MotionLetter => l === 'J' || l === 'Z'
+/** Everything the motion model can fire: J, Z, and the "wiggle" (erase) gesture. */
+export type MotionSign = MotionLetter | 'wiggle'
 
 interface Frame {
   t: number
@@ -114,7 +119,8 @@ export class MotionTracker {
   private sureFrames = 0
   private letter: MotionLetter | null = null
   private acceptedAt: number | null = null
-  private sureLetter: MotionLetter | null = null // free mode: which letter the sure-frame count is for
+  private sureLetter: MotionSign | null = null // free mode: which sign the sure-frame count is for
+  private sureAt: { sign: MotionSign; t: number } | null = null // last frame the model was sure (for LEAVE_MS)
   prob = 0 // latest model probability for the target letter (for the debug recorder)
 
   /**
@@ -129,6 +135,7 @@ export class MotionTracker {
       this.prob = 0
     }
     const probs = this.run(lm, t)
+    if (!lm && letter && this.leftAfterSure(t, letter)) return this.accept(t)
     if (!probs || !letter || !model) return (this.lastProgress = lm ? 0 : this.lastProgress)
     const prob = (this.prob = probs[model.labels.indexOf(letter)])
 
@@ -137,38 +144,53 @@ export class MotionTracker {
     // wait for MIN_HISTORY_MS of fresh history. A J/Z after any other letter has no wait.
     const fresh = this.acceptedAt === null || t - this.acceptedAt >= MIN_HISTORY_MS
     this.sureFrames = prob >= ACCEPT_PROB && fresh ? this.sureFrames + 1 : 0
-    if (this.sureFrames >= ACCEPT_FRAMES) {
-      this.frames = []
-      this.sureFrames = 0
-      this.lastProgress = 0
-      this.acceptedAt = t
-      return 1
-    }
+    this.sureAt = this.sureFrames ? { sign: letter, t } : this.sureAt
+    if (this.sureFrames >= ACCEPT_FRAMES) return this.accept(t)
     return (this.lastProgress = 0.9 * prob)
   }
 
+  private accept(t: number): 1 {
+    this.frames = []
+    this.sureFrames = 0
+    this.sureLetter = null
+    this.sureAt = null
+    this.lastProgress = 0
+    this.acceptedAt = t
+    return 1
+  }
+
+  /** The hand just vanished right after a sure frame for this sign (signed, then dropped the hand). */
+  private leftAfterSure(t: number, sign: MotionSign): boolean {
+    return this.sureAt !== null && this.sureAt.sign === sign && t - this.sureAt.t <= LEAVE_MS
+  }
+
   /**
-   * Free signing (no target letter): returns 'J' or 'Z' on the frame one is recognized, else null.
-   * The winning class must beat "none" and the other letter, at >= ACCEPT_PROB for ACCEPT_FRAMES.
+   * Free signing (no target letter): returns 'J', 'Z' or 'wiggle' on the frame one is recognized,
+   * else null. The winning class must beat "none" and the others, at >= ACCEPT_PROB for
+   * ACCEPT_FRAMES, or for one frame right before the hand leaves (LEAVE_MS).
    */
-  updateFree(lm: Point[] | null, t: number): MotionLetter | null {
+  updateFree(lm: Point[] | null, t: number): MotionSign | null {
     const probs = this.run(lm, t)
+    if (!lm && this.sureAt && this.leftAfterSure(t, this.sureAt.sign)) {
+      const sign = this.sureAt.sign
+      this.accept(t)
+      return sign
+    }
     if (!probs || !model) return null
-    let best: MotionLetter | null = null
-    for (const L of ['J', 'Z'] as const) {
+    const signs = model.labels.filter((l) => l !== 'none') as MotionSign[]
+    let best: MotionSign | null = null
+    for (const L of signs) {
       const p = probs[model.labels.indexOf(L)]
       if (p >= ACCEPT_PROB && (!best || p > probs[model.labels.indexOf(best)])) best = L
     }
-    this.prob = best ? probs[model.labels.indexOf(best)] : Math.max(probs[model.labels.indexOf('J')], probs[model.labels.indexOf('Z')])
+    this.prob = best ? probs[model.labels.indexOf(best)] : Math.max(...signs.map((L) => probs[model!.labels.indexOf(L)]))
     const fresh = this.acceptedAt === null || t - this.acceptedAt >= MIN_HISTORY_MS
     if (best && fresh && best === this.sureLetter) this.sureFrames++
     else this.sureFrames = best && fresh ? 1 : 0
     this.sureLetter = best
+    this.sureAt = best && fresh ? { sign: best, t } : this.sureAt
     if (best && this.sureFrames >= ACCEPT_FRAMES) {
-      this.frames = []
-      this.sureFrames = 0
-      this.sureLetter = null
-      this.acceptedAt = t
+      this.accept(t)
       return best
     }
     return null
@@ -196,6 +218,7 @@ export class MotionTracker {
     this.lastProgress = 0
     this.sureFrames = 0
     this.sureLetter = null
+    this.sureAt = null
     this.acceptedAt = null
   }
 }

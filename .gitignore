@@ -4,6 +4,11 @@ ASL Spell Duel Game Design Overview.md
 Tech Stack.md
 Typing Page Spec.md
 skills.md
+MVP Plan.md
+Future Plans.md
 
 # Local Claude Code config (preview server launch settings)
 .claude/
+
+# Debug stroke logs (?debug -> Download strokes); tuning data, not source
+strokes-*.json

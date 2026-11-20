@@ -3,11 +3,12 @@ import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapip
 import { MotionTracker, isMotionLetter } from './motion'
 import { checkForm, directionAdjusted, directionLetter } from './rules'
 import { classify, loadRecognizer, type Hand, type Prediction, type Recognizer } from './recognition'
-import { getTracker, type TrackerKind } from './trackers'
+import { getTracker } from './trackers'
 import { JumpFilter, LandmarkSmoother } from './smoothing'
 import { GUIDE, randomWords } from './content'
 import { GuidePose } from './GuidePose'
 import { CLIP_MS, Recorder } from './recorder'
+import { SpellPage } from './SpellPage'
 import './App.css'
 
 // Target-letter scoring: we know which letter the player should sign next,
@@ -43,65 +44,31 @@ const ZOOMS = [1, 1.5, 2] // digital zoom levels for players sitting farther fro
 const DROPOUT_GRACE_MS = 200 // if tracking loses the hand briefly, keep the last hand this long
 const WORDS_PER_RUN = 30
 
-// Free mode (the casting game's input): no target letter. A static letter counts once it's the
-// confident top guess for a moment; J/Z come from the motion model choosing on its own.
-const FREE_MIN_PROB = 0.8 // top letter must be this sure...
-const FREE_HOLD_MS = 250 // ...for this long (longer than the typing page: no target to filter passing shapes)
-const FREE_RELAX_MS = 300 // the same letter again needs a moment of "nothing" in between
-const FIXUP_MS = 1500 // a J/Z right after an I/D replaces it ("commit now, correct later", skills.md)
-
-interface FreeEntry {
-  letter: string
-  t: number
-}
-const newFree = () => ({
-  history: [] as FreeEntry[],
-  holdLetter: null as string | null,
-  holdSince: 0,
-  committed: null as string | null, // last committed static letter, blocks instant repeats
-})
-
 let recognizerPromise: Promise<Recognizer> | null = null
 const getRecognizer = () => (recognizerPromise ??= loadRecognizer())
 
-function loadHand(): Hand | null {
-  try {
-    const v = localStorage.getItem('hand')
-    return v === 'left' || v === 'right' ? v : null
-  } catch {
-    return null
-  }
-}
-function saveHand(h: Hand) {
-  try {
-    localStorage.setItem('hand', h)
-  } catch {
-    /* ignore */
-  }
-}
+// The letter model was trained on mirrored copies, so either hand works; we normalize to right.
+const HAND: Hand = 'right'
 
 export default function App() {
-  const [hand, setHand] = useState<Hand | null>(loadHand)
-
-  const choose = (h: Hand) => {
-    saveHand(h)
-    setHand(h)
+  // Remember the page across refreshes (per tab), so a refresh mid-match stays on Spells.
+  const [spells, setSpellsState] = useState(() => {
+    try {
+      return sessionStorage.getItem('page') === 'spells'
+    } catch {
+      return false
+    }
+  })
+  const setSpells = (on: boolean) => {
+    setSpellsState(on)
+    try {
+      sessionStorage.setItem('page', on ? 'spells' : 'typing')
+    } catch {
+      /* ignore */
+    }
   }
-
-  if (!hand) {
-    return (
-      <main className="center">
-        <h1>ASL Speed</h1>
-        <p className="sub">Which hand do you sign with?</p>
-        <div className="row">
-          <button onClick={() => choose('left')}>Left hand</button>
-          <button onClick={() => choose('right')}>Right hand</button>
-        </div>
-        <p className="note">Your camera video stays on this device and is never uploaded.</p>
-      </main>
-    )
-  }
-  return <TypingPage hand={hand} onChangeHand={() => setHand(null)} />
+  if (spells) return <SpellPage hand={HAND} onBack={() => setSpells(false)} />
+  return <TypingPage hand={HAND} onSpells={() => setSpells(true)} />
 }
 
 interface Stats {
@@ -126,8 +93,6 @@ interface View {
   errors: number
   elapsedMs: number
   stuck: boolean
-  freeNow: string // free mode: what the model sees right now ("none" if nothing)
-  freeHistory: string // free mode: letters signed so far (last one = "last signed")
 }
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
@@ -156,13 +121,10 @@ function newGame(practice: string | null = null) {
   }
 }
 
-function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => void }) {
+function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const game = useRef(newGame())
-  const [freeMode, setFreeMode] = useState(false)
-  const freeRef = useRef(false) // read by the camera loop
-  const free = useRef(newFree())
   const [guideOn, setGuideOn] = useState(true)
   // Debug recorder: S (or the button) saves the last few seconds; Download exports them all.
   const recorder = useRef(new Recorder())
@@ -180,13 +142,6 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  const [trackerKind, setTrackerKind] = useState<TrackerKind>(() => {
-    try {
-      return localStorage.getItem('tracker') === 'old' ? 'old' : 'new'
-    } catch {
-      return 'new'
-    }
-  })
   // Digital zoom (1×, 1.5×, 2×): read by the camera loop through a ref, so changing it
   // doesn't restart the camera.
   const [zoom, setZoom] = useState<number>(() => {
@@ -208,16 +163,6 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
       /* ignore */
     }
   }
-  const switchTracker = () => {
-    const next = trackerKind === 'new' ? 'old' : 'new'
-    try {
-      localStorage.setItem('tracker', next)
-    } catch {
-      /* ignore */
-    }
-    setView((v) => ({ ...v, stats: null, status: 'Loading hand tracking…' }))
-    setTrackerKind(next)
-  }
   const [view, setView] = useState<View>({
     stats: null,
     formHint: null,
@@ -232,8 +177,6 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
     errors: 0,
     elapsedMs: 0,
     stuck: false,
-    freeNow: 'none',
-    freeHistory: '',
   })
 
   useEffect(() => {
@@ -245,7 +188,7 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
 
     async function start() {
       try {
-        const [rec, tracker] = await Promise.all([getRecognizer(), getTracker(trackerKind)])
+        const [rec, tracker] = await Promise.all([getRecognizer(), getTracker()])
         if (stopped) return
         setView((v) => ({ ...v, status: 'Starting camera…' }))
         // Higher resolution = more finger detail for the tracker; higher frame rate = less blur.
@@ -283,7 +226,7 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
         const jumpFilter = new JumpFilter()
         let lastHand: { lm: NormalizedLandmark[]; t: number } | null = null
         let lastVideoTime = -1
-        let busy = false // the old tracker is asynchronous: skip frames that arrive mid-detection
+        let busy = false // skip frames that arrive mid-detection
 
         // Digital zoom: the tracker sees only the middle of the camera picture, enlarged, so a
         // hand at normal sitting distance takes up more of the image. The preview is zoomed the
@@ -376,65 +319,8 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
       }
     }
 
-    // Free mode: no target. Commit whatever is signed; show "now" and "last signed".
-    function freeStep(pred: Prediction | null, lm: NormalizedLandmark[] | null, now: number, raw: NormalizedLandmark[] | null) {
-      const f = free.current
-      const g = game.current
-      const motion = g.motion.updateFree(raw, now)
-      const top = pred && pred.confidence >= FREE_MIN_PROB ? directionLetter(pred.letter, lm) : null
-      const seen = top && !checkForm(top, lm) ? top : null
-      if (motion) {
-        // J starts as I and Z as D, so that letter was probably just committed: replace it.
-        const base = motion === 'J' ? 'I' : 'D'
-        const last = f.history[f.history.length - 1]
-        if (last && last.letter === base && now - last.t < FIXUP_MS) f.history[f.history.length - 1] = { letter: motion, t: now }
-        else f.history.push({ letter: motion, t: now })
-        f.committed = base // the I/D still on screen after the motion doesn't count again
-        f.holdLetter = null
-      } else {
-        if (seen !== f.holdLetter) {
-          f.holdLetter = seen
-          f.holdSince = now
-        }
-        if (!seen) {
-          if (now - f.holdSince >= FREE_RELAX_MS) f.committed = null
-        } else if (seen !== f.committed && now - f.holdSince >= FREE_HOLD_MS) {
-          f.history.push({ letter: seen, t: now })
-          f.committed = seen
-        }
-      }
-      if (f.history.length > 60) f.history.shift()
-
-      recorder.current.push({
-        t: now,
-        raw,
-        held: lm !== null && raw === null,
-        target: 'free',
-        targetP: 0,
-        top: pred ? pred.top(3).map((x) => [x.letter, x.prob] as [string, number]) : [],
-        motionP: g.motion.prob,
-        accepted: motion !== null,
-      })
-
-      if (!motion && now - lastViewUpdate < 50) return
-      lastViewUpdate = now
-      setView((v) => ({
-        ...v,
-        stats,
-        freeNow: motion ?? seen ?? 'none',
-        freeHistory: f.history.map((e) => e.letter).join(''),
-        top3: pred
-          ? pred
-              .top(3)
-              .map((t) => `${t.letter} ${Math.round(t.prob * 100)}%`)
-              .join(' · ')
-          : '',
-      }))
-    }
-
     // Advance the game based on what the model sees this frame.
     function step(pred: Prediction | null, lm: NormalizedLandmark[] | null, now: number, raw: NormalizedLandmark[] | null) {
-      if (freeRef.current) return freeStep(pred, lm, now, raw)
       const g = game.current
       const word = g.words[g.wordIdx]
       const target = word[g.letterIdx].toUpperCase()
@@ -495,7 +381,6 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
         trackingFps: stats?.processedFps ?? 0,
         handFoundPct: stats?.handFound ?? 0,
         zoom: zoomRef.current,
-        tracker: trackerKind,
         hand,
       }
       recorder.current.push({
@@ -554,18 +439,10 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
       cancelAnimationFrame(raf)
       stream?.getTracks().forEach((t) => t.stop())
     }
-  }, [hand, trackerKind])
+  }, [hand])
 
   const [practice, setPractice] = useState<string | null>(null) // null = words mode
-  const setFree = (on: boolean) => {
-    freeRef.current = on
-    setFreeMode(on)
-    free.current = newFree()
-    game.current.motion.reset()
-    setView((v) => ({ ...v, freeNow: 'none', freeHistory: '' }))
-  }
   const startRun = (letter: string | null) => {
-    setFree(false)
     setPractice(letter)
     const g = (game.current = newGame(letter))
     // Show the new run right away (the camera loop also refreshes this every frame).
@@ -586,23 +463,17 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
       <header>
         <span className="logo">ASL Speed</span>
         <div className="row">
-          <button className={`small ${!freeMode && practice === null ? 'active' : ''}`} onClick={() => startRun(null)}>
+          <button className={`small ${practice === null ? 'active' : ''}`} onClick={() => startRun(null)}>
             Words
           </button>
-          <button className={`small ${!freeMode && practice !== null ? 'active' : ''}`} onClick={() => startRun(practice ?? 'A')}>
+          <button className={`small ${practice !== null ? 'active' : ''}`} onClick={() => startRun(practice ?? 'A')}>
             Letters
           </button>
-          <button className={`small ${freeMode ? 'active' : ''}`} onClick={() => setFree(true)} title="Sign any letter; see what it reads">
-            Free
+          <button className="small" onClick={onSpells} title="Prototype: sign an element, draw a shape">
+            Spells
           </button>
           <button className="small" onClick={cycleZoom} title="Zoom in if your hand looks small on camera">
             Zoom: {zoom}×
-          </button>
-          <button className="small" onClick={switchTracker} title="Switch hand tracker (for comparing)">
-            Tracker: {trackerKind === 'new' ? 'New' : 'Old'}
-          </button>
-          <button className="small" onClick={onChangeHand}>
-            {hand === 'right' ? 'Right' : 'Left'} hand
           </button>
           <button className="small" onClick={() => setGuideOn((g) => !g)}>
             Guide: {guideOn ? 'ON' : 'OFF'}
@@ -621,27 +492,7 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
         </div>
       </header>
 
-      {freeMode && (
-        <section className="free" aria-live="polite">
-          <div className="free-last">
-            <span className="free-label">last signed</span>
-            <b>{view.freeHistory.slice(-1) || '–'}</b>
-          </div>
-          <div className="free-now">
-            now: <b>{view.freeNow}</b>
-          </div>
-          <div className="free-history">
-            {view.freeHistory || 'Sign any letter…'}
-            {view.freeHistory && (
-              <button className="small" onClick={() => setFree(true)}>
-                Clear
-              </button>
-            )}
-          </div>
-        </section>
-      )}
-
-      {!freeMode && practice !== null && (
+      {practice !== null && (
         <section className="alphabet" aria-label="Pick a letter to practice">
           {ALPHABET.map((l) => (
             <button key={l} className={`small ${l === practice ? 'active' : ''}`} onClick={() => startRun(l)}>
@@ -651,7 +502,7 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
         </section>
       )}
 
-      {!freeMode && <section className="words">
+      {<section className="words">
         {upcoming.map((w, i) =>
           i === 0 ? (
             <span key={view.wordIdx} className="word current">
@@ -680,7 +531,7 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
             <video ref={videoRef} playsInline muted style={{ transform: `scale(${zoom})` }} />
             <canvas ref={canvasRef} />
           </div>
-          {!freeMode && <div className="seeing">
+          {<div className="seeing">
             <Ring progress={Math.min(1, view.targetProb / ACCEPT_PROB)} />
             <span>
               {target}: <b>{Math.round(view.targetProb * 100)}%</b>
@@ -691,7 +542,7 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
           {view.formHint && <div className="form-hint">{view.formHint}</div>}
         </div>
 
-        {!freeMode && showGuide && (
+        {showGuide && (
           <div className="panel guide">
             <div className="guide-title">GUIDE</div>
             <div className="guide-letter">{target}</div>
@@ -703,7 +554,7 @@ function TypingPage({ hand, onChangeHand }: { hand: Hand; onChangeHand: () => vo
       </section>
 
       <footer>
-        {!freeMode && (
+        {(
           <>
             <span>time {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}</span>
             <span>letters/min {lpm}</span>

@@ -178,6 +178,9 @@ def report(name, pred, y, kinds):
     for c, L in enumerate(CLASSES):
         m = y == c
         print(f"  {L:5s} recognized {np.mean(pred[m] == c):.3f}")
+    ex = np.char.endswith(kinds.astype(str), "+exit")
+    print("  ending with the hand leaving: " + ", ".join(
+        f"{L} {np.mean(pred[(y == c) & ex] == c):.3f}" for c, L in enumerate(CLASSES) if ((y == c) & ex).any()))
     m = y == 0
     print(f"  false triggers on none: {np.mean(pred[m] != 0):.3f}")
     for k in np.unique(kinds[m]):

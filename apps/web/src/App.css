@@ -96,10 +96,71 @@ header { display: flex; justify-content: space-between; align-items: center; fle
 footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 
 /* Free mode: what was just signed */
-.free { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; margin: 8px 0 12px; }
-.free-last { display: flex; align-items: baseline; gap: 12px; }
-.free-last b { font-size: 64px; line-height: 1; color: var(--main); min-width: 1ch; }
-.free-label { color: var(--sub); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
-.free-now { color: var(--sub); font-size: 18px; }
-.free-now b { color: var(--text); }
-.free-history { flex-basis: 100%; display: flex; align-items: center; gap: 12px; font-size: 24px; letter-spacing: 0.15em; color: var(--text); overflow-wrap: anywhere; }
+
+/* Spells page */
+.spell-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 28px; margin: 8px 0 12px; min-height: 64px; }
+.charge { font-size: 22px; color: var(--sub); }
+.sub-line { color: var(--sub); }
+.cast { font-size: 40px; font-weight: bold; animation: cast-pop 0.4s ease-out; }
+.cast span { display: block; font-size: 13px; font-weight: normal; color: var(--sub); }
+@keyframes cast-pop { from { transform: scale(1.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.spell-help { max-width: 300px; color: var(--text); font-size: 14px; }
+.spell-help ul { margin: 4px 0 10px; padding-left: 18px; }
+.spell-log { color: var(--sub); display: flex; flex-direction: column; gap: 2px; }
+.shape-guide { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; margin: 6px 0 4px; }
+.shape-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; background: var(--sub-alt); border-radius: 8px; color: var(--text); font-size: 12px; }
+.shape-note { color: var(--sub); font-size: 12px; margin-bottom: 10px; }
+.battle { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 32px; margin: 8px 0; }
+.fighter { flex: 1 1 260px; max-width: 360px; display: flex; flex-direction: column; gap: 6px; }
+.fighter-name { display: flex; gap: 8px; align-items: center; font-weight: bold; }
+.tag { font-size: 11px; font-weight: normal; padding: 1px 6px; border-radius: 4px; background: var(--sub-alt); color: var(--text); }
+.hp-bar, .cast-bar { position: relative; height: 22px; background: var(--sub-alt); border-radius: 6px; overflow: visible; }
+.cast-bar { height: 14px; }
+.hp-fill, .cast-fill { height: 100%; border-radius: 6px; transition: width 0.2s; }
+.cast-fill { transition: none; }
+.hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
+.hp-text.idle { color: var(--sub); text-shadow: none; }
+.float { position: absolute; right: 8px; top: -4px; font-weight: bold; font-size: 18px; pointer-events: none; animation: float-up 1.2s ease-out forwards; text-shadow: 0 1px 3px #000; }
+@keyframes float-up { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-36px); opacity: 0; } }
+.battle-start { display: flex; align-items: center; gap: 12px; align-self: center; }
+.enemy-canvas { position: relative; width: 140px; height: 140px; background: var(--sub-alt); border-radius: 10px; }
+.enemy-canvas svg { width: 100%; height: 100%; }
+.enemy-canvas.ready { animation: enemy-pulse 0.25s ease-in-out infinite alternate; }
+@keyframes enemy-pulse { to { box-shadow: 0 0 18px currentColor; } }
+.enemy-el { position: absolute; top: 6px; left: 8px; font-weight: bold; font-size: 18px; }
+.mode-tabs { display: flex; gap: 8px; margin: 4px 0 8px; }
+.online-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 4px 0 8px; padding: 10px 12px; background: var(--sub-alt); border-radius: 10px; }
+.room-code { font-size: 26px; letter-spacing: 0.15em; color: var(--main); }
+.code-input { width: 7ch; font: inherit; font-size: 18px; letter-spacing: 0.15em; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--sub); background: var(--bg); color: var(--text); }
+.countdown { font-size: 26px; color: var(--main); }
+.note-line { flex-basis: 100%; color: var(--thumb); font-size: 13px; }
+.debug-casts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--sub); font-size: 12px; margin-bottom: 8px; }
+
+/* Duel layout: your camera | opponent, 50/50; stacks on narrow screens (opponent on top) */
+.duel-page { max-width: 1400px; }
+.duel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.duel-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.duel .fighter { max-width: none; flex: none; }
+.duel .camera { width: 100%; max-width: none; }
+.stage { position: relative; }
+.status-strip { display: flex; gap: 16px; align-items: baseline; min-height: 26px; flex-wrap: wrap; }
+.status-strip .charge { font-size: 18px; }
+.stage-overlay { position: absolute; left: 12px; bottom: 10px; pointer-events: none; text-shadow: 0 2px 6px #000; }
+.duel .enemy-canvas { width: 100%; height: auto; aspect-ratio: 16 / 9; }
+.duel .enemy-el { font-size: 28px; top: 10px; left: 14px; }
+.stage-center { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; }
+.result { font-size: 32px; color: var(--main); }
+@media (max-width: 800px) {
+  .duel { grid-template-columns: 1fr; }
+  .duel-side:last-child { order: -1; }
+}
+.menu-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.menu-card { background: var(--bg); border-radius: 12px; padding: 16px 20px; max-width: 460px; width: 100%; max-height: calc(100vh - 32px); overflow: auto; }
+.menu-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.menu-card .spell-help { max-width: none; }
+.privacy-note { color: var(--sub); font-size: 12px; margin-top: 12px; }
+.tag.silenced { background: #5a2330; color: #ffb3c1; }
+.tag.static.on { background: #5a4a10; color: #ffe14d; }
+.tag.static.gap { background: var(--sub-alt); color: #ffe14d; opacity: 0.7; }
+.tag.chill { background: #1d3a4a; color: #8fd8ff; }
+.guide-sub { color: var(--sub); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px; }
