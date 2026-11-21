@@ -24,9 +24,16 @@ const EMPTY_VIEW: CombatView = {
   silenced: { player: 0, enemy: 0 },
   static: { player: null, enemy: null },
   chill: { player: 0, enemy: 0 },
+  burning: { player: false, enemy: false },
+  regen: { player: false, enemy: false },
   knocked: { player: 0, enemy: 0 },
+  charge: { player: null, enemy: null },
+  ready: { player: null, enemy: null },
+  fizzled: { player: 0, enemy: 0 },
+  notes: [],
   dealt: { player: 0, enemy: 0 },
   floats: [],
+  bolts: [],
   over: null,
 }
 
@@ -216,23 +223,23 @@ export class OnlineArena implements Arena {
     }
   }
 
-  // Your casting steps → the server (relayed to the opponent)
-  charge(el: string | null) {
-    this.send({ t: 'charge', el })
+  // What you did → the server, which decides what it means (and tells the opponent)
+  sign(el: string) {
+    this.send({ t: 'sign', el })
   }
   stroke(points: Pt01[]) {
     this.outbox.push(...points)
   }
-  readied(el: string, shape: string) {
+  drew(shape: string | null) {
     this.flush()
-    this.send({ t: 'readied', el, shape })
+    this.send({ t: 'drew', shape })
   }
   cleared() {
     this.outbox = []
     this.send({ t: 'cleared' })
   }
-  cast(el: string, shape: string) {
-    this.send({ t: 'cast', el, shape })
+  push() {
+    this.send({ t: 'push' })
   }
 
   private flush() {
@@ -243,6 +250,10 @@ export class OnlineArena implements Arena {
 
   update(): Snapshot {
     if (this.info.phase === 'fighting') this.flush() // ~20 batches a second (the page calls this every 50 ms)
+    // The server's state wins: a readied spell that faded, or a charge that's gone (silenced, faded).
+    const o = this.opp
+    if (o?.phase === 'ready' && !this.view.ready.enemy) this.opp = null
+    else if (o?.phase === 'charge' && !this.view.charge.enemy) this.opp = null
     return { ...this.view, enemyCast: this.opp, running: this.info.phase === 'fighting' }
   }
 }

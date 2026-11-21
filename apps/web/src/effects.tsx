@@ -1,0 +1,251 @@
+// Spell impact visuals: the name flies across, then the target's half gets an element effect.
+// Strength sets the size: light (line) < heavy (W, counter, heal) < signature.
+import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
+import type { Bolt, CombatView, Side } from './combat'
+
+const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
+const COUNT = { light: 6, heavy: 14, signature: 30 }
+
+/** Same numbers on every render for the same bolt (it re-renders every 50 ms). */
+function rng(seed: number) {
+  let s = (seed * 2654435761) >>> 0 || 1
+  return () => {
+    s ^= s << 13
+    s ^= s >>> 17
+    s ^= s << 5
+    return ((s >>> 0) % 10000) / 10000
+  }
+}
+
+type Vars = CSSProperties & Record<`--${string}`, string | number>
+
+/** The flying names, over both halves. */
+export function BoltLayer({ bolts }: { bolts: Bolt[] }) {
+  return (
+    <div className="bolt-layer">
+      {bolts.map((b) => (
+        <div key={b.id} className={`bolt from-${b.from} ${b.kind} tier-${b.tier}`} style={{ color: b.color, '--fly': `${b.fly}ms` } as Vars}>
+          {b.name}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Shake the half a spell lands on, harder for stronger spells (Earth shakes up and down). */
+export function useShake(bolts: Bolt[], refs: Record<Side, RefObject<HTMLDivElement | null>>) {
+  const done = useRef(new Set<number>())
+  useEffect(() => {
+    for (const b of bolts) {
+      if (done.current.has(b.id)) continue
+      if (b.kind === 'counter' && !b.landed) continue // wait to see if it hits
+      done.current.add(b.id)
+      if (b.kind !== 'hit' && b.kind !== 'counter') continue
+      const target = b.from === 'player' ? 'enemy' : 'player'
+      const { px, ms } = SHAKE[b.tier]
+      const vert = b.el === 'E'
+      const at = (k: number) => (vert ? `translate(0, ${k * px}px)` : `translate(${k * px}px, ${k * px * 0.35}px)`)
+      refs[target].current?.animate(
+        [0, -1, 0.8, -0.6, 0.4, -0.2, 0].map((k) => ({ transform: at(k) })),
+        { duration: ms, delay: b.landed ? 0 : b.fly, easing: 'ease-out' },
+      )
+    }
+  }, [bolts, refs])
+}
+
+/** What lands on one half. */
+export function Impacts({ side, bolts }: { side: Side; bolts: Bolt[] }) {
+  return (
+    <>
+      {bolts.map((b) => {
+        const onTarget = b.from !== side
+        if (onTarget && b.kind === 'hit') return <Impact key={b.id} b={b} />
+        if (onTarget && b.kind === 'counter' && b.landed) return <Impact key={b.id} b={b} landed />
+        if (!onTarget && b.kind === 'heal') return <Impact key={b.id} b={b} />
+        if (onTarget && b.kind === 'missed')
+          return (
+            <div key={b.id} className="impact fizzle" style={{ color: '#999' }}>
+              <span className="impact-name">Missed</span>
+            </div>
+          )
+        if (!onTarget && b.kind === 'fizzle')
+          return (
+            <div key={b.id} className="impact fizzle" style={{ color: b.color }}>
+              <span className="impact-name">{b.name}</span>
+            </div>
+          )
+        return null
+      })}
+    </>
+  )
+}
+
+function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
+  const r = rng(b.id)
+  const n = COUNT[b.tier]
+  const delay = b.kind === 'heal' || landed ? 0 : b.fly
+  const el = b.kind === 'counter' ? 'counter' : b.el
+  const parts: ReactElement[] = []
+  const add = (cls: string, v: Vars) => parts.push(<i key={parts.length} className={cls} style={v} />)
+  const d = (extra = 0) => `${delay + extra}ms`
+
+  if (el === 'F')
+    for (let i = 0; i < n; i++) {
+      const a = r() * Math.PI * 2
+      const dist = 60 + r() * (b.tier === 'signature' ? 380 : 200)
+      add('p ember', { '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist * 0.7 - 60 - r() * 80}px`, '--s': `${5 + r() * 9}px`, '--d': d(r() * 80), '--t': `${600 + r() * 500}ms` })
+    }
+  if (el === 'I' || el === 'counter') {
+    for (let i = 0; i < n; i++) {
+      const a = r() * Math.PI * 2
+      const dist = 70 + r() * (b.tier === 'signature' ? 340 : 180)
+      add('p shard', { '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist}px`, '--rot': `${(a * 180) / Math.PI}deg`, '--s': `${10 + r() * 16}px`, '--d': d(r() * 40), '--t': `${500 + r() * 300}ms` })
+    }
+    if (el === 'I' && b.tier !== 'light') add('frost', { '--d': d(), '--t': b.tier === 'signature' ? '1800ms' : '900ms' })
+  }
+  if (el === 'W') {
+    const rings = b.tier === 'light' ? 1 : b.tier === 'heavy' ? 2 : 4
+    for (let i = 0; i < rings; i++) add('ring', { '--d': d(i * 140), '--t': `${700 + i * 60}ms`, '--end': b.tier === 'signature' ? 40 : 22 })
+    for (let i = 0; i < n / 2; i++) {
+      const a = -Math.PI * (0.15 + r() * 0.7)
+      const dist = 60 + r() * 160
+      add('p drop', { '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist}px`, '--s': `${5 + r() * 7}px`, '--d': d(r() * 60), '--t': `${600 + r() * 300}ms` })
+    }
+  }
+  if (el === 'E')
+    for (let i = 0; i < n; i++)
+      add('p rock', { '--x': `${(r() - 0.5) * 90}%`, '--s': `${8 + r() * (b.tier === 'signature' ? 26 : 14)}px`, '--rot': `${r() * 360}deg`, '--d': d(r() * 200), '--t': `${500 + r() * 400}ms` })
+  if (el === 'L') {
+    const bolts = b.tier === 'light' ? 1 : b.tier === 'heavy' ? 2 : 4
+    add('lflash', { '--d': d(), '--t': b.tier === 'signature' ? '500ms' : '260ms' })
+    for (let k = 0; k < bolts; k++) {
+      let x = 20 + r() * 60
+      const pts = [`${x},0`]
+      for (let y = 10; y <= 100; y += 10) pts.push(`${(x = Math.max(2, Math.min(98, x + (r() - 0.5) * 22)))},${y}`)
+      parts.push(
+        <svg key={parts.length} className="crack" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ '--d': d(k * 70), '--t': '420ms' } as Vars}>
+          <polyline points={pts.join(' ')} />
+        </svg>,
+      )
+    }
+  }
+  if (el === 'H')
+    for (let i = 0; i < n; i++)
+      add('p sparkle', { '--x': `${(r() - 0.5) * 70}%`, '--s': `${4 + r() * 7}px`, '--d': d(r() * 400), '--t': `${800 + r() * 500}ms` })
+
+  if (b.tier === 'signature' && b.kind === 'hit') signature(b, r, parts)
+
+  return (
+    <div className={`impact ${b.kind} tier-${b.tier}`} style={{ color: b.color, '--d': d(), '--fly': d() } as Vars}>
+      <div className="impact-flash" />
+      {parts}
+      <span className="impact-name">{b.kind === 'counter' ? 'Interrupted!' : b.name}</span>
+    </div>
+  )
+}
+
+/** Ongoing effects on one half: silence greys it out, static crackles the edges, chill frosts them,
+ *  burn flickers from below, regen pulses green, and a knock-off drops rubble. */
+export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
+  const silenced = view.silenced[side]
+  const longest = useRef(0) // how long this silence was at its start, for the countdown ring
+  if (silenced <= 0) longest.current = 0
+  else if (silenced > longest.current) longest.current = silenced
+  const knocks = view.knocked[side]
+  const seenKnocks = useRef(knocks)
+  const [knockId, setKnockId] = useState<number | null>(null)
+  useEffect(() => {
+    if (knocks > seenKnocks.current) setKnockId(knocks)
+    seenKnocks.current = knocks
+  }, [knocks])
+  const r = rng(side === 'player' ? 7 : 13)
+  const st = view.static[side]
+  return (
+    <div className="status-fx">
+      {view.burning[side] && <div className="st-burn" />}
+      {view.regen[side] && <div className="st-regen" />}
+      {view.chill[side] > 0 && <div className="st-chill" />}
+      {st && (
+        <div className={`st-static ${st}`}>
+          {st === 'on' &&
+            Array.from({ length: 10 }, (_, i) => {
+              const edge = i % 4
+              const at = `${8 + r() * 84}%`
+              const pos: Vars = edge === 0 ? { top: 0, left: at } : edge === 1 ? { bottom: 0, left: at } : edge === 2 ? { left: 0, top: at } : { right: 0, top: at }
+              return <i key={i} style={{ ...pos, '--rot': `${r() * 360}deg`, '--d': `${r() * 150}ms` } as Vars} />
+            })}
+        </div>
+      )}
+      {silenced > 0 && (
+        <div className="st-silence">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" className="track" />
+            <circle cx="50" cy="50" r="40" className="left" style={{ strokeDashoffset: 251.3 * (1 - silenced / (longest.current || 1)) }} />
+          </svg>
+          <b>{(silenced / 1000).toFixed(1)}</b>
+        </div>
+      )}
+      {knockId !== null && (
+        <div key={knockId} className="st-knock" onAnimationEnd={() => setKnockId(null)}>
+          {Array.from({ length: 10 }, (_, i) => (
+            <i key={i} style={{ '--x': `${r() * 160}px`, '--rot': `${r() * 400 - 200}deg`, '--s': `${6 + r() * 10}px`, '--d': `${r() * 120}ms` } as Vars} />
+          ))}
+          <span>Charge lost</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Each signature's own big visual, on top of its element's burst. Pieces with --d: 0ms start
+ *  while the name is still flying, so they arrive together. */
+function signature(b: Bolt, r: () => number, parts: ReactElement[]) {
+  const k = () => parts.length
+  const fromLeft = b.from === 'player' // the caster's side, as the target sees it
+  if (b.el === 'F') {
+    // Meteor: a burning ball drops from the top corner, lands as the name does.
+    parts.push(
+      <div key={k()} className={`sig-meteor ${fromLeft ? 'from-left' : 'from-right'}`} style={{ '--d': '0ms' } as Vars}>
+        <div className="ball" />
+      </div>,
+    )
+    parts.push(<div key={k()} className="sig-scorch" />)
+  }
+  if (b.el === 'I')
+    // Frozen Prison: ice bars slam down over the half and hold for the silence, then shatter.
+    // Four thin bars, kept toward the edges so the middle (where they draw) stays clear.
+    [6, 22, 76, 92].forEach((x, i) => parts.push(<div key={k()} className="sig-bar" style={{ '--x': `${x}%`, '--d2': `${i * 40}ms` } as Vars} />))
+  if (b.el === 'L') {
+    // Thunderbolt: the sky darkens, then one huge bolt splits the half.
+    parts.push(<div key={k()} className="sig-dark" style={{ '--d': '200ms' } as Vars} />)
+    let x = 50
+    const pts = [`${x},-2`]
+    for (let y = 8; y <= 100; y += 8) pts.push(`${(x = Math.max(15, Math.min(85, x + (r() - 0.5) * 30)))},${y}`)
+    parts.push(
+      <svg key={k()} className="sig-bolt" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline points={pts.join(' ')} />
+      </svg>,
+    )
+  }
+  if (b.el === 'E')
+    // Earthquake: cracks run up from the ground.
+    for (let c = 0; c < 4; c++) {
+      let x = 10 + c * 26 + r() * 10
+      const pts = [`${x},100`]
+      for (let y = 88; y >= 30 + r() * 30; y -= 8) pts.push(`${(x += (r() - 0.5) * 14)},${y}`)
+      parts.push(
+        <svg key={k()} className="sig-crack" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ '--d2': `${c * 60}ms` } as Vars}>
+          <polyline points={pts.join(' ')} />
+        </svg>,
+      )
+    }
+  if (b.el === 'W')
+    // Tidal Wave: a wall of water sweeps across from the caster's side.
+    parts.push(
+      <div key={k()} className={`sig-wave ${fromLeft ? 'from-left' : 'from-right'}`} style={{ '--d': '150ms' } as Vars}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path d="M0,100 L0,30 Q10,10 20,28 T40,26 T60,24 T80,28 T100,22 L100,100 Z" />
+        </svg>
+      </div>,
+    )
+}

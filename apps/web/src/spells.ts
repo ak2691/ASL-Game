@@ -25,11 +25,13 @@ export const beats = (a: string, b: string) => BEATS[a] === b
 
 /** The counterspell's shape: a circle, with any element in the counter cycle. */
 export const COUNTER = 'circle'
+/** The quick interrupt: charge the matching element and push, no drawing. Weaker, faster. */
+export const QUICK = 'jab'
 
 /** Shared attacks (same drawing for every element): light (a line) and heavy (a W). */
 export const PUNCHES = ['line', 'w']
 /** Each element's signature move: a unique, harder drawing. */
-export const SIGNATURE: Record<string, string> = { F: 'flame', I: 'cage', L: 'zigzag7', E: 'battlements', W: 'arches' }
+export const SIGNATURE: Record<string, string> = { F: 'flame', I: 'cage', L: 'zigzag7', E: 'battlements', W: 'spiral' }
 const HEAL_SHAPES = ['star', 'hourglass']
 
 export const shapesFor = (el: string) => (el === 'H' ? HEAL_SHAPES : [...PUNCHES, SIGNATURE[el]])
@@ -44,24 +46,25 @@ export const FORMS: Record<string, string> = {
   cage: 'Frozen Prison',
   zigzag7: 'Thunderbolt',
   battlements: 'Earthquake',
-  arches: 'Tidal Wave',
+  spiral: 'Tidal Wave',
   circle: 'Counterspell',
+  jab: 'Interrupt',
 }
 
 export const isValidSpell = (el: unknown, shape: unknown): boolean => {
   if (typeof el !== 'string' || typeof shape !== 'string' || !(el in ELEMENTS)) return false
-  if (shape === COUNTER) return el in BEATS
+  if (shape === COUNTER || shape === QUICK) return el in BEATS
   return shapesFor(el).includes(shape)
 }
 
 const NAMES: Record<string, Record<string, string>> = {
-  F: { line: 'Fire (light)', w: 'Fire (heavy)', flame: 'Meteor' },
-  I: { line: 'Ice (light)', w: 'Ice (heavy)', cage: 'Frozen Prison' },
-  W: { line: 'Water (light)', w: 'Water (heavy)', arches: 'Tidal Wave' },
-  E: { line: 'Earth (light)', w: 'Earth (heavy)', battlements: 'Earthquake' },
-  L: { line: 'Lightning (light)', w: 'Lightning (heavy)', zigzag7: 'Thunderbolt' },
+  F: { line: 'Fire', w: 'Heavy Fire', flame: 'Meteor' },
+  I: { line: 'Ice', w: 'Heavy Ice', cage: 'Frozen Prison' },
+  W: { line: 'Water', w: 'Heavy Water', spiral: 'Tidal Wave' },
+  E: { line: 'Earth', w: 'Heavy Earth', battlements: 'Earthquake' },
+  L: { line: 'Lightning', w: 'Heavy Lightning', zigzag7: 'Thunderbolt' },
   H: { star: 'Heal', hourglass: 'Regenerate' },
 }
 
 export const spellName = (el: string, shape: string) =>
-  shape === COUNTER ? `${ELEMENTS[el].name} Counterspell` : NAMES[el]?.[shape] ?? `${ELEMENTS[el].name} ${FORMS[shape] ?? shape}`
+  shape === COUNTER ? `${ELEMENTS[el].name} Counterspell` : shape === QUICK ? `${ELEMENTS[el].name} Interrupt` : NAMES[el]?.[shape] ?? `${ELEMENTS[el].name} ${FORMS[shape] ?? shape}`

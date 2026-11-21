@@ -10,7 +10,7 @@ import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { Combat, flipView, isValidSpell, type Side } from '../apps/web/src/combat.ts'
+import { Combat, flipView, type Side } from '../apps/web/src/combat.ts'
 import type { ClientMsg, OppEvent, ServerMsg } from '../apps/web/src/protocol.ts'
 
 const PORT = Number(process.env.PORT ?? 8787)
@@ -236,31 +236,42 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       if (room.phase !== 'fighting') return
       room.combat.forfeit(sideOf(i))
       return endFight(room)
-    case 'charge': {
-      // The server tracks each fighter's charge: counterspells are judged against it.
-      const el = typeof msg.el === 'string' ? msg.el.slice(0, 1) : null
-      if (room.phase === 'fighting' && room.pausedAt === null) {
-        if (el && room.combat.isSilenced(sideOf(i), Date.now())) return
-        room.combat.setCharge(sideOf(i), el, Date.now())
-      }
-      return relay(room, seat, { kind: 'charge', el })
+  }
+  // Casting: the browser only says what it recognized. The fight's rules decide what that does, on
+  // the server's clock (charges, readied spells, throws, fizzle lockouts, fades). Nothing while paused.
+  // Each decision goes out to both players at once, not on the next tick (the tick is for what
+  // happens with nobody acting: spells landing, burns, fades).
+  if (room.phase !== 'fighting' || room.pausedAt !== null) return
+  const side = sideOf(i)
+  const now = Date.now()
+  switch (msg.t) {
+    case 'sign': {
+      const el = typeof msg.el === 'string' ? msg.el.slice(0, 1) : ''
+      if (room.combat.sign(side, el, now)) relay(room, seat, { kind: 'charge', el })
+      return sendState(room) // even a refusal: it corrects the player's own early display
     }
     case 'stroke':
       if (!Array.isArray(msg.pts)) return
+      if (room.combat.drawing(side, now)) sendState(room) // a redraw dropped their readied spell
       return relay(room, seat, {
         kind: 'stroke',
         pts: msg.pts.slice(0, MAX_STROKE_PTS).map((p) => [Number(p?.[0]) || 0, Number(p?.[1]) || 0] as [number, number]),
       })
-    case 'readied':
-      if (!isValidSpell(msg.el, msg.shape)) return
-      return relay(room, seat, { kind: 'readied', el: msg.el, shape: msg.shape })
+    case 'drew': {
+      const r = room.combat.drew(side, typeof msg.shape === 'string' ? msg.shape.slice(0, 32) : null, now)
+      relay(room, seat, r ? { kind: 'readied', el: r.el, shape: r.shape } : { kind: 'cleared' })
+      return sendState(room)
+    }
     case 'cleared':
+      room.combat.strokeCancelled(side)
       return relay(room, seat, { kind: 'cleared' })
-    case 'cast':
-      // The server decides what happens, on its own clock. Nothing lands while paused.
-      if (room.phase !== 'fighting' || room.pausedAt !== null || !isValidSpell(msg.el, msg.shape)) return
-      if (room.combat.cast(sideOf(i), msg.el, msg.shape, Date.now()) === 'ok') relay(room, seat, { kind: 'cast' })
-      return
+    case 'push': {
+      const res = room.combat.push(side, now)
+      if (res === 'ok') relay(room, seat, { kind: 'cast' })
+      else if (res === 'static') relay(room, seat, { kind: 'cleared' })
+      room.combat.update(now) // a heal applies at once
+      return sendState(room)
+    }
   }
 }
 

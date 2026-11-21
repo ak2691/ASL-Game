@@ -1,11 +1,14 @@
 :root {
   --bg: #323437;
-  --main: #e2b714;
+  --main: #a78bfa; /* accent: violet, not tied to any element */
   --text: #d1d0c5;
   --sub: #646669;
   --sub-alt: #2c2e31;
   --thumb: #e2738a;
-  font-family: 'Roboto Mono', ui-monospace, Menlo, Consolas, monospace;
+  --you: #6be38a;
+  --foe: #ff6a3d;
+  --shadow: #000;
+  font-family: 'Rubik', system-ui, 'Segoe UI', sans-serif;
   color: var(--text);
   background: var(--bg);
 }

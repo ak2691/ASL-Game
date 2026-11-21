@@ -13,21 +13,26 @@
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
 
 button {
-  background: var(--sub-alt);
+  background: #3c3f44;
   color: var(--text);
-  border: none;
-  border-radius: 8px;
-  padding: 12px 22px;
+  border: 1px solid #4b4f56;
+  border-radius: 10px;
+  padding: 11px 20px;
   font: inherit;
+  font-weight: 500;
   cursor: pointer;
+  box-shadow: 0 2px 0 #26282b;
+  transition: background 0.12s, border-color 0.12s, transform 0.06s;
 }
-button:hover { background: var(--main); color: var(--bg); }
+button:hover { background: #474b51; border-color: #5d626a; }
+button:active { transform: translateY(1px); box-shadow: 0 1px 0 #26282b; }
 button.small { padding: 6px 12px; font-size: 13px; }
-button.active { background: var(--main); color: var(--bg); }
+button.active { background: var(--main); border-color: var(--main); color: #1d1a2b; }
+button:disabled { opacity: 0.5; cursor: default; }
 .alphabet { display: flex; flex-wrap: wrap; gap: 6px; }
 .alphabet button { width: 36px; padding: 6px 0; }
 .count { color: var(--main); }
-.stats { font-size: 12px; width: 100%; }
+.stats { font-size: 12px; width: 100%; display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .form-hint { color: var(--thumb); font-size: 14px; max-width: 480px; }
 
 .page {
@@ -136,23 +141,142 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .note-line { flex-basis: 100%; color: var(--thumb); font-size: 13px; }
 .debug-casts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--sub); font-size: 12px; margin-bottom: 8px; }
 
-/* Duel layout: your camera | opponent, 50/50; stacks on narrow screens (opponent on top) */
-.duel-page { max-width: 1400px; }
-.duel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-.duel-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Duel: full screen, you | opponent, each half fills its side. Spell names fly across on top. */
+.duel-page { max-width: none; height: 100vh; padding: 0; gap: 0; overflow: hidden; }
+.duel-page > header, .duel-page > .debug-casts, .duel-page > .online-panel { margin: 0; padding: 8px 14px; }
+.duel-page > .online-panel { border-radius: 0; }
+.duel { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; background: var(--sub-alt); }
+.duel-side { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); container-type: inline-size; }
+.duel-side.opp { background: radial-gradient(ellipse at center, var(--sub-alt), var(--bg) 75%); }
+.duel .camera { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; aspect-ratio: auto; border-radius: 0; }
+.duel .enemy-canvas { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; background: transparent; }
+.duel .enemy-el { font-size: 48px; top: auto; bottom: 18px; left: 22px; opacity: 0.85; }
+.side-hud { position: absolute; top: 0; left: 0; right: 0; padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 8px; background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 85%, transparent), transparent); z-index: 2; }
 .duel .fighter { max-width: none; flex: none; }
-.duel .camera { width: 100%; max-width: none; }
-.stage { position: relative; }
-.status-strip { display: flex; gap: 16px; align-items: baseline; min-height: 26px; flex-wrap: wrap; }
-.status-strip .charge { font-size: 18px; }
-.stage-overlay { position: absolute; left: 12px; bottom: 10px; pointer-events: none; text-shadow: 0 2px 6px #000; }
-.duel .enemy-canvas { width: 100%; height: auto; aspect-ratio: 16 / 9; }
-.duel .enemy-el { font-size: 28px; top: 10px; left: 14px; }
-.stage-center { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; }
-.result { font-size: 32px; color: var(--main); }
+.status-strip { display: flex; gap: 16px; align-items: baseline; min-height: 26px; flex-wrap: wrap; text-shadow: 0 1px 4px var(--shadow); }
+.status-strip .charge { font-size: 20px; font-weight: 700; }
+.side-status { position: absolute; top: 50%; left: 0; right: 0; text-align: center; z-index: 2; }
+.stage-overlay { position: absolute; left: 16px; bottom: 14px; z-index: 2; pointer-events: none; text-shadow: 0 2px 6px #000; }
+.stage-center { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; z-index: 2; }
+.result { font-size: 40px; color: var(--main); }
+.privacy-note { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; color: var(--sub); font-size: 11px; margin: 0; pointer-events: none; z-index: 3; }
+
+/* A thrown spell: its name flies from the caster's half to the target's (see effects.tsx). */
+.bolt-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+.bolt { position: absolute; top: 46%; left: 0; font-weight: 800; white-space: nowrap; transform: translate(-50%, -50%); opacity: 0;
+  text-shadow: 0 0 12px currentColor, 0 2px 6px #000; animation-duration: var(--fly); animation-fill-mode: forwards; animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6); }
+.bolt.tier-light { font-size: clamp(16px, 2vw, 26px); }
+.bolt.tier-heavy { font-size: clamp(22px, 3vw, 40px); text-shadow: 0 0 16px currentColor, -24px 0 18px currentColor, 0 2px 6px #000; }
+.bolt.tier-signature { font-size: clamp(30px, 4.4vw, 60px); text-shadow: 0 0 24px currentColor, -40px 0 30px currentColor, -80px 0 40px currentColor, 0 2px 8px #000; }
+.bolt.from-enemy.tier-heavy { text-shadow: 0 0 16px currentColor, 24px 0 18px currentColor, 0 2px 6px #000; }
+.bolt.from-enemy.tier-signature { text-shadow: 0 0 24px currentColor, 40px 0 30px currentColor, 80px 0 40px currentColor, 0 2px 8px #000; }
+.bolt.from-player { animation-name: fly-right; }
+.bolt.from-enemy { animation-name: fly-left; }
+@keyframes fly-right { 0% { left: 22%; opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; } 100% { left: 78%; opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
+@keyframes fly-left { 0% { left: 78%; opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; } 100% { left: 22%; opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
+.bolt.missed { display: none; } /* it already flew; the target shows "Missed" */
+@keyframes miss-right { 0% { left: 22%; opacity: 0; } 20% { opacity: 1; } 100% { left: 50%; top: 60%; opacity: 0; transform: translate(-50%, -50%) rotate(8deg); } }
+@keyframes miss-left { 0% { left: 78%; opacity: 0; } 20% { opacity: 1; } 100% { left: 50%; top: 60%; opacity: 0; transform: translate(-50%, -50%) rotate(-8deg); } }
+.bolt.heal, .bolt.fizzle { display: none; }
+
+/* Where it lands. Every piece waits for the flight (--d) then plays for --t. */
+.impact { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+.impact * { animation-delay: var(--d) !important; animation-fill-mode: forwards !important; }
+.impact-flash { position: absolute; inset: 0; background: radial-gradient(circle at center, currentColor, transparent 70%); opacity: 0; animation: flash 600ms ease-out; }
+.tier-light .impact-flash { --peak: 0.18; }
+.tier-heavy .impact-flash { --peak: 0.35; animation-duration: 800ms; }
+.tier-signature .impact-flash { --peak: 0.6; animation-duration: 1500ms; background: radial-gradient(circle at center, currentColor, transparent 95%); }
+@keyframes flash { 0% { opacity: var(--peak, 0.3); } 100% { opacity: 0; } }
+.impact-name { position: absolute; left: 50%; top: 46%; font-weight: 900; text-transform: uppercase; white-space: nowrap; opacity: 0;
+  text-shadow: 0 0 18px currentColor, 0 3px 8px #000; transform: translate(-50%, -50%); animation: slam 900ms ease-out; }
+.tier-light .impact-name { font-size: clamp(16px, 5cqw, 30px); animation-duration: 550ms; }
+.tier-heavy .impact-name { font-size: clamp(22px, 7.5cqw, 60px); }
+.tier-signature .impact-name { font-size: clamp(26px, 9cqw, 110px); animation-duration: 1500ms; }
+@keyframes slam { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.8); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); } }
+.impact.heal .impact-name { animation-name: heal-rise; }
+@keyframes heal-rise { 0% { opacity: 0; transform: translate(-50%, -20%); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -120%); } }
+.impact.heal .impact-flash { background: radial-gradient(circle at 50% 100%, currentColor, transparent 65%); }
+
+/* Particles: start at the center, fly to (--dx, --dy). */
+.impact .p { position: absolute; left: 50%; top: 46%; width: var(--s); height: var(--s); margin: calc(var(--s) / -2); opacity: 0; animation: burst var(--t) ease-out; }
+@keyframes burst { 0% { opacity: 1; transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot, 0deg)) scale(0.3); } }
+.p.ember { border-radius: 50%; background: radial-gradient(circle, #fff3b0, #ffb347 45%, #ff5a1f); box-shadow: 0 0 8px #ff6a3d; }
+.p.shard { height: calc(var(--s) / 4); background: linear-gradient(90deg, #fff, currentColor); box-shadow: 0 0 6px currentColor; }
+.p.drop { border-radius: 50% 50% 50% 0; background: currentColor; animation-name: splash; }
+@keyframes splash { 0% { opacity: 1; transform: translate(0, 0); } 60% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 120px)); } }
+.p.rock { left: calc(50% + var(--x)); top: -6%; border-radius: 3px; background: #7a5a33; box-shadow: inset -3px -3px 0 #4e3a20; animation: fall var(--t) ease-in; }
+@keyframes fall { 0% { opacity: 1; transform: translateY(0) rotate(0deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(105vh) rotate(var(--rot)); } }
+.p.sparkle { left: calc(50% + var(--x)); top: 85%; border-radius: 50%; background: #e9ffe9; box-shadow: 0 0 10px currentColor; animation: rise var(--t) ease-out; }
+@keyframes rise { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-55vh); } }
+.impact .ring { position: absolute; left: 50%; top: 46%; width: 24px; height: 24px; margin: -12px; border: 3px solid currentColor; border-radius: 50%; opacity: 0; animation: ripple var(--t) ease-out; }
+@keyframes ripple { 0% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(var(--end)); } }
+.impact .frost { position: absolute; inset: 0; box-shadow: inset 0 0 90px 36px rgba(210, 245, 255, 0.7); opacity: 0; animation: fade-out var(--t) ease-in; }
+@keyframes fade-out { 0% { opacity: 1; } 100% { opacity: 0; } }
+.impact .lflash { position: absolute; inset: 0; background: #fffbe0; opacity: 0; animation: lflash var(--t) steps(4); }
+@keyframes lflash { 0% { opacity: 0.75; } 40% { opacity: 0.1; } 60% { opacity: 0.55; } 100% { opacity: 0; } }
+.impact .crack { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; animation: fade-out var(--t) steps(3); }
+.crack polyline { fill: none; stroke: #fffbe0; stroke-width: 1.2; vector-effect: non-scaling-stroke; stroke-width: 4px; filter: drop-shadow(0 0 6px #ffe14d); }
+.impact.fizzle .impact-name { font-size: clamp(18px, 6cqw, 40px); animation: fizzle 0.8s ease-out; }
+@keyframes fizzle { 0% { opacity: 1; filter: blur(0); } 100% { opacity: 0; filter: blur(6px); transform: translate(-50%, -50%) scale(1.3); } }
+
+/* Signature visuals (see signature() in effects.tsx). */
+.sig-meteor { position: absolute; inset: 0; animation: none; }
+.sig-meteor .ball { position: absolute; left: 50%; top: 46%; width: 22cqw; height: 22cqw; margin: -11cqw; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle at 38% 35%, #fff6c8, #ffb347 30%, #ff5a1f 60%, #9b2a0c);
+  box-shadow: 0 0 40px 12px #ff6a3d, 0 0 90px 30px rgba(255, 106, 61, 0.5); animation: meteor-fall 650ms cubic-bezier(0.35, 0, 0.85, 0.6) forwards; }
+.sig-meteor.from-left .ball { --sx: -60cqw; }
+.sig-meteor.from-right .ball { --sx: 60cqw; }
+@keyframes meteor-fall { 0% { opacity: 1; transform: translate(var(--sx), -70vh) scale(0.5); } 92% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(0, 0) scale(1.6); } }
+.sig-scorch { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 60%, rgba(40, 10, 0, 0.55), transparent 55%); opacity: 0; animation: fade-out 1800ms ease-in; }
+.sig-bar { position: absolute; top: 0; bottom: 0; left: var(--x); width: 1.6%; opacity: 0;
+  background: linear-gradient(90deg, rgba(200, 240, 255, 0.3), rgba(255, 255, 255, 0.7), rgba(143, 216, 255, 0.35)); box-shadow: 0 0 10px rgba(143, 216, 255, 0.6);
+  animation: bar-drop 1100ms cubic-bezier(0.3, 1.4, 0.6, 1); }
+@keyframes bar-drop { 0% { opacity: 1; transform: translateY(-100%); } 18% { transform: translateY(0); } 75% { opacity: 0.9; transform: translateY(0); } 100% { opacity: 0; transform: translateY(0) scaleX(0.3); } }
+.sig-dark { position: absolute; inset: 0; background: rgba(10, 10, 30, 0.6); opacity: 0; animation: dark 900ms ease-out; }
+@keyframes dark { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+.sig-bolt { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; animation: lflash 700ms steps(5); }
+.sig-bolt polyline { fill: none; stroke: #fffbe0; stroke-width: 12px; vector-effect: non-scaling-stroke; stroke-linejoin: bevel; filter: drop-shadow(0 0 14px #ffe14d) drop-shadow(0 0 30px #ffe14d); }
+.sig-crack { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; animation: fade-out 1600ms ease-in; }
+.sig-crack polyline { fill: none; stroke: #2a1a0c; stroke-width: 6px; vector-effect: non-scaling-stroke; stroke-dasharray: 200; stroke-dashoffset: 200; filter: drop-shadow(0 0 3px #b58a4c); animation: crack-grow 400ms ease-out forwards; animation-delay: calc(var(--d) + var(--d2, 0ms)) !important; }
+@keyframes crack-grow { to { stroke-dashoffset: 0; } }
+.sig-wave { position: absolute; inset: 0; opacity: 0; animation: wave-sweep 1100ms ease-out; }
+.sig-wave svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sig-wave path { fill: rgba(61, 139, 255, 0.55); stroke: #cfe6ff; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.sig-wave.from-left { --wx: -110%; }
+.sig-wave.from-right { --wx: 110%; }
+@keyframes wave-sweep { 0% { opacity: 1; transform: translateX(var(--wx)); } 55% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(calc(var(--wx) * -0.4)) translateY(20%); } }
+.sig-bar { animation-delay: calc(var(--d) + var(--d2, 0ms)) !important; }
+
+/* Ongoing status effects, under the HUD and impacts. */
+.status-fx { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.status-fx > div { position: absolute; inset: 0; }
+.st-burn { background: linear-gradient(to top, rgba(255, 106, 61, 0.45), transparent 35%); animation: burn-flicker 0.5s steps(3) infinite alternate; }
+@keyframes burn-flicker { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+.st-regen { box-shadow: inset 0 0 70px 10px rgba(107, 227, 138, 0.45); animation: regen-pulse 1.6s ease-in-out infinite; }
+@keyframes regen-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.st-chill { box-shadow: inset 0 0 60px 18px rgba(143, 216, 255, 0.45); border: 2px solid rgba(220, 245, 255, 0.35); }
+.st-static.on { box-shadow: inset 0 0 40px 4px rgba(255, 225, 77, 0.55); animation: static-buzz 0.12s steps(2) infinite; }
+.st-static.gap { box-shadow: inset 0 0 18px 1px rgba(255, 225, 77, 0.18); }
+@keyframes static-buzz { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+.st-static i { position: absolute; width: 34px; height: 3px; margin: -1px -17px; background: #fffbe0; box-shadow: 0 0 8px #ffe14d; transform: rotate(var(--rot)); animation: spark 0.24s steps(2) infinite; animation-delay: var(--d); }
+@keyframes spark { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
+.st-silence { display: flex; align-items: center; justify-content: center; backdrop-filter: grayscale(1) brightness(0.65); background: rgba(40, 40, 48, 0.35); }
+.st-silence svg { position: absolute; width: min(38cqw, 220px); transform: rotate(-90deg); }
+.st-silence circle { fill: none; stroke-width: 5; }
+.st-silence .track { stroke: rgba(255, 255, 255, 0.12); }
+.st-silence .left { stroke: #ffb3c1; stroke-dasharray: 251.3; stroke-linecap: round; transition: stroke-dashoffset 0.1s linear; }
+.st-silence b { font-size: min(9cqw, 48px); color: #ffb3c1; text-shadow: 0 2px 6px #000; }
+.st-knock { animation: knock-done 1.2s forwards; }
+@keyframes knock-done { to { opacity: 1; } }
+.st-knock i { position: absolute; left: calc(16px + var(--x)); top: 70px; width: var(--s); height: var(--s); border-radius: 2px; background: #b58a4c; box-shadow: inset -2px -2px 0 #6e5128; animation: rubble 1.1s ease-in forwards; animation-delay: var(--d); }
+@keyframes rubble { 0% { transform: translateY(0) rotate(0); opacity: 1; } 100% { transform: translateY(60vh) rotate(var(--rot)); opacity: 0; } }
+.st-knock span { position: absolute; left: 16px; top: 64px; font-weight: 800; color: #b58a4c; text-shadow: 0 2px 6px #000; animation: knock-text 1.2s ease-in forwards; }
+@keyframes knock-text { 0% { transform: translateY(0); opacity: 1; } 60% { opacity: 1; } 100% { transform: translateY(80px) rotate(8deg); opacity: 0; } }
+
 @media (max-width: 800px) {
-  .duel { grid-template-columns: 1fr; }
-  .duel-side:last-child { order: -1; }
+  .duel { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .duel-side.opp { order: -1; }
+  .bolt { left: 50% !important; }
 }
 .menu-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
 .menu-card { background: var(--bg); border-radius: 12px; padding: 16px 20px; max-width: 460px; width: 100%; max-height: calc(100vh - 32px); overflow: auto; }
@@ -164,3 +288,31 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tag.static.gap { background: var(--sub-alt); color: #ffe14d; opacity: 0.7; }
 .tag.chill { background: #1d3a4a; color: #8fd8ff; }
 .guide-sub { color: var(--sub); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px; }
+
+/* Home */
+.home { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.home .logo { font-size: 2.4rem; margin-bottom: 12px; }
+.home button { width: 220px; font-size: 1.1rem; padding: 12px; }
+
+/* In-game menu (Esc) */
+.menu-btn { position: fixed; bottom: 8px; left: 8px; z-index: 5; opacity: 0.6; }
+.menu-btn:hover { opacity: 1; }
+.pause-menu { max-width: 260px; display: flex; flex-direction: column; gap: 10px; }
+.asl-mini { width: 28px; height: 28px; vertical-align: middle; background: #fff; border-radius: 4px; }
+
+/* Tutorial */
+.tutorial { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; z-index: 2; }
+.tut-count { color: var(--sub); font-size: 0.85rem; }
+.tut-title { font-size: 1.6rem; }
+.tut-demo { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+.tut-demo figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.tut-demo img, .tut-demo svg, .tut-push { width: 160px; height: 160px; }
+.tut-demo img { background: #fff; border-radius: 12px; padding: 8px; box-sizing: border-box; }
+.tut-demo figcaption { color: var(--text, #ddd); }
+.tut-ghost { fill: none; stroke: currentColor; stroke-width: 1; opacity: 0.2; stroke-linecap: round; stroke-linejoin: round; }
+.tut-draw { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 3px currentColor); animation: tut-draw 2.4s ease-in-out infinite; }
+@keyframes tut-draw { 0% { stroke-dashoffset: 1; } 60%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+.tut-push { display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; animation: tut-push 1s ease-in-out infinite; }
+@keyframes tut-push { 50% { transform: scale(1.3); } }
+.tut-tip { max-width: 360px; margin: 0; color: var(--text, #ddd); }
+.tut-hint { display: block; color: var(--sub); font-size: 0.8rem; max-width: 170px; }

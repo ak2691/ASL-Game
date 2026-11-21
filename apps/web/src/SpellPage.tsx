@@ -5,10 +5,12 @@ import { classify, loadRecognizer, type Hand } from './recognition'
 import { directionLetter } from './rules'
 import { getTracker } from './trackers'
 import { LandmarkSmoother } from './smoothing'
-import { defaultRecognizer, pathLength, strokeFeatures, type Pt } from './dollar'
-import { BEATS, COUNTER, ELEMENTS, FORMS, PUNCHES, SIGNATURE, TRAITS, isValidSpell, shapesFor, spellName } from './spells'
-import { DummyArena, PracticeArena, shapePoints, type Arena, type Side, type Snapshot } from './battle'
-import { OnlineArena, getOnlineFlag, setOnlineFlag, type LobbyInfo } from './online'
+import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
+import { BEATS, COUNTER, ELEMENTS, QUICK, FORMS, PUNCHES, SIGNATURE, TRAITS, isValidSpell, shapesFor, spellName } from './spells'
+import { DummyArena, PracticeArena, shapePoints, type Arena, type Difficulty, type Side, type Snapshot } from './battle'
+import { BoltLayer, Impacts, StatusFx, useShake } from './effects'
+import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
+import { Tutorial } from './Tutorial'
 
 const DEBUG = new URLSearchParams(location.search).has('debug') // ?debug: cast with buttons, no camera needed
 
@@ -35,8 +37,7 @@ function downloadStrokes() {
 }
 
 const CHARGE_PROB = 0.75 // letter model confidence needed to charge an element...
-const CHARGE_MS = 300 // ...held this long
-const CHARGE_LIFE_MS = 3000 // a charge fades after this long without drawing (switching elements is instant)
+const CHARGE_MS = 150 // ...held this long
 // A stroke ends right away only on a deliberate pen-up (a second finger raised). Losing the
 // hand or a blurry index (fast moves) keeps the stroke open this long; the gap is bridged.
 const LOST_GRACE_MS = 400
@@ -47,37 +48,35 @@ const PEN_UP_MAX_SPEED = 4 // palm-widths per second
 // Push to throw: a readied spell is thrown when the hand grows this much on screen within the window.
 const PUSH_GROWTH = 1.3
 const PUSH_WINDOW_MS = 300
-const READY_LIFE_MS = 3000 // a readied spell fades if not thrown
-// After a throw, the hand is still in its pen-up/push pose, which can read as a letter (often F).
-// New charges wait this long after a throw.
-const AFTER_THROW_MS = 500
 const MIN_STROKE_PALMS = 1.2 // shorter strokes are ignored (just settling the hand)
-const MATCH_SCORE = 0.8 // $1 score needed to count as a shape
+const MATCH_SCORE = 0.7 // network probability needed to count as a shape
+const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const DROPOUT_MS = 150
+const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
 
 // Shape guide icons (40×40), and a suggested start point for each.
-const SHAPE_PATHS: Record<string, string> = {
+export const SHAPE_PATHS: Record<string, string> = {
   line: 'M6 34 L34 6',
   w: 'M4 8 L12 32 L20 14 L28 32 L36 8',
   hourglass: 'M8 6 L32 6 L8 34 L32 34 Z',
   star: 'M20 4 L29.4 32.9 L4.8 15.1 L35.2 15.1 L10.6 32.9 Z',
-  flame: 'M6 24 L6 34 A4.67 6 0 0 1 15.3 34 A4.67 6 0 0 1 24.7 34 A4.67 6 0 0 1 34 34 L34 24 A14 20 0 0 0 6 24',
-  cage: 'M8 8 L32 8 L32 32 L8 32 L8 8 L32 32',
+  flame: 'M5 18 L9 5 L12.5 14 L16 6 L19.5 14 L23 5 L26.5 14 L31 6 L35 18 A15 17 0 0 1 5 18',
+  cage: 'M8 8 L32 8 L32 32 L8 32 L8 8 L32 32 L32 8 L8 32',
   zigzag7: 'M3 8 L8 32 L13 14 L18 32 L23 14 L28 32 L33 14 L38 32',
-  battlements: 'M5 32 L5 10 L15 10 L15 32 L25 32 L25 10 L35 10 L35 32',
+  battlements: 'M3 30 L3 14 L9 14 L9 30 L15 30 L15 14 L21 14 L21 30 L27 30 L27 14 L33 14 L33 30',
   circle: 'M20 6 A14 14 0 1 1 19.9 6',
-  arches: 'M4 32 L4 20 A5.33 5.33 0 0 1 14.7 20 L14.7 32 L14.7 20 A5.33 5.33 0 0 1 25.3 20 L25.3 32 L25.3 20 A5.33 5.33 0 0 1 36 20 L36 32',
+  spiral: 'M20 20 A2 2 0 0 1 24 20 A4 4 0 0 1 16 20 A6 6 0 0 1 28 20 A8 8 0 0 1 12 20 A10 10 0 0 1 32 20 A12 12 0 0 1 8 20 A14 14 0 0 1 36 20',
 }
-const SHAPE_STARTS: Record<string, [number, number]> = {
+export const SHAPE_STARTS: Record<string, [number, number]> = {
   line: [6, 34],
   w: [4, 8],
   hourglass: [8, 6],
   star: [20, 4],
-  flame: [6, 24],
+  flame: [5, 18],
   cage: [8, 8],
   zigzag7: [3, 8],
-  battlements: [5, 32],
-  arches: [4, 32],
+  battlements: [3, 30],
+  spiral: [20, 20],
   circle: [20, 6],
 }
 
@@ -114,34 +113,50 @@ interface Cast {
   t: number
 }
 
-export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) {
+export type Mode = 'dummy' | 'practice' | 'online' | 'tutorial'
+
+export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHome: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [status, setStatus] = useState('Loading hand tracking and letter model…')
-  const [charge, setCharge] = useState<string | null>(null)
   const [seeing, setSeeing] = useState('')
   const [drawing, setDrawing] = useState(false)
-  const [readyName, setReadyName] = useState<string | null>(null)
   const [log, setLog] = useState<Cast[]>([])
-  const [menu, setMenu] = useState(false)
+  const [menu, setMenu] = useState<null | 'main' | 'help'>(null)
   const [strokeCount, setStrokeCount] = useState(0)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenu((m) => !m)
+      if (e.key === 'Escape') setMenu((m) => (m ? null : 'main'))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   // The fight: practice (AI enemy) or online (server). Polled on its own timer, separate from the camera loop.
-  const [mode, setMode] = useState<'dummy' | 'practice' | 'online'>('dummy')
   const dummy = useRef(new DummyArena())
   const practice = useRef(new PracticeArena())
   const online = useRef<OnlineArena | null>(null)
-  const arena = useRef<Arena>(dummy.current)
-  const [fight, setFight] = useState<Snapshot>(() => dummy.current.update(0))
+  const arena = useRef<Arena>(mode === 'practice' ? practice.current : dummy.current)
+  const [fight, setFight] = useState<Snapshot>(() => arena.current.update(0))
   const fightRef = useRef(fight) // read by the camera loop (e.g. "am I silenced?")
+  // Your charge and readied spell, as the fight decided them (online: the server).
+  // A charge you just signed shows at once; the fight confirms it (online, a round trip later) or,
+  // if it refused, it goes back after PREDICT_MS.
+  const predicted = useRef<{ el: string; t: number } | null>(null)
+  const knockedRef = useRef(0)
+  const shownCharge = (now: number, real: string | null) => {
+    const p = predicted.current
+    return p && now - p.t < PREDICT_MS ? p.el : real
+  }
+  const readyName = fight.ready.player && spellName(fight.ready.player.el, fight.ready.player.shape)
+  const seenNotes = useRef(new Set<number>())
+  // Shake the half a spell lands on (see effects.tsx).
+  const youRef = useRef<HTMLDivElement>(null)
+  const oppRef = useRef<HTMLDivElement>(null)
+  const sideRefs = useRef({ player: youRef, enemy: oppRef }).current
+  useShake(fight.bolts, sideRefs)
   const [lobby, setLobby] = useState<LobbyInfo | null>(null)
   const [clock, setClock] = useState(0)
+  const charge = shownCharge(clock, fight.charge.player)
   const [joinCode, setJoinCode] = useState('')
   useEffect(() => {
     const id = setInterval(() => {
@@ -149,6 +164,14 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
       const snap = arena.current.update(t)
       fightRef.current = snap
       setFight(snap)
+      if (predicted.current && snap.charge.player === predicted.current.el) predicted.current = null // confirmed
+      // Silenced or knocked off (the server says so): the guessed charge goes at once, no waiting.
+      if (snap.silenced.player > 0 || snap.knocked.player !== knockedRef.current) predicted.current = null
+      knockedRef.current = snap.knocked.player
+      // Your cast log: what the fight says your casting did.
+      const fresh = snap.notes.filter((n) => n.side === 'player' && !seenNotes.current.has(n.id))
+      seenNotes.current = new Set(snap.notes.map((n) => n.id))
+      if (fresh.length) setLog((l) => [...fresh.reverse().map((n) => ({ name: n.name, detail: n.detail, color: n.color, ok: n.ok, t: t })), ...l].slice(0, 8))
       setLobby(online.current ? { ...online.current.info } : null)
       setClock(t)
     }, 50)
@@ -163,47 +186,38 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
     setOnlineFlag(false)
     online.current = null
   }
-  const goPractice = () => {
-    leaveOnline()
-    arena.current = practice.current
-    setMode('practice')
-  }
-  const goDummy = () => {
-    leaveOnline()
-    arena.current = dummy.current
-    setMode('dummy')
-  }
   const goOnline = () => {
     online.current?.close()
     online.current = new OnlineArena()
     arena.current = online.current
-    setMode('online')
   }
-  const startPractice = () => practice.current.start(performance.now())
-  // A refresh while in an online room reopens online mode; the server puts you back in your seat.
+  const goHome = () => {
+    leaveOnline()
+    onHome()
+  }
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy')
+  const startPractice = () => practice.current.start(performance.now(), difficulty)
   useEffect(() => {
-    if (getOnlineFlag()) goOnline()
+    if (mode === 'online') goOnline()
   }, [])
   // ?debug: cast a spell without the camera (for testing online play with two tabs).
   const debugCast = (el: string, shape: string) => {
     const a = arena.current
-    a.charge(el)
-    a.stroke(shapePoints(shape))
-    a.readied(el, shape)
-    setTimeout(() => {
-      a.cast(el, shape, performance.now())
-      a.charge(null)
-    }, 700)
+    a.sign(el)
+    if (shape !== QUICK) {
+      a.stroke(shapePoints(shape))
+      setTimeout(() => a.drew(shape), 300)
+    }
+    setTimeout(() => a.push(), 700)
   }
 
   useEffect(() => {
     let stopped = false
     let stream: MediaStream | null = null
-    const recognizer = defaultRecognizer()
 
     async function start() {
       try {
-        const [rec, tracker] = await Promise.all([loadRecognizer(), getTracker()])
+        const [rec, tracker, shapeModel] = await Promise.all([loadRecognizer(), getTracker(), loadShapeModel()])
         if (stopped) return
         stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } },
@@ -219,15 +233,10 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
         const drawer = new DrawingUtils(ctx)
         setStatus('')
 
-        const chargeTo = (el: string | null) => {
-          setCharge(el)
-          arena.current.charge(el)
-        }
         const smoother = new LandmarkSmoother()
         let last: { lm: NormalizedLandmark[]; t: number } | null = null
         let lastVideoTime = -1
-        // Charge state
-        let charged: { el: string; t: number; since: number } | null = null // t = last activity (idle fade), since = when charged
+        // Letter being held (to charge an element once held long enough)
         let holdLetter: string | null = null
         let holdSince = 0
         // Stroke state
@@ -238,11 +247,10 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
         let lastUi = 0
         let prevWrist: { x: number; y: number; t: number } | null = null
         let openSince: number | null = null
-        // Readied spell, waiting for a push toward the camera.
-        let ready: { name: string; detail: string; color: string; el: string; shape: string; t: number } | null = null
         let sizes: { t: number; s: number }[] = [] // recent hand sizes on screen
         let wasSilenced = false
-        let lastThrow = -Infinity
+        let sentSign: { el: string; t: number } | null = null // last element sent, so it isn't resent every frame
+        let lastCharge: string | null = null // to spot a new charge (see the push below)
         let knockedSeen = 0
 
         const finishStroke = (now: number) => {
@@ -256,65 +264,37 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
           if (palms < MIN_STROKE_PALMS) {
             // Tiny strokes are usually just settling the hand; only mention ones close to the limit.
             arena.current.cleared()
-            if (palms > 0.5) setLog((l) => [{ name: 'Too short', detail: `stroke ${palms.toFixed(1)} palms, need ${MIN_STROKE_PALMS}`, color: '#888', ok: false, t: now }, ...l].slice(0, 8))
+            if (palms > 0.5) setLog((l) => [{ name: 'Too short', detail: 'Draw bigger', color: '#888', ok: false, t: now }, ...l].slice(0, 8))
             return
           }
-          const m = recognizer.recognize(pts)
-          const shape = m.score >= MATCH_SCORE ? m.name : null
-          const el = charged?.el ?? null
+          const m = recognizeShape(shapeModel, pts)
+          const need = Object.values(SIGNATURE).includes(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
+          const shape = m.score >= need && m.name !== 'none' ? m.name : null
+          const el = fightRef.current.charge.player
           if (DEBUG) {
-            const ft = strokeFeatures(pts)
+            const ft = shapeFeatures(pts)
+            const o = ft.length - 8 // summary inputs: turns, …, corners (see shapes.ts)
             strokeLog.push({
               t: new Date().toISOString(),
               charge: el,
               points: pts.map((q) => [Math.round(q.x), Math.round(q.y)]),
               read: m.name,
               score: Math.round(m.score * 1000) / 1000,
-              rejected: m.rejected ?? null,
-              corners: ft.corners,
-              turns: Math.round(ft.turns * 100) / 100,
+              rejected: m.top.slice(0, 3).map((t) => `${t.name} ${Math.round(t.prob * 100)}%`).join(', '),
+              corners: Math.round(ft[o + 5] * 10),
+              turns: Math.round(ft[o] * 400) / 100,
             })
             if (strokeLog.length > 300) strokeLog.shift()
             setStrokeCount(strokeLog.length)
           }
-          let cast: Cast
-          if (!shape)
-            cast = {
-              name: 'Fizzle',
-              detail: m.rejected ? `looked like a ${m.rejected}` : `shape not recognized (closest: ${m.name} ${Math.round(m.score * 100)}%)`,
-              color: '#888',
-              ok: false,
-              t: now,
-            }
-          else if (!el) cast = { name: 'Fizzle', detail: `${shape} drawn with no element charged`, color: '#888', ok: false, t: now }
-          else if (!isValidSpell(el, shape))
-            cast = { name: 'Fizzle', detail: `${ELEMENTS[el].name} can't use ${shape} (it uses: ${shapesFor(el).join(', ')})`, color: '#888', ok: false, t: now }
-          else {
-            // A good shape doesn't cast yet: the spell is readied, and a push throws it.
-            ready = {
-              name: spellName(el, shape),
-              detail: `${ELEMENTS[el].name} + ${shape} (${FORMS[shape]}) · ${Math.round(m.score * 100)}%`,
-              color: ELEMENTS[el].color,
-              el,
-              shape,
-              t: now,
-            }
-            setReadyName(ready.name)
-            if (charged) charged.t = now
-            arena.current.readied(el, shape)
-            fade = { pts, color: ready.color, t: now }
-            return
-          }
-          fade = { pts, color: cast.color, t: now }
-          log(cast)
-          if (charged) charged.t = now // a fizzle keeps your charge; the 3 s idle clock restarts
-          arena.current.cleared()
+          // Report what was drawn; the fight decides (ready it, or fizzle). Only what the browser alone
+          // knows is logged here: why a stroke wasn't a spell shape.
+          arena.current.drew(shape)
+          const fits = shape && el && isValidSpell(el, shape)
+          fade = { pts, color: fits ? ELEMENTS[el].color : '#888', t: now }
+          if (!shape) log({ name: 'Fizzle', detail: m.name === 'none' ? 'Not a spell shape' : 'Shape unclear', color: '#888', ok: false, t: now })
         }
         const log = (c: Cast) => setLog((l) => [c, ...l].slice(0, 8))
-        const clearReady = () => {
-          ready = null
-          setReadyName(null)
-        }
 
         const loop = async () => {
           if (stopped) return
@@ -338,45 +318,37 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
           const W = canvas.width
           const H = canvas.height
           ctx.clearRect(0, 0, W, H)
-          if (charged && !ready && stroke.length === 0 && now - charged.t > CHARGE_LIFE_MS) {
-            charged = null
-            chargeTo(null)
+          const view = fightRef.current
+          const myCharge = shownCharge(now, view.charge.player)
+          // A new charge: forget earlier hand movement, so raising your hand to sign isn't read as a
+          // push. Only a push that starts after the charge throws (e.g. a quick interrupt).
+          if (myCharge !== lastCharge) {
+            lastCharge = myCharge
+            sizes = []
           }
+          const myReady = view.ready.player
           // Silenced (a counterspell landed on you): your charge, drawing and ready spell are gone,
           // and you can't charge or draw until it ends.
           const silenced = fightRef.current.running && fightRef.current.silenced.player > 0
           if (silenced && !wasSilenced) {
-            if (charged) {
-              charged = null
-              chargeTo(null)
-            }
-            if (ready) clearReady()
             if (stroke.length) {
               stroke = []
               palmSum = 0
               setDrawing(false)
             }
             holdLetter = null
-            log({ name: 'Interrupted!', detail: 'silenced for 2 s', color: '#ff6a3d', ok: false, t: now })
           }
           wasSilenced = silenced
           // Earthquake knocked your charge off: your charge, drawing and ready spell are gone.
           const knocked = fightRef.current.knocked.player
           if (knocked > knockedSeen) {
-            if (charged) {
-              charged = null
-              chargeTo(null)
-            }
-            if (ready) clearReady()
             if (stroke.length) {
               stroke = []
               palmSum = 0
               setDrawing(false)
             }
-            log({ name: 'Knocked off!', detail: 'Earthquake: re-sign your element', color: ELEMENTS.E.color, ok: false, t: now })
           }
           knockedSeen = knocked
-          const inStatic = fightRef.current.running && fightRef.current.static.player === 'on'
 
           // The letter model runs every frame: a confident L (index up, thumb out) is Lightning
           // being signed, never drawing, even if the geometry check alone would call it pointing.
@@ -385,38 +357,50 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
           const pointing = lm && !silenced ? isPointing(lm) && !signingL : false
           let letter = ''
           if (lm && pred) {
-            drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: charged ? ELEMENTS[charged.el].color : '#e2b714', lineWidth: 3 })
-            // No charging while a spell is ready (you've committed to it) or right after a throw.
-            if (!pointing && stroke.length === 0 && !silenced && !ready && now - lastThrow >= AFTER_THROW_MS) {
+            // Fizzle lockout: the hand goes dim and grey until you can throw again.
+            const dim = view.fizzled.player > 0
+            if (dim) ctx.globalAlpha = 0.3
+            drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: dim ? '#888' : myCharge ? ELEMENTS[myCharge].color : '#e2b714', lineWidth: 3 })
+            ctx.globalAlpha = 1
+            if (dim) {
+              // "Fizzled" over the palm. The canvas is mirrored on screen, so flip the text back.
+              const cx = ((lm[0].x + lm[9].x) / 2) * W
+              const cy = ((lm[0].y + lm[9].y) / 2) * H
+              ctx.save()
+              ctx.translate(cx, cy)
+              ctx.scale(-1, 1)
+              ctx.font = `bold ${Math.round(0.04 * W)}px sans-serif`
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'middle'
+              ctx.fillStyle = '#ccc'
+              ctx.shadowColor = '#000'
+              ctx.shadowBlur = 8
+              ctx.fillText('Fizzled', 0, 0)
+              ctx.restore()
+            }
+            // Not while drawing, silenced or with a spell readied (the fight would refuse it anyway).
+            if (!pointing && stroke.length === 0 && !silenced && !myReady) {
               // Not drawing: read the handshape as a letter, to charge an element.
               letter = pred.confidence >= CHARGE_PROB ? directionLetter(pred.letter, lm) : ''
               const el = ELEMENTS[letter] ? letter : null
               if (el !== holdLetter) {
                 holdLetter = el
                 holdSince = now
-              } else if (el && el !== charged?.el && now - holdSince >= CHARGE_MS) {
-                charged = { el, t: now, since: now }
-                chargeTo(el)
+              } else if (el && el !== myCharge && now - holdSince >= CHARGE_MS && (sentSign?.el !== el || now - sentSign.t > 300)) {
+                arena.current.sign(el) // the fight decides (e.g. not right after a throw)
+                sentSign = { el, t: now }
+                if (!silenced) predicted.current = { el, t: now }
               }
             }
           }
 
           // Pen: the index fingertip, in pixels (so circles aren't squashed by the 16:9 frame).
           if (lm && pointing) {
-            if (stroke.length === 0) {
-              setDrawing(true)
-              if (ready) {
-                // Pointing again before throwing = redraw: the readied spell is dropped.
-                log({ name: 'Redraw', detail: `${ready.name} dropped`, color: '#888', ok: false, t: now })
-                clearReady()
-                arena.current.cleared()
-              }
-            }
+            if (stroke.length === 0) setDrawing(true) // drawing with a spell readied drops it (the fight decides)
             stroke.push({ x: lm[8].x * W, y: lm[8].y * H })
             arena.current.stroke([{ x: 1 - lm[8].x, y: lm[8].y }]) // mirrored: as you see it on screen
             palmSum += Math.hypot((lm[0].x - lm[9].x) * W, (lm[0].y - lm[9].y) * H)
             lastPointT = now
-            if (charged) charged.t = now // drawing keeps the charge alive
           }
           // Hand speed (palm-widths per second), from the smoothed wrist.
           let speed = 0
@@ -444,42 +428,25 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
             while (sizes.length && now - sizes[0].t > PUSH_WINDOW_MS) sizes.shift()
           } else sizes = []
 
-          // Push to throw: the hand quickly grows on screen (moves toward the camera). Only while
-          // a spell is ready and no stroke is in progress, so drawing never throws by accident.
-          if (ready) {
-            if (now - ready.t > READY_LIFE_MS) {
-              log({ name: 'Fizzle', detail: `${ready.name} faded (no push)`, color: '#888', ok: false, t: now })
-              clearReady()
-              arena.current.cleared()
-            } else if (sizes.length > 1 && stroke.length === 0) {
-              const s = sizes[sizes.length - 1].s
-              const smallest = Math.min(...sizes.map((x) => x.s))
-              if (s / smallest >= PUSH_GROWTH) {
-                if (inStatic) {
-                  // Lightning static: the throw fizzles. The spell is lost, the charge is kept.
-                  log({ name: 'Fizzled (static)', detail: `${ready.name} lost — wait for the gap`, color: ELEMENTS.L.color, ok: false, t: now })
-                  clearReady()
-                  if (charged) charged.t = now
-                  arena.current.cleared()
-                } else {
-                  log({ name: ready.name, detail: ready.detail, color: ready.color, ok: true, t: now })
-                  arena.current.cast(ready.el, ready.shape, now)
-                  lastThrow = now
-                  holdLetter = null
-                  charged = null
-                  chargeTo(null)
-                  clearReady()
-                }
-                sizes = []
-              }
+          // Push: the hand quickly grows on screen (moves toward the camera). Reported only with something
+          // to throw (a readied spell, or a counter element for a quick interrupt) and no stroke in
+          // progress, so drawing never throws by accident. The fight decides what it throws, if anything.
+          if ((myReady || (myCharge && myCharge in BEATS)) && sizes.length > 1 && stroke.length === 0 && !pointing) {
+            const s = sizes[sizes.length - 1].s
+            if (s / Math.min(...sizes.map((x) => x.s)) >= PUSH_GROWTH) {
+              arena.current.push()
+              holdLetter = null
+              sizes = []
             }
-            if (ready && lm) {
+          }
+          if (myReady) {
+            if (lm) {
               // The readied spell glows on the hand, pulsing.
               const cx = ((lm[0].x + lm[9].x) / 2) * W
               const cy = ((lm[0].y + lm[9].y) / 2) * H
               ctx.globalAlpha = 0.35 + 0.25 * Math.sin(now / 120)
-              ctx.fillStyle = ready.color
-              ctx.shadowColor = ready.color
+              ctx.fillStyle = ELEMENTS[myReady.el].color
+              ctx.shadowColor = ELEMENTS[myReady.el].color
               ctx.shadowBlur = 40
               ctx.beginPath()
               ctx.arc(cx, cy, 0.08 * W, 0, 2 * Math.PI)
@@ -505,7 +472,7 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
             ctx.shadowBlur = 0
             ctx.globalAlpha = 1
           }
-          trail(stroke, charged ? ELEMENTS[charged.el].color : '#ffffff', 0.9)
+          trail(stroke, myCharge ? ELEMENTS[myCharge].color : '#ffffff', 0.9)
           if (fade) {
             const a = 1 - (now - fade.t) / 1200
             if (a <= 0) fade = null
@@ -530,7 +497,7 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
   }, [hand])
 
   const latest = log[0]
-  const oppName = mode === 'online' ? 'Opponent' : mode === 'dummy' ? 'Training dummy' : 'Enemy'
+  const oppName = mode === 'online' ? 'Opponent' : mode === 'dummy' || mode === 'tutorial' ? 'Training dummy' : 'Enemy'
   const fighterHead = (side: Side) => (
     <div className="fighter">
       <div className="fighter-name">
@@ -540,9 +507,9 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
         {fight.silenced[side] > 0 && <span className="tag silenced">silenced {(fight.silenced[side] / 1000).toFixed(1)}s</span>}
       </div>
       <div className="hp-bar">
-        <div className="hp-fill" style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: side === 'player' ? '#6be38a' : '#ff6a3d' }} />
+        <div className="hp-fill" style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: side === 'player' ? 'var(--you)' : 'var(--foe)' }} />
         <span className="hp-text">
-          {fight.maxHp[side] === Infinity ? `∞ · damage taken ${fight.dealt.player}` : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
+          {fight.maxHp[side] === Infinity ? '∞' : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
         </span>
         {fight.floats
           .filter((f) => f.side === side)
@@ -558,26 +525,9 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
 
   return (
     <main className="page duel-page">
-      <header>
-        <span className="logo">ASL Spells</span>
-        <div className="row">
-          <button className={`small ${mode === 'dummy' ? 'active' : ''}`} onClick={goDummy}>
-            Dummy
-          </button>
-          <button className={`small ${mode === 'practice' ? 'active' : ''}`} onClick={goPractice}>
-            Practice (AI)
-          </button>
-          <button className={`small ${mode === 'online' ? 'active' : ''}`} onClick={() => mode !== 'online' && goOnline()}>
-            Online
-          </button>
-          <button className="small" onClick={() => setMenu(true)} title="Shortcut: Esc">
-            How to cast (Esc)
-          </button>
-          <button className="small" onClick={onBack}>
-            Back to typing
-          </button>
-        </div>
-      </header>
+      <button className="small menu-btn" onClick={() => setMenu('main')} title="Menu (Esc)">
+        Esc
+      </button>
 
       {mode === 'online' && lobby && (
         <OnlinePanel lobby={lobby} clock={clock} joinCode={joinCode} setJoinCode={setJoinCode} arena={online.current} onReconnect={goOnline} />
@@ -590,7 +540,7 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
           </button>
           debug cast:
           {['F', 'I', 'L', 'E', 'W', 'H'].map((el) =>
-            [...shapesFor(el), ...(el in BEATS ? [COUNTER] : [])].map((shape) => (
+            [...shapesFor(el), ...(el in BEATS ? [COUNTER, QUICK] : [])].map((shape) => (
               <button key={el + shape} className="small" onClick={() => debugCast(el, shape)}>
                 {el} {shape}
               </button>
@@ -599,85 +549,112 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
         </section>
       )}
 
-      {status && <p className="status">{status}</p>}
-
       <section className="duel">
-        <div className="duel-side">
-          {fighterHead('player')}
-          <div className="status-strip">
-            <span className="charge" style={{ color: charge ? ELEMENTS[charge].color : undefined }}>
-              {charge ? `${charge} · ${ELEMENTS[charge].name} charged` : 'no charge'}
-            </span>
-            <span className="sub-line">
-              {fight.running && fight.silenced.player > 0
-                ? 'Silenced!'
-                : readyName
-                  ? `${readyName} ready — push!`
-                  : drawing
-                    ? 'drawing…'
-                    : charge && charge in BEATS
-                      ? `circle = counter ${ELEMENTS[BEATS[charge]].name} · or attack`
+        <div className="duel-side you" ref={youRef}>
+          <div className="camera">
+            <video ref={videoRef} playsInline muted />
+            <canvas ref={canvasRef} />
+          </div>
+          <div className="side-hud">
+            {fighterHead('player')}
+            <div className="status-strip">
+              <span className="charge" style={{ color: charge ? ELEMENTS[charge].color : undefined }}>
+                {charge ? `${ELEMENTS[charge].name} charged` : 'no charge'}
+              </span>
+              <span className="sub-line">
+                {fight.running && fight.silenced.player > 0
+                  ? 'Silenced!'
+                  : readyName
+                    ? `Push to throw ${readyName}`
+                    : drawing
+                      ? 'drawing…'
                       : `seeing: ${seeing}`}
-            </span>
-          </div>
-          <div className="stage">
-            <div className="camera">
-              <video ref={videoRef} playsInline muted />
-              <canvas ref={canvasRef} />
+              </span>
             </div>
-            {latest && (
-              <div className="cast stage-overlay" key={latest.t} style={{ color: latest.color }}>
-                {latest.name}
-                <span>{latest.detail}</span>
-              </div>
-            )}
           </div>
+          {status && <p className="status side-status">{status}</p>}
+          {latest && !latest.ok && (
+            <div className="cast stage-overlay" key={latest.t} style={{ color: latest.color }}>
+              {latest.name}
+              <span>{latest.detail}</span>
+            </div>
+          )}
+          <StatusFx side="player" view={fight} />
+          <Impacts side="player" bolts={fight.bolts} />
         </div>
 
-        <div className="duel-side">
-          {fighterHead('enemy')}
-          {mode !== 'dummy' && <CastBar fight={fight} />}
-          <div className="stage">
-            <EnemyCanvas cast={fight.running ? fight.enemyCast : null} />
-            {mode === 'dummy' && (
-              <div className="stage-center">
-                <b className="result">{fight.dealt.player}</b>
-                <span className="sub-line">total damage · it never fights back</span>
-                <button className="small" onClick={() => dummy.current.reset()}>
-                  Reset
-                </button>
-              </div>
-            )}
-            {mode === 'practice' && !fight.running && (
-              <div className="stage-center">
-                {result && <b className="result">{result}</b>}
-                <button onClick={startPractice}>{result ? 'Fight again' : 'Start battle'}</button>
-              </div>
-            )}
-            {mode === 'online' && !fight.running && (
-              <div className="stage-center">
-                {result && lobby && (lobby.phase === 'over' || lobby.phase === 'lobby') ? (
-                  <b className="result">{result}</b>
-                ) : (
-                  <span className="sub-line">{lobby?.phase === 'countdown' ? 'Get ready…' : 'Waiting for the match to start'}</span>
-                )}
-              </div>
-            )}
+        <div className="duel-side opp" ref={oppRef}>
+          <EnemyCanvas cast={fight.running ? fight.enemyCast : null} />
+          <div className="side-hud">
+            {fighterHead('enemy')}
+            {mode !== 'dummy' && <CastBar fight={fight} />}
           </div>
+          {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} />}
+          {mode === 'dummy' && (
+            <div className="stage-center">
+              <b className="result">{fight.dealt.player}</b>
+              <span className="sub-line">damage dealt</span>
+              <button className="small" onClick={() => dummy.current.reset()}>
+                Reset
+              </button>
+            </div>
+          )}
+          {mode === 'practice' && !fight.running && (
+            <div className="stage-center">
+              {result && <b className="result">{result}</b>}
+              <div className="row">
+                {(['easy', 'medium', 'hard', 'insane'] as const).map((d) => (
+                  <button key={d} className={`small ${difficulty === d ? 'active' : ''}`} onClick={() => setDifficulty(d)}>
+                    {d[0].toUpperCase() + d.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <button onClick={startPractice}>{result ? 'Fight again' : 'Start battle'}</button>
+            </div>
+          )}
+          {mode === 'online' && !fight.running && (
+            <div className="stage-center">
+              {result && lobby && (lobby.phase === 'over' || lobby.phase === 'lobby') ? (
+                <b className="result">{result}</b>
+              ) : (
+                <span className="sub-line">{lobby?.phase === 'countdown' ? 'Get ready…' : 'Waiting for the match to start'}</span>
+              )}
+            </div>
+          )}
+          <StatusFx side="enemy" view={fight} />
+          <Impacts side="enemy" bolts={fight.bolts} />
         </div>
+
+        <BoltLayer bolts={fight.bolts} />
+        <p className="privacy-note">Your camera stays on your device. Online, your opponent only sees your drawings and element.</p>
       </section>
 
-      <p className="note privacy-note">
-        Your camera stays on your device and is never uploaded. Online, your opponent only sees your spell drawings and element.
-      </p>
-
-      {menu && (
-        <div className="menu-overlay" onClick={() => setMenu(false)}>
+      {menu === 'main' && (
+        <div className="menu-overlay" onClick={() => setMenu(null)}>
+          <div className="menu-card pause-menu" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setMenu(null)}>Resume</button>
+            {mode === 'practice' && fight.running && (
+              <button
+                onClick={() => {
+                  practice.current.stop()
+                  setMenu(null)
+                }}
+              >
+                End match
+              </button>
+            )}
+            {mode !== 'tutorial' && <button onClick={() => setMenu('help')}>How to cast</button>}
+            <button onClick={goHome}>Home</button>
+          </div>
+        </div>
+      )}
+      {menu === 'help' && (
+        <div className="menu-overlay" onClick={() => setMenu(null)}>
           <div className="menu-card" onClick={(e) => e.stopPropagation()}>
             <div className="menu-head">
               <b>How to cast</b>
-              <button className="small" onClick={() => setMenu(false)}>
-                Close (Esc)
+              <button className="small" onClick={() => setMenu('main')}>
+                Back
               </button>
             </div>
             <div className="spell-help">
@@ -685,7 +662,7 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
               <ul>
                 {Object.entries(ELEMENTS).map(([l, e]) => (
                   <li key={l} style={{ color: e.color }}>
-                    {l} = {e.name}
+                    <img className="asl-mini" src={`/asl/${l}.svg`} alt={`ASL ${l}`} /> {l} = {e.name}
                   </li>
                 ))}
               </ul>
@@ -742,7 +719,12 @@ export function SpellPage({ hand, onBack }: { hand: Hand; onBack: () => void }) 
               <p>
                 <b>Counterspell</b> — sign an element, draw a <b>circle</b>, push. If your opponent is still charged with the element
                 yours beats when it lands, they're silenced for 2 s and lose their charge. Otherwise it's wasted. They can see the
-                circle coming, so throwing first or switching elements dodges it.
+                circle coming, so throwing first or switching elements dodges it. A counterspell of <b>any</b> element also stops a
+                heal (a Heal charge, or a regen still ticking).
+              </p>
+              <p>
+                <b>Interrupt</b> — sign the element that beats theirs and just push, no drawing. Faster to land but weaker: 0.5 s
+                silence. It can't stop heals.
               </p>
               <p className="shape-note">Fast strokes are fine — just keep your hand in view. A charge fades after 3 s if you don't draw.</p>
             </div>
@@ -806,7 +788,7 @@ function OnlinePanel(props: {
       body = <span>Connecting to the game server…</span>
       break
     case 'reconnecting':
-      body = <span>Connection lost — reconnecting… (your seat is held for 15 s)</span>
+      body = <span>Reconnecting…</span>
       break
     case 'offline':
       body = <button onClick={onReconnect}>Reconnect</button>
@@ -839,7 +821,7 @@ function OnlinePanel(props: {
             Room <b className="room-code">{lobby.code}</b>
           </span>
           {lobby.players < 2 ? (
-            <span className="sub-line">Waiting for an opponent — share this code.</span>
+            <span className="sub-line">Share this code with your opponent</span>
           ) : (
             <>
               <button onClick={() => arena?.ready()} disabled={you}>
@@ -860,7 +842,7 @@ function OnlinePanel(props: {
     case 'fighting':
       body = (
         <>
-          <span className="sub-line">Room {lobby.code} · fight!</span>
+          <span className="sub-line">Fight!</span>
           <button className="small" onClick={() => window.confirm('Forfeit this match?') && arena?.forfeit()}>
             Forfeit
           </button>
@@ -873,7 +855,7 @@ function OnlinePanel(props: {
       {body}
       {lobby.oppAwayUntil !== null && (
         <span className="note-line">
-          Opponent disconnected — fight paused. Waiting {Math.max(0, Math.ceil((lobby.oppAwayUntil - clock) / 1000))} s for them to come back…
+          Opponent disconnected. Waiting {Math.max(0, Math.ceil((lobby.oppAwayUntil - clock) / 1000))} s…
         </span>
       )}
       {lobby.paused && lobby.oppAwayUntil === null && <span className="note-line">Fight paused while a player reconnects…</span>}

@@ -8,7 +8,8 @@ import { JumpFilter, LandmarkSmoother } from './smoothing'
 import { GUIDE, randomWords } from './content'
 import { GuidePose } from './GuidePose'
 import { CLIP_MS, Recorder } from './recorder'
-import { SpellPage } from './SpellPage'
+import { SpellPage, type Mode } from './SpellPage'
+import { getOnlineFlag } from './online'
 import './App.css'
 
 // Target-letter scoring: we know which letter the player should sign next,
@@ -51,25 +52,20 @@ const getRecognizer = () => (recognizerPromise ??= loadRecognizer())
 const HAND: Hand = 'right'
 
 export default function App() {
-  // Remember the page across refreshes (per tab), so a refresh mid-match stays on Spells.
-  const [spells, setSpellsState] = useState(() => {
-    try {
-      return sessionStorage.getItem('page') === 'spells'
-    } catch {
-      return false
-    }
-  })
-  const setSpells = (on: boolean) => {
-    setSpellsState(on)
-    try {
-      sessionStorage.setItem('page', on ? 'spells' : 'typing')
-    } catch {
-      /* ignore */
-    }
-  }
-  if (spells) return <SpellPage hand={HAND} onBack={() => setSpells(false)} />
-  return <TypingPage hand={HAND} onSpells={() => setSpells(true)} />
+  // A refresh goes back home, except mid online room (the server puts you back in your seat).
+  const [mode, setMode] = useState<Mode | null>(() => (getOnlineFlag() ? 'online' : null))
+  if (mode) return <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => setMode(null)} />
+  return (
+    <main className="home">
+      <h1 className="logo">ASL Spells</h1>
+      <button onClick={() => setMode('tutorial')}>Tutorial</button>
+      <button onClick={() => setMode('dummy')}>Dummy</button>
+      <button onClick={() => setMode('practice')}>Practice AI</button>
+      <button onClick={() => setMode('online')}>Online</button>
+    </main>
+  )
 }
+
 
 interface Stats {
   cameraRes: string // resolution the camera actually delivers
@@ -87,7 +83,7 @@ interface View {
   wordIdx: number
   letterIdx: number
   seeing: string | null
-  top3: string // the model's three most likely letters, e.g. "D 62% · V 30% · K 4%"
+  top3: string // the model's three most likely letters, e.g. "D 62%  V 30%  K 4%"
   targetProb: number
   accepted: number
   errors: number
@@ -121,7 +117,8 @@ function newGame(practice: string | null = null) {
   }
 }
 
-function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => void }) {
+// The typing game is hidden for now (no route to it); kept for later.
+export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const game = useRef(newGame())
@@ -423,7 +420,7 @@ function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => void }) {
           ? pred
               .top(3)
               .map((t) => `${t.letter} ${Math.round(t.prob * 100)}%`)
-              .join(' · ')
+              .join(' ')
           : '',
         targetProb: g.needRelease ? 0 : p,
         accepted: g.accepted,
@@ -538,7 +535,7 @@ function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => void }) {
             </span>
             <span className="top-guess">top guess: {view.seeing ?? '–'}</span>
           </div>}
-          {view.top3 && <div className="top3">model: {view.top3}</div>}
+          {view.top3 && <div className="top3">{view.top3}</div>}
           {view.formHint && <div className="form-hint">{view.formHint}</div>}
         </div>
 
@@ -547,7 +544,7 @@ function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => void }) {
             <div className="guide-title">GUIDE</div>
             <div className="guide-letter">{target}</div>
             <GuidePose letter={target} hand={hand} />
-            <div className="guide-legend">example hand · pink dot = thumb tip</div>
+            <div className="guide-legend">pink dot = thumb tip</div>
             <p>{GUIDE[target] ?? 'No guide for this letter yet.'}</p>
           </div>
         )}
@@ -569,8 +566,10 @@ function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => void }) {
         )}
         {view.stats && (
           <span className="stats">
-            camera {view.stats.cameraRes} @ {view.stats.cameraFps} fps · tracking {view.stats.processedFps} fps · {view.stats.detectMs} ms/frame ·
-            hand found {view.stats.handFound}%
+            <span>camera {view.stats.cameraRes} @ {view.stats.cameraFps} fps</span>
+            <span>tracking {view.stats.processedFps} fps</span>
+            <span>{view.stats.detectMs} ms/frame</span>
+            <span>hand found {view.stats.handFound}%</span>
           </span>
         )}
       </footer>

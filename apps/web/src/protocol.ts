@@ -8,12 +8,13 @@ export type ClientMsg =
   | { t: 'ready' }
   | { t: 'leave' }
   | { t: 'forfeit' }
-  // Your own casting steps, relayed to the opponent so they can read you:
-  | { t: 'charge'; el: string | null }
+  // What your browser recognized. The server decides what it does (charge, ready, throw, fizzle)
+  // and relays the results to the opponent so they can read you:
+  | { t: 'sign'; el: string } // a held letter that is an element
   | { t: 'stroke'; pts: [number, number][] } // new trail points (0..1 of your camera frame)
-  | { t: 'readied'; el: string; shape: string }
-  | { t: 'cleared' }
-  | { t: 'cast'; el: string; shape: string }
+  | { t: 'drew'; shape: string | null } // a finished stroke, as recognized (null = not a spell shape)
+  | { t: 'cleared' } // a stroke too short to count (just settling the hand)
+  | { t: 'push' } // a push toward the camera
 
 export type OppEvent =
   | { kind: 'charge'; el: string | null }
