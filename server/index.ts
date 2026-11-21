@@ -263,6 +263,7 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       if (room.combat.drawing(side, now)) sendState(room) // a redraw dropped their readied spell
       return relay(room, seat, {
         kind: 'stroke',
+        a: Math.min(4, Math.max(0.25, Number(msg.a) || 16 / 9)), // their visible view's width / height
         pts: msg.pts.slice(0, MAX_STROKE_PTS).map((p) => [Number(p?.[0]) || 0, Number(p?.[1]) || 0] as [number, number]),
       })
     case 'drew': {

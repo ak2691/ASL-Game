@@ -383,3 +383,12 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .info-table td:first-child { white-space: nowrap; font-weight: 700; }
 .info-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 @media (max-width: 600px) { .info-table td:first-child { white-space: normal; } }
+
+/* Opponent drawing: same thickness and look as your own trail (10px on a 720-tall frame; the frame is 1000 units tall). */
+.enemy-canvas svg path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.enemy-stroke { stroke: currentColor; stroke-width: 13.9; opacity: 0.9; filter: drop-shadow(0 0 12px currentColor); }
+.enemy-ink { display: none; }
+.enemy-canvas.ready .enemy-stroke { animation: enemy-ready 0.25s ease-in-out infinite alternate; }
+@keyframes enemy-ready { to { opacity: 0.55; } }
+.duel .enemy-canvas.ready { animation: none; }
+.leave-title { font-size: 1.3rem; text-align: center; } .leave-text { margin: 0; color: var(--sub); text-align: center; }

@@ -17,7 +17,10 @@ export interface OppCast {
   name: string | null // known once their spell is ready
   color: string
   phase: 'charge' | 'draw' | 'ready'
-  points: Pt01[] // their drawing so far (0..1 box)
+  points: Pt01[] // their drawing so far, as fractions of `view`
+  // The box the points are in: a player's visible camera view (width / height), shown filling your
+  // panel the way their camera filled theirs ('cover'); the AI's square box, shown whole ('contain').
+  view: { aspect: number; fit: 'cover' | 'contain' }
   progress: number | null // 0..1 through the cast (AI only: a real player has no fixed timing)
 }
 
@@ -31,7 +34,7 @@ export interface Arena {
   /** What your browser recognized. The fight's rules (combat.ts) decide what it does; online,
    *  that happens on the server only. */
   sign(el: string): void // a held letter that is an element
-  stroke(points: Pt01[]): void // points added since the last call (0..1 of the camera frame)
+  stroke(points: Pt01[], aspect: number): void // points added since the last call: fractions of your visible (mirrored) view, which is `aspect` wide / tall
   drew(shape: string | null): void // a finished stroke, as recognized (null = not a spell shape)
   cleared(): void // a stroke too short to count
   push(): void // a push toward the camera
@@ -153,7 +156,8 @@ function pick<T>(items: { w: number; v: T }[]) {
 
 function spellOf(el: string, shape: string, speed: number, chargeMs = CHARGE_MS * speed) {
   const drawMs = DRAW_MS[shape] * speed
-  const points = shape === 'jab' ? [] : shapePoints(shape)
+  // Placed like a player's drawing on a 16:9 camera frame: centered, kept square, 75% of the height.
+  const points = shape === 'jab' ? [] : shapePoints(shape).map((p) => ({ x: 0.5 + (p.x - 0.5) * 0.75 * (9 / 16), y: 0.5 + (p.y - 0.5) * 0.75 }))
   return { el, shape, name: spellName(el, shape), color: ELEMENTS[el].color, points, chargeMs, drawMs, readyMs: shape === 'jab' ? 0 : READY_MS * speed }
 }
 
@@ -302,6 +306,7 @@ export class PracticeArena implements Arena {
       color: e.color,
       phase,
       points: e.points.slice(0, Math.max(0, Math.ceil(drawn * e.points.length))),
+      view: { aspect: 1, fit: 'contain' },
       progress: t / (e.ends - e.start),
     }
   }

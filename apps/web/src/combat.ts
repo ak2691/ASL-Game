@@ -222,16 +222,18 @@ export class Combat {
     return true
   }
 
-  /** A stroke is being drawn: keeps the charge alive. Drawing while a spell is readied drops it
-   *  (a redraw). Returns true if a readied spell was dropped. */
+  /** A stroke is being drawn: keeps the charge alive. Drawing while a spell is readied abandons it
+   *  (a fizzle). Returns true if a readied spell was dropped. */
   drawing(side: Side, now: number): boolean {
     const c = this.charge[side]
     if (c) c.active = now
     this.strokeStart[side] ??= now
     const r = this.ready[side]
     if (!r) return false
+    // A readied spell is a commitment: drawing again abandons it, and that fizzles (lockout, charge kept).
     this.ready[side] = null
-    this.note(side, 'Redraw', `${spellName(r.el, r.shape)} dropped`, '#888', false, now)
+    this.note(side, 'Fizzle', `${spellName(r.el, r.shape)} abandoned (redraw)`, '#888', false, now)
+    this.fizzle(side, now)
     return true
   }
 

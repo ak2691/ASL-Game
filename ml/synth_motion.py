@@ -34,6 +34,9 @@ import os
 
 import numpy as np
 
+# WARNING (Nov 21, 2026): these loaders now return TRUE-proportion points (x and z times width /
+# height), but the app still feeds the motion model raw 0..1 points (motion.ts). Before re-running
+# this script, either switch the app's motion input to trueShape() too, or convert back here.
 from train_letters import HOLDOUT_SIGNERS, LETTERS, load_aslhg, load_aslnow, load_siruyy
 
 FRAMES = 45  # 1.5 s at 30 fps (long enough for slow or big Js and Zs)

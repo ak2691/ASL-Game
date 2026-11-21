@@ -28,8 +28,9 @@ export const RULES: Record<string, Rule> = {
 // The letter model has no "not a letter" class, so a hand that isn't a letter (an open palm) still
 // gets its closest letter. A gate rejects a letter the hand plainly can't be.
 
-/** F: the index fingertip touches the thumb. Real F samples: thumb-index gap at most 0.22 palm
- *  units for 95% (ASL-HG), 99% of ASLNow under 0.45; open hands (B, W) never below 0.75. */
+/** F: the index fingertip touches the thumb. Measured in true proportions (trueShape()): real F
+ *  samples have a thumb-index gap of 0.16 palm units (95%) / 0.22 (99%) in ASL-HG; open hands (B, W)
+ *  never go below 0.73. */
 const F_TOUCH_MAX = 0.45
 
 /** False if the hand plainly can't be `letter` (e.g. F with the index away from the thumb). */

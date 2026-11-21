@@ -13,7 +13,8 @@ made MediaPipe miss 11% of hands; with the border it found 100% in a test of 300
 
 Usage:  .venv/Scripts/python extract_aslhg.py
 Input:  data/aslhg-hf/data/*.parquet   (download: see README in ml/ or skills.md)
-Output: data/aslhg/points.npz  (points: N x 21 x 3, letters: N, signers: N)
+Output: data/aslhg/points.npz  (points: N x 21 x 3, letters: N, signers: N, sizes: N x 2 = image
+        width, height in pixels as MediaPipe saw it, so points can be put in true proportions)
 """
 
 import mediapipe as mp  # import before pyarrow: the other order fails to load on Windows
@@ -39,7 +40,7 @@ def main():
         base_options=BaseOptions(model_asset_path=str(MODEL)),
         running_mode=RunningMode.IMAGE, num_hands=1, min_hand_detection_confidence=0.3))
 
-    points, letters, signers = [], [], []
+    points, letters, signers, sizes = [], [], [], []
     missed, done = 0, 0
     for path in PARQUETS:
         table = pq.read_table(path)
@@ -60,12 +61,14 @@ def main():
             points.append([[p.x, p.y, p.z] for p in result.hand_landmarks[0]])
             letters.append(letter)
             signers.append(img["path"].split("_")[0])  # e.g. "P10"
+            sizes.append(im.size)  # after the border and any resize: the frame MediaPipe measured against
             if done % 2000 == 0:
                 print(f"{done} images, {missed} without a hand", flush=True)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(OUT, points=np.array(points, dtype=np.float32),
-                        letters=np.array(letters), signers=np.array(signers))
+                        letters=np.array(letters), signers=np.array(signers),
+                        sizes=np.array(sizes, dtype=np.int32))
     print(f"saved {OUT}: {len(points)} hands from {done} images ({missed} without a hand)")
 
 

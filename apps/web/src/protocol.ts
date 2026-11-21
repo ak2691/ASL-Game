@@ -11,14 +11,14 @@ export type ClientMsg =
   // What your browser recognized. The server decides what it does (charge, ready, throw, fizzle)
   // and relays the results to the opponent so they can read you:
   | { t: 'sign'; el: string } // a held letter that is an element
-  | { t: 'stroke'; pts: [number, number][] } // new trail points (0..1 of your camera frame)
+  | { t: 'stroke'; pts: [number, number][]; a: number } // new trail points: fractions of your visible (mirrored) view; a = its width / height
   | { t: 'drew'; shape: string | null } // a finished stroke, as recognized (null = not a spell shape)
   | { t: 'cleared' } // a stroke too short to count (just settling the hand)
   | { t: 'push' } // a push toward the camera
 
 export type OppEvent =
   | { kind: 'charge'; el: string | null }
-  | { kind: 'stroke'; pts: [number, number][] }
+  | { kind: 'stroke'; pts: [number, number][]; a: number }
   | { kind: 'readied'; el: string; shape: string }
   | { kind: 'cleared' }
   | { kind: 'cast' }

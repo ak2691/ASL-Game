@@ -19,20 +19,22 @@ export interface Recognizer {
   labels: string[]
   pairs: [number, number][] // point pairs whose distances are extra features
   dims: number // 3 = x/y/z per point; 2 = x/y only (no depth: live-webcam depth differs from the training photos)
+  noneMin: number // "none" (no letter) wins only at this probability; below it, the best real letter
 }
 
 interface ModelJson {
   labels: string[]
   pairs: [number, number][]
   dims?: number
+  noneMin?: number
   layers: { inputs: number; outputs: number; activation: Dense['activation']; w: number[]; b: number[] }[]
 }
 
-// The model is a tiny 77 → 128 → 64 → 24 network, so we run it in plain TypeScript.
+// The model is a tiny 77 → 256 → 64 → 25 network (24 letters + "none"), so we run it in plain TypeScript.
 export async function loadRecognizer(): Promise<Recognizer> {
   const model = (await fetch(LETTER_MODEL_URL).then((r) => r.json())) as ModelJson
   const layers = model.layers.map((l) => ({ ...l, w: Float32Array.from(l.w), b: Float32Array.from(l.b) }))
-  return { layers, labels: model.labels, pairs: model.pairs, dims: model.dims ?? 3 }
+  return { layers, labels: model.labels, pairs: model.pairs, dims: model.dims ?? 3, noneMin: model.noneMin ?? 0.5 }
 }
 
 export function runLayer(layer: Dense, input: Float32Array): Float32Array {
@@ -55,10 +57,22 @@ export function runLayer(layer: Dense, input: Float32Array): Float32Array {
 }
 
 export interface Prediction {
-  letter: string // most likely letter
+  letter: string // most likely letter; '' when the model is sure it's no letter ("none")
   confidence: number // its probability
   prob: (letter: string) => number // probability of any letter (0 if the model doesn't know it)
   top: (n: number) => { letter: string; prob: number }[] // the n most likely letters
+}
+
+/**
+ * Hand points in true proportions, as if the frame were square pixels. MediaPipe's x and y are
+ * fractions of the frame's width and height (and z is on the width's scale), so the same hand looks
+ * different on a landscape laptop and an upright phone. Scaling x and z by width / height fixes
+ * that; the letter model is trained on points converted the same way (ml/train_letters.py).
+ */
+export function trueShape<T extends { x: number; y: number; z?: number }>(lm: T[], width: number, height: number): T[] {
+  if (!width || !height) return lm
+  const k = width / height
+  return lm.map((p) => ({ ...p, x: 0.5 + (p.x - 0.5) * k, ...(p.z !== undefined ? { z: p.z * k } : {}) }))
 }
 
 export function classify(rec: Recognizer, landmarks: NormalizedLandmark[], hand: Hand): Prediction {
@@ -82,11 +96,15 @@ export function classify(rec: Recognizer, landmarks: NormalizedLandmark[], hand:
   })
   for (const layer of rec.layers) x = runLayer(layer, x)
 
-  let best = 0
-  for (let i = 1; i < x.length; i++) if (x[i] > x[best]) best = i
+  // "none" = a hand that isn't a letter (open 5, relaxed, between letters). It wins only when sure;
+  // otherwise the best real letter is reported with its (then lower) probability.
+  const none = rec.labels.indexOf('none')
+  let best = none === 0 ? 1 : 0
+  for (let i = 0; i < x.length; i++) if (i !== none && x[i] > x[best]) best = i
+  if (none >= 0 && x[none] >= rec.noneMin) best = none
   const probs = x
   return {
-    letter: rec.labels[best],
+    letter: best === none ? '' : rec.labels[best],
     confidence: probs[best],
     prob: (letter) => {
       const i = rec.labels.indexOf(letter)

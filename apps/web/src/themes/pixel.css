@@ -171,3 +171,4 @@
 [data-theme='pixel'] button.tut-dot.done { background: var(--you); }
 [data-theme='pixel'] .info-card { border: 3px solid var(--edge); box-shadow: 4px 4px 0 var(--edge); }
 [data-theme='pixel'] .info-card h2 { font-family: var(--title); font-size: 14px; font-weight: normal; }
+[data-theme='pixel'] .enemy-canvas svg path { stroke-linecap: square; stroke-linejoin: miter; }

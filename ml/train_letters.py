@@ -31,6 +31,12 @@ OUT = Path(os.environ.get("LETTERS_OUT", "../apps/web/public/models/letters.json
 # datasets' (it broke the motion model, see skills.md). LETTER_DIMS=2 trains a no-depth model.
 DIMS = int(os.environ.get("LETTER_DIMS", 3))
 LETTERS = list("ABCDEFGHIKLMNOPQRSTUVWXY")  # static letters only (no J, Z yet)
+# 25th class: non-letter hands (open 5, relaxed, transitions) from synth_none.py, so the model can say "no letter".
+NONE_FILE = Path(os.environ.get("NONE_FILE", "data/none/none.npz"))
+NONE_MAX = int(os.environ.get("NONE_MAX", 4000))  # too many "none" rows crowded out look-alike letters
+HIDDEN = int(os.environ.get("LETTER_HIDDEN", 256))
+NONE_MIN = 0.9  # the app reads "none" only when it is this sure; otherwise the best letter (P lost 13% to none at 0.5)
+LABELS = LETTERS + (["none"] if NONE_FILE.exists() else [])
 TIPS = [4, 8, 12, 16, 20]
 KNUCKLES = [5, 9, 13, 17]
 PAIRS = [(a, b) for i, a in enumerate(TIPS) for b in TIPS[i + 1:]] + [(4, k) for k in KNUCKLES]
@@ -55,6 +61,10 @@ def augment(points: np.ndarray) -> np.ndarray:
     center = p[0, :2]
     p[:, :2] = (p[:, :2] - center) @ np.array([[c, -s], [s, c]]).T * rng.uniform(0.9, 1.1) + center
     p += rng.normal(0, 0.003, p.shape)
+    if STRETCH_AUG:  # small proportion jitter (camera/lens differences), about the wrist
+        k = np.exp(rng.uniform(-STRETCH_AUG, STRETCH_AUG))
+        p[:, 0] = p[0, 0] + (p[:, 0] - p[0, 0]) * k
+        p[:, 2] = p[:, 2] * k
     if rng.random() < MESSY_SHARE:
         p = mess_up_finger(p)
     return p
@@ -83,7 +93,8 @@ def mess_up_finger(points: np.ndarray, strength: float = 1.0) -> np.ndarray:
     return p
 
 
-def load_aslnow():
+def load_aslnow_raw():
+    """MediaPipe's 0..1 points as saved (proportions of the unknown camera frame)."""
     X, y = [], []
     for i, letter in enumerate(LETTERS):
         for f in Path("data/aslnow", letter).glob("*.json"):
@@ -94,7 +105,7 @@ def load_aslnow():
     return np.array(X, dtype=np.float32), np.array(y)
 
 
-def load_siruyy():
+def load_siruyy_raw():
     """Standardized engineered features; the first 63 columns are the raw points. Labels 0-25 = A-Z."""
     d = Path("data/siruyy")
     mean, std = np.load(d / "mean.npy"), np.load(d / "std.npy")
@@ -108,17 +119,61 @@ def load_siruyy():
     return X[keep, :63].reshape(-1, 21, 3).astype(np.float32), y
 
 
+# ---- True proportions ---------------------------------------------------------------------------
+# MediaPipe's x is a fraction of the image width, y of the height (z is on the width's scale), so a
+# hand's shape depends on the image's shape. Everything is trained in true proportions: x and z times
+# width / height. The app does the same with the live camera (trueShape() in recognition.ts), so an
+# upright phone and a landscape laptop give the same hand. ASL-HG has its photo sizes; ASLNow and
+# Siruyy only kept 0..1 points, so their camera shape is estimated (estimate_aspect.py).
+ASPECTS = Path("data/aspect-estimates.json")
+ASPECT_MODE = os.environ.get("ASPECT_MODE", "dataset")  # "dataset": one k per dataset; "sample": each hand's own
+TRUE_PROPS = os.environ.get("TRUE_PROPS", "1") == "1"  # 0 = old 0..1 points (for comparisons)
+STRETCH_AUG = float(os.environ.get("STRETCH_AUG", 0.2))  # x times e^(+-0.2) in augmentation: camera/lens shape differences (live test: big win, see skills.md)
+
+
+def to_true(raw: np.ndarray, k) -> np.ndarray:
+    p = raw.copy()
+    if not TRUE_PROPS:
+        return p
+    k = np.asarray(k, dtype=np.float32).reshape(-1, 1)
+    p[..., 0] = 0.5 + (p[..., 0] - 0.5) * k
+    p[..., 2] = p[..., 2] * k
+    return p
+
+
+def estimated_k(name: str, n: int):
+    if ASPECT_MODE == "sample" and Path("data/aspect-per-sample.npz").exists():
+        return np.load("data/aspect-per-sample.npz")[name]
+    if ASPECTS.exists():
+        return json.loads(ASPECTS.read_text())[name]["k"]
+    raise SystemExit("run estimate_aspect.py first (camera shape of ASLNow / Siruyy)")
+
+
+def load_aslnow():
+    raw, y = load_aslnow_raw()
+    return to_true(raw, estimated_k("aslnow", len(raw))), y
+
+
+def load_siruyy():
+    raw, y = load_siruyy_raw()
+    return to_true(raw, estimated_k("siruyy", len(raw))), y
+
+
 ASLHG_SKIP: set[str] = set()  # letters to leave out of ASL-HG if they're signed differently (see skills.md)
-HOLDOUT_SIGNERS = {"P3", "P8"}  # ASL-HG signers kept out of training to measure "new player" accuracy
+HOLDOUT_SIGNERS = set(os.environ.get("HOLDOUT", "P3,P8").split(","))  # ASL-HG signers kept out of training to measure "new player" accuracy
 
 
 def load_aslhg():
-    """ASL-HG hand points from extract_aslhg.py. Returns points, labels, signer ids."""
+    """ASL-HG hand points from extract_aslhg.py, in true proportions (exact: the photo sizes are
+    saved). Returns points, labels, signer ids."""
     d = np.load("data/aslhg/points.npz")
+    if "sizes" not in d:
+        raise SystemExit("data/aslhg/points.npz has no photo sizes: re-run extract_aslhg.py")
     letters, signers = d["letters"], d["signers"]
     keep = np.isin(letters, LETTERS) & ~np.isin(letters, list(ASLHG_SKIP))
     y = np.array([LETTERS.index(c) for c in letters[keep]])
-    return d["points"][keep], y, signers[keep]
+    sizes = d["sizes"][keep].astype(np.float32)
+    return to_true(d["points"][keep], sizes[:, 0] / sizes[:, 1]), y, signers[keep]
 
 
 class LetterMLP:
@@ -138,8 +193,8 @@ class LetterMLP:
         Xt = torch.tensor(X, dtype=torch.float32, device=self.device)
         yt = torch.tensor(y, dtype=torch.long, device=self.device)
         tr, va = torch.tensor(idx[n_val:], device=self.device), torch.tensor(idx[:n_val], device=self.device)
-        self.net = nn.Sequential(nn.Linear(X.shape[1], 128), nn.ReLU(), nn.Linear(128, 64), nn.ReLU(),
-                                 nn.Linear(64, len(LETTERS))).to(self.device)
+        self.net = nn.Sequential(nn.Linear(X.shape[1], HIDDEN), nn.ReLU(), nn.Linear(HIDDEN, 64), nn.ReLU(),
+                                 nn.Linear(64, len(LABELS))).to(self.device)
         opt = torch.optim.AdamW(self.net.parameters(), lr=self.lr, weight_decay=self.wd)
         best, best_state, bad = -1.0, None, 0
         for epoch in range(self.epochs):
@@ -240,6 +295,12 @@ def main():
     a_raw, a_y = load_aslnow()
     s_raw, s_y = load_siruyy()
     h_raw, h_y, h_signer = load_aslhg()
+    # LETTER_SOURCES: which datasets to train on (ASL-HG is always used: it holds the test signers)
+    sources = os.environ.get("LETTER_SOURCES", "aslnow,siruyy,aslhg").split(",")
+    if "aslnow" not in sources:
+        a_raw, a_y = a_raw[:0], a_y[:0]
+    if "siruyy" not in sources:
+        s_raw, s_y = s_raw[:0], s_y[:0]
     print(f"ASLNow: {len(a_raw)}  Siruyy: {len(s_raw)}  ASL-HG: {len(h_raw)} samples "
           f"({len(set(h_signer))} signers)")
 
@@ -248,18 +309,52 @@ def main():
     raw_tr = np.concatenate([a_raw, s_raw, h_raw[~held]])
     y_tr = np.concatenate([a_y, s_y, h_y[~held]])
     raw_te, y_te = h_raw[held], h_y[held]
+    NONE = len(LETTERS)
+    if len(LABELS) > NONE:
+        nd = np.load(NONE_FILE)
+        n_tr, n_te = nd["train"], nd["test"]
+        n_tr = n_tr[np.random.default_rng(0).permutation(len(n_tr))[:NONE_MAX]]
+        raw_tr = np.concatenate([raw_tr, n_tr]); y_tr = np.concatenate([y_tr, np.full(len(n_tr), NONE)])
+        print(f"none: {len(n_tr)} train, {len(n_te)} test (holdout signers)")
     model = train(raw_tr, y_tr)
+    if len(LABELS) > NONE:
+        pn = model.predict(np.array([features(p) for p in n_te]))
+        kinds = nd["test_kind"]
+        print(f"none read as a letter (holdout): {(pn != NONE).mean():.1%}  " +
+              "  ".join(f"{k} {(pn[kinds == k] != NONE).mean():.1%}" for k in sorted(set(kinds))))
+        pl = model.predict(X_te_pre := np.array([features(p) for p in raw_te]))
+        print(f"real letters read as none (holdout): {(pl == NONE).mean():.1%}")
     X_te = np.array([features(p) for p in raw_te])
     X_te_messy = np.array([features(mess_up_finger(p)) for p in raw_te])
     print(f"unseen signers {sorted(HOLDOUT_SIGNERS)}: {model.score(X_te, y_te):.3f}"
           f"   (one finger messed up: {model.score(X_te_messy, y_te):.3f})")
-    print(classification_report(y_te, model.predict(X_te), target_names=LETTERS, digits=2))
+    print(classification_report(y_te, model.predict(X_te), labels=range(len(LETTERS)), target_names=LETTERS, digits=2))
 
     # Per-letter changes vs the last run's results on the same unseen signers.
     compare_with_previous(model, X_te, X_te_messy, y_te)
 
     raw = np.concatenate([a_raw, s_raw, h_raw])
     y = np.concatenate([a_y, s_y, h_y])
+    if len(LABELS) > len(LETTERS):
+        n_all = np.concatenate([n_tr, n_te[:NONE_MAX // 5]])
+        raw = np.concatenate([raw, n_all]); y = np.concatenate([y, np.full(len(n_all), len(LETTERS))])
+    if os.environ.get("LIVE_EVAL") == "1":
+        # Simulated live cameras: the held-out hands in true proportions, then as each camera would
+        # hand them to a model (MediaPipe's 0..1 points: x divided by width / height). A true-
+        # proportion model gets trueShape() in the app, so it sees the same hand on every camera.
+        d = np.load("data/aslhg/points.npz")
+        keep = np.isin(d["letters"], LETTERS) & np.isin(d["signers"], list(HOLDOUT_SIGNERS))
+        sz = d["sizes"][keep].astype(np.float32)
+        pts, yy = d["points"][keep].copy(), np.array([LETTERS.index(c) for c in d["letters"][keep]])
+        k = sz[:, 0] / sz[:, 1]
+        true_pts = pts.copy(); true_pts[..., 0] = 0.5 + (pts[..., 0] - 0.5) * k[:, None]; true_pts[..., 2] *= k[:, None]
+        for cam, a in [("laptop 16:9", 16 / 9), ("phone upright 9:16", 9 / 16)]:
+            v = true_pts.copy()
+            if not TRUE_PROPS:  # old model: raw camera fractions
+                v[..., 0] = 0.5 + (v[..., 0] - 0.5) / a; v[..., 2] /= a
+            print(f"LIVE {cam}: {model.score(np.array([features(p) for p in v]), yy):.3f}")
+    if os.environ.get("SKIP_FINAL") == "1":
+        return  # comparison run: no ship model
     final = train(raw, y)  # ship a model trained on everything
     OUT.parent.mkdir(parents=True, exist_ok=True)
     layers = []
@@ -269,7 +364,7 @@ def main():
                        "activation": "softmax" if last else "relu",
                        "w": [round(float(v), 6) for v in w.reshape(-1)],
                        "b": [round(float(v), 6) for v in b]})
-    OUT.write_text(json.dumps({"labels": LETTERS, "pairs": PAIRS, "dims": DIMS, "layers": layers}))
+    OUT.write_text(json.dumps({"labels": LABELS, "noneMin": NONE_MIN, "pairs": PAIRS, "dims": DIMS, "layers": layers}))
     print(f"saved {OUT} ({OUT.stat().st_size // 1024} KB)")
 
 

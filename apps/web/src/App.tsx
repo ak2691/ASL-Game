@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { MotionTracker, isMotionLetter } from './motion'
 import { checkForm, directionAdjusted, directionLetter } from './rules'
-import { classify, loadRecognizer, type Hand, type Prediction, type Recognizer } from './recognition'
+import { openCamera } from './camera'
+import { classify, loadRecognizer, trueShape, type Hand, type Prediction, type Recognizer } from './recognition'
 import { getTracker } from './trackers'
 import { JumpFilter, LandmarkSmoother } from './smoothing'
 import { GUIDE, randomWords } from './content'
@@ -191,11 +192,9 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
         const [rec, tracker] = await Promise.all([getRecognizer(), getTracker()])
         if (stopped) return
         setView((v) => ({ ...v, status: 'Starting camera…' }))
-        // Higher resolution = more finger detail for the tracker; higher frame rate = less blur.
-        // ("ideal" lets cameras that can't do this fall back to what they support.)
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } },
-        })
+        // 60 fps where the camera offers it (see camera.ts): smaller jumps between frames on fast moves.
+        const cam = await openCamera()
+        stream = cam.stream
         if (stopped) return stream.getTracks().forEach((t) => t.stop())
         const video = videoRef.current!
         video.srcObject = stream
@@ -210,9 +209,9 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
 
         // Diagnostics: how many frames per second we actually process, how long hand
         // tracking takes per frame, and how often a hand was found.
-        const settings = stream.getVideoTracks()[0].getSettings()
-        const cameraFps = Math.round(settings.frameRate ?? 0)
-        const cameraRes = `${settings.width ?? '?'}×${settings.height ?? '?'}`
+        const settings = cam.info()
+        const cameraFps = settings.fps
+        const cameraRes = `${settings.width || '?'}×${settings.height || '?'}`
         const recent: { t: number; found: boolean; ms: number }[] = []
 
         // Run once per new camera frame. requestVideoFrameCallback fires exactly once per
@@ -301,17 +300,19 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
           }
 
           ctx.clearRect(0, 0, canvas.width, canvas.height)
+          // Hand shape in true proportions, the same on any camera shape (see trueShape()).
+          const shapeLm = lm && trueShape(lm, canvas.width, canvas.height)
           let pred: Prediction | null = null
           if (lm) {
             ctx.globalAlpha = held ? 0.35 : 1
             drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: '#e2b714', lineWidth: 3 })
             drawer.drawLandmarks(lm, { color: '#ffffff', radius: 3 })
             ctx.globalAlpha = 1
-            pred = classify(rec, lm, hand)
+            pred = classify(rec, shapeLm!, hand)
           }
           // The motion model gets the raw tracker output: no smoothing, no jump filter, no held
           // frames. Its own gap fill handles dropouts, matching how it was trained (skills.md).
-          step(pred, lm, now, found)
+          step(pred, lm, now, found, shapeLm)
         }
         loop()
       } catch (err) {
@@ -320,7 +321,7 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
     }
 
     // Advance the game based on what the model sees this frame.
-    function step(pred: Prediction | null, lm: NormalizedLandmark[] | null, now: number, raw: NormalizedLandmark[] | null) {
+    function step(pred: Prediction | null, lm: NormalizedLandmark[] | null, now: number, raw: NormalizedLandmark[] | null, shapeLm: NormalizedLandmark[] | null) {
       const g = game.current
       const word = g.words[g.wordIdx]
       const target = word[g.letterIdx].toUpperCase()
@@ -340,10 +341,10 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
         ready = p >= 1
       } else {
         // K/P and G/Q: same handshape, so finger direction decides between them.
-        const adjusted = pred ? directionAdjusted(target, pred.prob, lm) : null
+        const adjusted = pred ? directionAdjusted(target, pred.prob, shapeLm) : null
         p = adjusted ?? (pred ? pred.prob(target) : 0)
         // Form rules can block a letter the model likes (e.g. P with the thumb sticking out).
-        formHint = p >= ACCEPT_PROB ? checkForm(target, lm) : null
+        formHint = p >= ACCEPT_PROB ? checkForm(target, shapeLm) : null
         if (formHint) p = Math.min(p, ACCEPT_PROB - 0.01)
         // Double letters (the OO in BOOK, or repeats in letter practice): the repeat counts after a
         // small bounce/slide of the whole hand (how signers do it) or a brief relax of the shape.
@@ -352,7 +353,7 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
           if (p < RELEASE_PROB || moved >= RELEASE_MOVE) g.needRelease = false
         }
         // Accept the target as soon as it's likely enough for a moment.
-        const topIsTarget = pred !== null && directionLetter(pred.letter, lm) === target
+        const topIsTarget = pred !== null && directionLetter(pred.letter, shapeLm) === target
         if (!g.needRelease && p >= ACCEPT_PROB && topIsTarget) g.aboveSince ??= now
         else g.aboveSince = null
         ready = g.aboveSince !== null && now - g.aboveSince >= ACCEPT_MS
@@ -395,7 +396,7 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
       })
 
       // Errors: a confident wrong letter held for a while (counted once per hold).
-      const seen = pred && pred.confidence >= MIN_CONFIDENCE ? directionLetter(pred.letter, lm) : null
+      const seen = pred && pred.confidence >= MIN_CONFIDENCE ? directionLetter(pred.letter, shapeLm) : null
       if (seen !== g.holdLetter) {
         g.holdLetter = seen
         g.holdStart = now

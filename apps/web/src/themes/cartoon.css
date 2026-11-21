@@ -180,3 +180,5 @@
 [data-theme='cartoon'] .info-card h2 { font-family: var(--title); font-weight: normal; font-size: 26px; }
 [data-theme='cartoon'] .info-top .logo { font-size: 44px; transform: rotate(-2deg); }
 [data-theme='cartoon'] .home button:nth-of-type(5) { background: #ffd23f; color: var(--ink); }
+[data-theme='cartoon'] .enemy-ink { display: inline; stroke: var(--ink); stroke-width: 25; }
+[data-theme='cartoon'] .enemy-stroke { opacity: 1; }

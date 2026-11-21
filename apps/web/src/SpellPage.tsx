@@ -1,7 +1,8 @@
 // Spellcasting prototype: sign an element letter to charge, then point and draw a shape.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
-import { classify, loadRecognizer, type Hand } from './recognition'
+import { openCamera, type CameraInfo } from './camera'
+import { classify, loadRecognizer, trueShape, type Hand } from './recognition'
 import { directionLetter, passesGate } from './rules'
 import { getTracker } from './trackers'
 import { LandmarkSmoother } from './smoothing'
@@ -13,7 +14,9 @@ import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
 import { Tutorial } from './Tutorial'
 
 const TOUCH = matchMedia('(hover: none)').matches // phones and tablets: no Esc key to point at
-const DEBUG = new URLSearchParams(location.search).has('debug') // ?debug: cast with buttons, no camera needed
+// ?debug: cast with buttons, no camera needed. Local dev server only (npm run dev): the deployed build
+// drops it, since its cast buttons skip signing.
+const DEBUG = import.meta.env.DEV && new URLSearchParams(location.search).has('debug')
 
 // ?debug: every finished stroke is kept (points + what it was read as), to download and tune
 // the recognizer on real finger strokes. Points are fingertip pixels; no video, nothing uploaded.
@@ -49,7 +52,8 @@ const PEN_UP_MAX_SPEED = 4 // palm-widths per second
 // Push to throw: a readied spell is thrown when the hand grows this much on screen within the window.
 const PUSH_GROWTH = 1.3
 const PUSH_WINDOW_MS = 300
-const MIN_STROKE_PALMS = 1.2 // shorter strokes are ignored (just settling the hand)
+const MIN_STROKE_PALMS = 1.2 // shorter strokes fizzle (too short to be a shape)
+const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignored (no fizzle)
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const DROPOUT_MS = 150
@@ -134,8 +138,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [seeing, setSeeing] = useState('')
   const [drawing, setDrawing] = useState(false)
   const [log, setLog] = useState<Cast[]>([])
-  const [menu, setMenu] = useState<null | 'main' | 'help'>(null)
+  const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave'>(null)
   const [easyPen, setEasyPen] = useState(loadEasyPen)
+  const [camInfo, setCamInfo] = useState<CameraInfo | null>(null)
   const easyPenRef = useRef(easyPen) // read by the camera loop
   const toggleEasyPen = () => {
     const on = !easyPenRef.current
@@ -189,6 +194,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       fightRef.current = snap
       setFight(snap)
       if (predicted.current && snap.charge.player === predicted.current.el) predicted.current = null // confirmed
+      if (!snap.running) predicted.current = null // match over, or in a lobby: no guessed charge
       // Silenced or knocked off (the server says so): the guessed charge goes at once, no waiting.
       if (snap.silenced.player > 0 || snap.knocked.player !== knockedRef.current) predicted.current = null
       knockedRef.current = snap.knocked.player
@@ -215,6 +221,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     online.current = new OnlineArena()
     arena.current = online.current
   }
+  const inRoom = mode === 'online' && !!lobby?.code
   const goHome = () => {
     leaveOnline()
     onHome()
@@ -229,7 +236,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     const a = arena.current
     a.sign(el)
     if (shape !== QUICK) {
-      a.stroke(shapePoints(shape))
+      a.stroke(shapePoints(shape), 1)
       setTimeout(() => a.drew(shape), 300)
     }
     setTimeout(() => a.push(), 700)
@@ -243,10 +250,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       try {
         const [rec, tracker, shapeModel] = await Promise.all([loadRecognizer(), getTracker(), loadShapeModel()])
         if (stopped) return
-        stream = await navigator.mediaDevices.getUserMedia({
-          // Front camera on phones. Turned sideways, the browser rotates the frames itself.
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } },
-        })
+        // Front camera, 60 fps where it offers it (see camera.ts).
+        const cam = await openCamera()
+        stream = cam.stream
+        setCamInfo(cam.info())
         if (stopped) return stream.getTracks().forEach((t) => t.stop())
         const video = videoRef.current!
         video.srcObject = stream
@@ -289,10 +296,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           setDrawing(false)
           if (pts.length < 8) return arena.current.cleared()
           const palms = pathLength(pts) / palm
+          if (palms < NOISE_STROKE_PALMS) return arena.current.cleared() // just settling the hand: not a drawing
           if (palms < MIN_STROKE_PALMS) {
-            // Tiny strokes are usually just settling the hand; only mention ones close to the limit.
-            arena.current.cleared()
-            if (palms > 0.5) setLog((l) => [{ name: 'Too short', detail: 'Draw bigger', color: '#888', ok: false, t: now }, ...l].slice(0, 8))
+            // A real attempt that came out too short: a fizzle like any failed drawing (lockout, charge
+            // kept), so a botched spell can't fall back to an instant quick interrupt.
+            arena.current.drew(null)
+            fade = { pts, color: '#888', t: now }
+            setLog((l) => [{ name: 'Fizzle', detail: 'Too short', color: '#888', ok: false, t: now }, ...l].slice(0, 8))
             return
           }
           const m = recognizeShape(shapeModel, pts)
@@ -351,6 +361,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           const W = canvas.width
           const H = canvas.height
           ctx.clearRect(0, 0, W, H)
+          // Hand shape is read in true proportions, the same on any camera shape (see trueShape()).
+          // Drawing on screen and stroke points keep the real frame.
+          const shapeLm = lm && trueShape(lm, W, H)
+          const shapeFound = found && trueShape(found, W, H)
           const view = fightRef.current
           const myCharge = shownCharge(now, view.charge.player)
           // A new charge: forget earlier hand movement, so raising your hand to sign isn't read as a
@@ -385,9 +399,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
           // The letter model runs every frame: a confident L (index up, thumb out) is Lightning
           // being signed, never drawing, even if the geometry check alone would call it pointing.
-          const pred = lm ? classify(rec, lm, hand) : null
+          const pred = shapeLm ? classify(rec, shapeLm, hand) : null
           const signingL = pred !== null && pred.letter === 'L' && pred.confidence >= L_VETO_PROB
-          const pointing = lm && !silenced ? isPointing(lm) && !signingL : false
+          const pointing = shapeLm && !silenced ? isPointing(shapeLm) && !signingL : false
           let letter = ''
           if (lm && pred) {
             // Fizzle lockout: the hand goes dim and grey until you can throw again.
@@ -414,8 +428,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             // Not while drawing, silenced or with a spell readied (the fight would refuse it anyway).
             if (!pointing && stroke.length === 0 && !silenced && !myReady) {
               // Not drawing: read the handshape as a letter, to charge an element.
-              letter = pred.confidence >= CHARGE_PROB ? directionLetter(pred.letter, lm) : ''
-              if (letter && !passesGate(letter, lm)) letter = '' // e.g. an open palm read as F
+              letter = pred.confidence >= CHARGE_PROB ? directionLetter(pred.letter, shapeLm) : ''
+              if (letter && !passesGate(letter, shapeLm)) letter = '' // e.g. an open palm read as F
+              // An open "5" is no letter. Until the letter model has a "none" class it still picks its
+              // closest letter (C, H, ...), so a full open hand never charges.
+              if (letter && shapeLm && isOpen(shapeLm, false)) letter = ''
               let el = ELEMENTS[letter] ? letter : null
               if (release) {
                 if (el === release.el) release.since = null
@@ -425,7 +442,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               if (el !== holdLetter) {
                 holdLetter = el
                 holdSince = now
-              } else if (el && el !== myCharge && now - holdSince >= CHARGE_MS && (sentSign?.el !== el || now - sentSign.t > 300)) {
+              } else if (el && view.running && el !== myCharge && now - holdSince >= CHARGE_MS && (sentSign?.el !== el || now - sentSign.t > 300)) {
+                // Only in a fight (a running match, or the dummy): between matches and in lobbies
+                // nothing can be cast, so nothing charges and no guessed charge flashes up.
                 arena.current.sign(el) // the fight decides (e.g. not right after a throw)
                 sentSign = { el, t: now }
                 if (!silenced) predicted.current = { el, t: now }
@@ -437,20 +456,29 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           if (lm && pointing) {
             if (stroke.length === 0) setDrawing(true) // drawing with a spell readied drops it (the fight decides)
             stroke.push({ x: lm[8].x * W, y: lm[8].y * H })
-            arena.current.stroke([{ x: 1 - lm[8].x, y: lm[8].y }]) // mirrored: as you see it on screen
+            // For the opponent: the fingertip as a fraction of what YOU see (your camera cropped to fill
+            // your window, mirrored), plus that view's shape. Their panel shows the same view filling it
+            // the same way, so a circle stays round and edge to edge stays edge to edge on any screen.
+            const cw = video.clientWidth || W
+            const ch = video.clientHeight || H
+            const k = Math.max(cw / W, ch / H) // object-fit: cover
+            const vw = cw / k
+            const vh = ch / k
+            arena.current.stroke([{ x: ((1 - lm[8].x) * W - (W - vw) / 2) / vw, y: (lm[8].y * H - (H - vh) / 2) / vh }], vw / vh)
             palmSum += Math.hypot((lm[0].x - lm[9].x) * W, (lm[0].y - lm[9].y) * H)
             lastPointT = now
           }
           // Hand speed (palm-widths per second), from the smoothed wrist.
           let speed = 0
           if (lm) {
-            const palm = dist(lm[0], lm[9]) || 1
-            if (prevWrist) speed = Math.hypot(lm[0].x - prevWrist.x, lm[0].y - prevWrist.y) / palm / (Math.max(now - prevWrist.t, 1) / 1000)
-            prevWrist = { x: lm[0].x, y: lm[0].y, t: now }
+            const hw = shapeLm![0] // same proportions as the palm size below
+            const palm = dist(hw, shapeLm![9]) || 1
+            if (prevWrist) speed = Math.hypot(hw.x - prevWrist.x, hw.y - prevWrist.y) / palm / (Math.max(now - prevWrist.t, 1) / 1000)
+            prevWrist = { x: hw.x, y: hw.y, t: now }
           } else prevWrist = null
           // The speed limit applies only when the pen-up starts (that's when blur fakes it); once
           // started it holds through a fast move, so pushing right away doesn't cancel it.
-          if (found && lm && !pointing && (isOpen(found, easyPenRef.current) || signingL) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
+          if (found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
           else openSince = null
           const penUpStart = openSince
           if (stroke.length && !pointing && ((openSince !== null && now - openSince >= PEN_UP_HOLD_MS) || now - lastPointT > LOST_GRACE_MS)) {
@@ -590,6 +618,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <button className="small" onClick={downloadStrokes} title="Your recent strokes (fingertip points + how each was read), for tuning">
             Download strokes ({strokeCount})
           </button>
+          {camInfo && <span>camera {camInfo.width}×{camInfo.height} @ {camInfo.fps} fps</span>}
           debug cast:
           {['F', 'I', 'L', 'E', 'W', 'H'].map((el) =>
             [...shapesFor(el), ...(el in BEATS ? [COUNTER, QUICK] : [])].map((shape) => (
@@ -639,7 +668,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <EnemyCanvas cast={fight.running ? fight.enemyCast : null} />
           <div className="side-hud">
             {fighterHead('enemy')}
-            {mode !== 'dummy' && mode !== 'tutorial' && <CastBar fight={fight} />}
+            {mode !== 'dummy' && mode !== 'tutorial' && <OppStatus fight={fight} />}
           </div>
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} />}
           {mode === 'dummy' && (
@@ -700,7 +729,21 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <small className="menu-hint">
               {easyPen ? 'Raising any second finger finishes a drawing.' : 'Open your whole hand to finish a drawing. Turn on if that’s hard.'}
             </small>
-            <button onClick={goHome}>Home</button>
+            <button onClick={() => (inRoom ? setMenu('leave') : goHome())}>Home</button>
+          </div>
+        </div>
+      )}
+      {menu === 'leave' && (
+        <div className="menu-overlay" onClick={() => setMenu(null)}>
+          <div className="menu-card pause-menu" onClick={(e) => e.stopPropagation()}>
+            <b className="leave-title">Leave the match?</b>
+            <p className="leave-text">
+              {lobby?.phase === 'fighting'
+                ? 'You’ll forfeit this fight and lose your spot in the room.'
+                : `You’ll leave room ${lobby?.code ?? ''}. Rejoin with the code if you change your mind.`}
+            </p>
+            <button onClick={goHome}>Leave</button>
+            <button onClick={() => setMenu('main')}>Stay</button>
           </div>
         </div>
       )}
@@ -791,38 +834,34 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   )
 }
 
-/** The enemy's drawing: its element glow while charging, then its shape tracing itself. */
+/** The opponent's drawing in its true shape: points are fractions of a box `view.aspect` wide / tall
+ *  (a player's visible camera view, or the AI's square), drawn without stretching. A player's view
+ *  fills this half the way their camera filled theirs (cover); the AI's box is shown whole. */
+const FRAME_H = 1000
 function EnemyCanvas({ cast }: { cast: Snapshot['enemyCast'] }) {
-  const d = cast?.points.map((p, i) => `${i ? 'L' : 'M'}${(p.x * 100).toFixed(1)} ${(p.y * 100).toFixed(1)}`).join(' ') ?? ''
-  const tip = cast?.points[cast.points.length - 1]
+  const fw = FRAME_H * (cast?.view.aspect ?? 16 / 9)
+  const d = cast?.points.map((p, i) => `${i ? 'L' : 'M'}${(p.x * fw).toFixed(1)} ${(p.y * FRAME_H).toFixed(1)}`).join(' ') ?? ''
   return (
     <div className={`enemy-canvas ${cast?.phase === 'ready' ? 'ready' : ''}`} style={{ color: cast?.color ?? 'var(--sub)' }}>
-      <svg viewBox="0 0 100 100">
-        {cast && <circle cx="50" cy="50" r="46" fill="currentColor" opacity={cast.phase === 'charge' ? 0.18 : 0.07} />}
-        {d && <path d={d} fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 4px currentColor)' }} />}
-        {tip && cast?.phase === 'draw' && <circle cx={tip.x * 100} cy={tip.y * 100} r="3.5" fill="#fff" />}
+      <svg viewBox={`0 0 ${fw.toFixed(1)} ${FRAME_H}`} preserveAspectRatio={`xMidYMid ${cast?.view.fit === 'contain' ? 'meet' : 'slice'}`}>
+        {d && <path d={d} className="enemy-ink" />}
+        {d && <path d={d} className="enemy-stroke" />}
       </svg>
-      {cast && <span className="enemy-el">{cast.el}</span>}
     </div>
   )
 }
 
-/** The opponent's cast as a progress bar with a label. */
-function CastBar({ fight }: { fight: Snapshot }) {
+/** What the opponent is doing, as text (same style as your own charge line). */
+function OppStatus({ fight }: { fight: Snapshot }) {
   const c = fight.enemyCast
-  if (!c)
-    return (
-      <div className="cast-bar">
-        <span className="hp-text idle">{fight.running ? 'idle' : ''}</span>
-      </div>
-    )
-  const elName = ELEMENTS[c.el]?.name ?? ''
-  const progress = c.progress ?? (c.phase === 'ready' ? 1 : c.phase === 'draw' ? 0.6 : 0.25)
-  const label = c.phase === 'charge' ? `${elName} charged` : c.phase === 'draw' ? `${elName ? elName + ': ' : ''}drawing…` : `${c.name} ready!`
+  const silenced = fight.running && fight.silenced.enemy > 0
+  const elName = c ? ELEMENTS[c.el]?.name : null
   return (
-    <div className="cast-bar">
-      <div className="cast-fill" style={{ width: `${progress * 100}%`, background: c.color }} />
-      <span className="hp-text">{label}</span>
+    <div className="status-strip">
+      <span className="charge" style={{ color: c && elName ? c.color : undefined }}>
+        {elName ? `${elName} charged` : 'no charge'}
+      </span>
+      <span className="sub-line">{silenced ? 'Silenced!' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
     </div>
   )
 }

@@ -76,6 +76,7 @@ export class OnlineArena implements Arena {
   private view: CombatView = EMPTY_VIEW
   private opp: OppCast | null = null
   private outbox: Pt01[] = [] // your stroke points, sent in batches
+  private outAspect = 16 / 9 // your visible view's width / height
   info: LobbyInfo = {
     phase: 'connecting',
     code: null,
@@ -199,16 +200,16 @@ export class OnlineArena implements Arena {
 
   private onOpp(ev: OppEvent) {
     const colorOf = (el: string | null) => (el && ELEMENTS[el] ? ELEMENTS[el].color : '#cccccc')
-    const base = (el: string | null): OppCast => ({ el: el ?? '?', name: null, color: colorOf(el), phase: 'charge', points: [], progress: null })
+    const base = (el: string | null): OppCast => ({ el: el ?? '?', name: null, color: colorOf(el), phase: 'charge', points: [], view: { aspect: 16 / 9, fit: 'cover' }, progress: null })
     switch (ev.kind) {
       case 'charge':
         this.opp = ev.el ? { ...(this.opp ?? base(ev.el)), el: ev.el, color: colorOf(ev.el) } : this.opp?.points.length ? this.opp : null
         return
       case 'stroke': {
         const o = this.opp ?? base(null)
-        // Their camera frame is 16:9; fit it into the square opponent panel.
-        const pts = ev.pts.map(([x, y]) => ({ x, y: 0.5 + (y - 0.5) * (9 / 16) }))
-        this.opp = { ...o, phase: 'draw', name: null, points: [...o.points, ...pts].slice(-600) }
+        // Fractions of what they saw in their window; shown filling this panel the same way.
+        const pts = ev.pts.map(([x, y]) => ({ x, y }))
+        this.opp = { ...o, phase: 'draw', name: null, points: [...o.points, ...pts].slice(-600), view: { aspect: ev.a, fit: 'cover' } }
         return
       }
       case 'readied':
@@ -227,8 +228,9 @@ export class OnlineArena implements Arena {
   sign(el: string) {
     this.send({ t: 'sign', el })
   }
-  stroke(points: Pt01[]) {
+  stroke(points: Pt01[], aspect: number) {
     this.outbox.push(...points)
+    this.outAspect = aspect
   }
   drew(shape: string | null) {
     this.flush()
@@ -244,7 +246,7 @@ export class OnlineArena implements Arena {
 
   private flush() {
     if (!this.outbox.length) return
-    this.send({ t: 'stroke', pts: this.outbox.map((p) => [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000]) })
+    this.send({ t: 'stroke', a: Math.round(this.outAspect * 1000) / 1000, pts: this.outbox.map((p) => [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000]) })
     this.outbox = []
   }
 
