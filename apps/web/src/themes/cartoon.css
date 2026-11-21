@@ -1,0 +1,182 @@
+/* Cartoony co-op theme. Active when <html data-theme="cartoon"> (see main.tsx).
+   Rules: thick dark outlines on everything, big rounded shapes, bright saturated colors,
+   a chunky display font with an outline, and bouncy motion that overshoots and settles. */
+
+[data-theme='cartoon'] {
+  --bg: #2d2a5a;
+  --sub-alt: #3d3a78;
+  --sub: #9d9ad6;
+  --text: #fffaf0;
+  --main: #ffd23f;
+  --thumb: #ff7aa2;
+  --you: #5ee06b;
+  --foe: #ff5470;
+  --shadow: #15132e;
+  --ink: #15132e;
+  --title: 'Lilita One', 'Nunito', sans-serif;
+  --bounce: cubic-bezier(0.34, 1.7, 0.6, 1);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+}
+[data-theme='cartoon'] body {
+  background: radial-gradient(circle at 20% 15%, #3d3a78 0 12%, transparent 12.5%) 0 0 / 160px 160px, var(--bg);
+}
+
+/* Glows become solid outlines. */
+[data-theme='cartoon'] *,
+[data-theme='cartoon'] *::before,
+[data-theme='cartoon'] *::after { filter: none !important; }
+
+/* Display text: chunky font, dark outline drawn behind the fill, offset shadow. */
+[data-theme='cartoon'] :is(.logo, h1, .result, .tut-title, .room-code, .countdown, .cast, .impact-name, .bolt, .st-silence b, .st-knock span, .tut-push) {
+  font-family: var(--title);
+  font-weight: normal;
+  letter-spacing: 0.02em;
+  -webkit-text-stroke: 0.14em var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0.12em 0 var(--ink) !important;
+}
+[data-theme='cartoon'] :is(.status-strip, .stage-overlay, .hp-text, .fighter-name) {
+  -webkit-text-stroke: 4px var(--ink);
+  paint-order: stroke fill;
+  text-shadow: none !important;
+}
+
+/* Bouncy pop-ins: overshoot, then settle. */
+[data-theme='cartoon'] :is(.cast, .impact-name, .float, .tut-push, .result) { animation-timing-function: var(--bounce) !important; }
+[data-theme='cartoon'] .cast { animation: toon-pop 0.5s var(--bounce); transform-origin: left bottom; }
+@keyframes toon-pop { 0% { transform: scale(0.2) rotate(-12deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); opacity: 1; } 100% { transform: scale(1) rotate(-2deg); } }
+[data-theme='cartoon'] .impact.fizzle .impact-name { animation-name: toon-fizzle; animation-timing-function: ease-out !important; }
+@keyframes toon-fizzle {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  20% { transform: translate(-50%, -50%) rotate(-8deg) scale(1.1); }
+  40% { transform: translate(-50%, -50%) rotate(6deg); }
+  60% { opacity: 1; transform: translate(-50%, -50%) rotate(-4deg) scale(1, 0.8); }
+  100% { opacity: 0; transform: translate(-50%, 20%) rotate(10deg) scale(0.6, 0.3); }
+}
+
+/* Buttons: fat rounded pill, thick outline, chunky bottom edge that squishes on press. */
+[data-theme='cartoon'] button {
+  background: #6c63ff;
+  color: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 5px 0 var(--ink), inset 0 -4px 0 rgba(0, 0, 0, 0.2), inset 0 3px 0 rgba(255, 255, 255, 0.3);
+  font-family: var(--title);
+  font-weight: normal;
+  font-size: 17px;
+  letter-spacing: 0.03em;
+  padding: 10px 22px;
+  transition: transform 0.25s var(--bounce), background 0.1s;
+}
+[data-theme='cartoon'] button.small { font-size: 13px; padding: 6px 14px; }
+[data-theme='cartoon'] button:hover { background: #8279ff; transform: translateY(-2px) rotate(-1.5deg) scale(1.04); }
+[data-theme='cartoon'] button:active { transform: translateY(4px) scale(1.05, 0.92); box-shadow: 0 1px 0 var(--ink); transition-duration: 0.05s; }
+[data-theme='cartoon'] button.active { background: var(--main); color: var(--ink); }
+[data-theme='cartoon'] button:disabled { transform: none; }
+
+/* Home: tilted title, each menu button its own bright color. */
+[data-theme='cartoon'] .home { gap: 18px; }
+[data-theme='cartoon'] .home .logo {
+  font-size: clamp(48px, 10vw, 96px);
+  color: var(--main);
+  transform: rotate(-4deg);
+  margin-bottom: 28px;
+  animation: toon-bob 3s ease-in-out infinite;
+}
+@keyframes toon-bob { 50% { transform: rotate(-2deg) translateY(-6px); } }
+[data-theme='cartoon'] .home button { width: 260px; font-size: 24px; padding: 14px; }
+[data-theme='cartoon'] .home button:nth-of-type(1) { background: #ff9f1c; }
+[data-theme='cartoon'] .home button:nth-of-type(2) { background: #2ec4b6; }
+[data-theme='cartoon'] .home button:nth-of-type(3) { background: #ff5470; }
+[data-theme='cartoon'] .home button:nth-of-type(4) { background: #6c63ff; }
+[data-theme='cartoon'] .home button:nth-of-type(odd):hover { transform: translateY(-3px) rotate(2deg) scale(1.05); }
+
+/* Panels and menus: rounded card, thick outline, offset shadow; menu bounces in. */
+[data-theme='cartoon'] .menu-overlay { background: rgba(21, 19, 46, 0.7); }
+[data-theme='cartoon'] .menu-card,
+[data-theme='cartoon'] .online-panel {
+  background: var(--sub-alt);
+  border: 4px solid var(--ink);
+  border-radius: 24px;
+  box-shadow: 0 8px 0 var(--ink);
+}
+[data-theme='cartoon'] .menu-card { animation: toon-in 0.4s var(--bounce); }
+@keyframes toon-in { from { transform: scale(0.6) rotate(-4deg); opacity: 0; } }
+[data-theme='cartoon'] .pause-menu button { width: 100%; }
+[data-theme='cartoon'] .shape-card { background: var(--bg); border: 3px solid var(--ink); border-radius: 16px; }
+[data-theme='cartoon'] .tag { border: 2px solid var(--ink); border-radius: 999px; padding: 1px 8px; font-weight: 800; }
+[data-theme='cartoon'] .code-input { border: 3px solid var(--ink); border-radius: 12px; font-family: var(--title); background: #fff; color: var(--ink); }
+
+/* Bars: fat rounded tubes with an outline and a shiny stripe. */
+[data-theme='cartoon'] .hp-bar { height: 28px; }
+[data-theme='cartoon'] .hp-bar,
+[data-theme='cartoon'] .cast-bar { background: var(--ink); border: 3px solid var(--ink); border-radius: 999px; }
+[data-theme='cartoon'] .hp-fill,
+[data-theme='cartoon'] .cast-fill { border-radius: 999px; box-shadow: inset 0 5px 0 rgba(255, 255, 255, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.2); transition: width 0.35s var(--bounce); }
+[data-theme='cartoon'] .hp-text { font-family: var(--title); font-size: 14px; }
+[data-theme='cartoon'] .fighter-name { font-family: var(--title); font-weight: normal; font-size: 18px; }
+[data-theme='cartoon'] .float { font-family: var(--title); font-size: 26px; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: none; }
+
+/* Duel halves: thick ink divider, comic-panel feel. */
+[data-theme='cartoon'] .duel { gap: 6px; background: var(--ink); }
+[data-theme='cartoon'] .duel-side.opp { background: radial-gradient(circle, #3d3a78 0 4px, transparent 4.5px) 0 0 / 28px 28px, var(--sub-alt); }
+[data-theme='cartoon'] .side-hud { background: linear-gradient(to bottom, var(--bg), transparent); }
+[data-theme='cartoon'] .menu-btn { opacity: 1; }
+
+/* Effects: round blobs with outlines instead of glows. */
+[data-theme='cartoon'] .impact .p { border: 3px solid var(--ink); box-shadow: none !important; }
+[data-theme='cartoon'] .p.ember { border-radius: 50%; background: #ff9f1c; }
+[data-theme='cartoon'] .p.shard { background: #fff; border-width: 2px; }
+[data-theme='cartoon'] .p.sparkle { background: #5ee06b; }
+[data-theme='cartoon'] .p.rock { border-radius: 30%; }
+[data-theme='cartoon'] .impact .ring { border-width: 6px; box-shadow: 0 0 0 3px var(--ink); }
+[data-theme='cartoon'] .sig-meteor .ball {
+  background: radial-gradient(circle at 35% 30%, #fff 0 8%, #ffd23f 9% 25%, #ff9f1c 26% 55%, #ff5470 56%);
+  border: 5px solid var(--ink);
+  box-shadow: 0 0 0 0 transparent !important;
+}
+[data-theme='cartoon'] .sig-bar { background: #bff3ff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: inset -6px 0 0 #6fd3f5 !important; }
+[data-theme='cartoon'] .sig-wave path { stroke: var(--ink); stroke-width: 4px; fill: #3d8bff; }
+[data-theme='cartoon'] .sig-crack polyline,
+[data-theme='cartoon'] .crack polyline,
+[data-theme='cartoon'] .sig-bolt polyline { stroke-linejoin: round; stroke-linecap: round; }
+[data-theme='cartoon'] .sig-bolt polyline { stroke: #ffd23f; paint-order: stroke; }
+[data-theme='cartoon'] .st-silence b { color: #ffb3c1; }
+
+/* Tutorial: rounded comic panels, the shape drawn with a fat outlined marker, a little wobble. */
+[data-theme='cartoon'] .tut-title { font-size: 34px; transform: rotate(-2deg); }
+[data-theme='cartoon'] .tut-demo img,
+[data-theme='cartoon'] .tut-demo svg { border: 4px solid var(--ink); border-radius: 22px; box-shadow: 0 6px 0 var(--ink); }
+[data-theme='cartoon'] .tut-demo figure:first-child { transform: rotate(-2deg); }
+[data-theme='cartoon'] .tut-demo figure:last-child { transform: rotate(2deg); }
+[data-theme='cartoon'] .tut-demo svg { background: #fffaf0; }
+[data-theme='cartoon'] .tut-draw { stroke-width: 3.5; animation-timing-function: cubic-bezier(0.6, 0, 0.4, 1) !important; }
+[data-theme='cartoon'] .tut-ghost { stroke: var(--ink); stroke-width: 6.5; opacity: 0.12; }
+[data-theme='cartoon'] .tut-demo figcaption { font-family: var(--title); font-size: 18px; }
+[data-theme='cartoon'] .tut-hint { font-family: 'Nunito', sans-serif; font-weight: 700; color: var(--sub); }
+[data-theme='cartoon'] .tut-push { font-size: 42px; color: var(--main); animation: toon-push 0.9s var(--bounce) infinite; }
+@keyframes toon-push { 0%, 100% { transform: scale(1); } 30% { transform: scale(0.8, 1.15); } 60% { transform: scale(1.3, 0.9); } }
+[data-theme='cartoon'] .tut-tip { font-size: 17px; }
+[data-theme='cartoon'] .asl-mini { border: 2px solid var(--ink); border-radius: 8px; }
+[data-theme='cartoon'] .tut-demo svg circle { fill: var(--ink); }
+[data-theme='cartoon'] .hp-lock-stripes { background: repeating-linear-gradient(-45deg, #ffb3c1 0 8px, #ff5470 8px 16px); opacity: 0.85; }
+[data-theme='cartoon'] .lock-badge { left: -10px; background: #ff5470; color: #fff; border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); font-family: var(--title); font-weight: normal; font-size: 15px; padding: 2px 10px 2px 8px; animation: toon-in 0.35s var(--bounce); }
+[data-theme='cartoon'] .lock-badge svg { width: 14px; height: 16px; }
+[data-theme='cartoon'] .tut-card { border: 4px solid var(--ink); border-radius: 24px; box-shadow: 0 8px 0 var(--ink); background: var(--sub-alt); }
+[data-theme='cartoon'] .tut-head { border-bottom: 4px solid var(--ink); padding: 10px 18px; }
+[data-theme='cartoon'] .tut-head .tut-title { color: #fff; font-size: 30px; transform: none; }
+[data-theme='cartoon'] .tut-head .tut-count { color: var(--ink); font-family: var(--title); font-size: 16px; opacity: 1; background: #fffaf0; border: 3px solid var(--ink); border-radius: 999px; padding: 0 10px; }
+[data-theme='cartoon'] .tut-list { background: rgba(21, 19, 46, 0.55); border: 3px solid rgba(255, 250, 240, 0.25); border-radius: 20px; }
+[data-theme='cartoon'] .tut-list-title { font-family: var(--title); font-size: 16px; color: var(--main); letter-spacing: 0.04em; }
+[data-theme='cartoon'] .tut-row-name { font-weight: 800; }
+[data-theme='cartoon'] .tut-dot { border: 3px solid currentColor; box-shadow: none; transform: none; }
+[data-theme='cartoon'] .tut-dot.done { animation: toon-in 0.35s var(--bounce); }
+[data-theme='cartoon'] :focus-visible { outline: 4px solid var(--main); outline-offset: 3px; }
+[data-theme='cartoon'] button.tut-dot { width: 24px; height: 24px; padding: 0; background: transparent; font-size: 12px; color: inherit; }
+[data-theme='cartoon'] button.tut-dot.done { background: var(--you); border-color: var(--ink); color: var(--ink) !important; }
+[data-theme='cartoon'] button.tut-dot:hover { transform: scale(1.15); }
+[data-theme='cartoon'] .info-card { border: 4px solid var(--ink); border-radius: 22px; box-shadow: 0 6px 0 var(--ink); }
+[data-theme='cartoon'] .info-card h2 { font-family: var(--title); font-weight: normal; font-size: 26px; }
+[data-theme='cartoon'] .info-top .logo { font-size: 44px; transform: rotate(-2deg); }
+[data-theme='cartoon'] .home button:nth-of-type(5) { background: #ffd23f; color: var(--ink); }

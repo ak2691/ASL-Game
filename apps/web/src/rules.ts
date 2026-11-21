@@ -24,6 +24,21 @@ export const RULES: Record<string, Rule> = {
   P: { ok: (lm) => thumbToFingers(lm) < 0.7, hint: 'Put your thumb between your index and middle fingers.' },
 }
 
+// ---- Shape gates -------------------------------------------------------------------------
+// The letter model has no "not a letter" class, so a hand that isn't a letter (an open palm) still
+// gets its closest letter. A gate rejects a letter the hand plainly can't be.
+
+/** F: the index fingertip touches the thumb. Real F samples: thumb-index gap at most 0.22 palm
+ *  units for 95% (ASL-HG), 99% of ASLNow under 0.45; open hands (B, W) never below 0.75. */
+const F_TOUCH_MAX = 0.45
+
+/** False if the hand plainly can't be `letter` (e.g. F with the index away from the thumb). */
+export function passesGate(letter: string, lm: Point[] | null): boolean {
+  if (!lm) return true
+  if (letter === 'F') return d(lm[4], lm[8]) / palm(lm) <= F_TOUCH_MAX
+  return true
+}
+
 // ---- Same shape, different direction ------------------------------------------------------
 // K/P and G/Q are the same handshape; P and Q just point down. The model can mix them up
 // (especially for a diagonal P), so when it sees the shape, the finger direction decides.

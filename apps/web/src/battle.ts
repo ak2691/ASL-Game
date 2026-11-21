@@ -51,15 +51,17 @@ interface AiStyle {
   react: number // chance it tries to counter a charge of yours
   reactMs: [number, number] // how long it takes to notice and start (min, max)
   circle: number // share of counters that are full counterspells (the rest are quick interrupts)
+  miss: number // share of counters that are mistakes (wrong element; vs a heal, a quick interrupt that can't stop it)
   capitalize: boolean // punishes a silence at once (biggest spell that's out before it ends); fast spells when you're low
 }
-// Speed steps shrink (1, 0.8, 0.55, 0.42): each level is faster, but never impossibly fast.
-// Insane reacts in about 0.3 to 0.5 s (a quick human) and draws a line in about a quarter second.
+// Speed steps shrink (1, 0.8, 0.7, 0.58): each level is a bit faster, never impossibly fast.
+// Counter thinking time grows easier down the levels; hard and insane also punish a silence.
+// Once it's drawing its own spell it commits: no dropping it to counter you.
 export const AI: Record<Difficulty, AiStyle> = {
-  easy: { every: 5000, speed: 1, ramp: false, healBelow: 0.25, react: 0, reactMs: [0, 0], circle: 0, capitalize: false },
-  medium: { every: 3800, speed: 0.8, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [900, 1400], circle: 0.3, capitalize: false },
-  hard: { every: 2400, speed: 0.55, ramp: true, healBelow: 0.4, react: 0.75, reactMs: [450, 750], circle: 0.5, capitalize: true },
-  insane: { every: 1800, speed: 0.42, ramp: true, healBelow: 0.45, react: 0.9, reactMs: [280, 480], circle: 0.6, capitalize: true },
+  easy: { every: 5000, speed: 1, ramp: false, healBelow: 0.25, react: 0, reactMs: [0, 0], circle: 0, miss: 0, capitalize: false },
+  medium: { every: 3800, speed: 0.8, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [900, 1400], circle: 0.3, miss: 0.2, capitalize: false },
+  hard: { every: 3200, speed: 0.7, ramp: true, healBelow: 0.4, react: 0.5, reactMs: [1000, 1400], circle: 0.4, miss: 0.2, capitalize: true },
+  insane: { every: 2600, speed: 0.58, ramp: true, healBelow: 0.4, react: 0.65, reactMs: [800, 1100], circle: 0.5, miss: 0.05, capitalize: true },
 }
 const ENEMY_JITTER = 0.2 // +/- share of the gap between casts
 const CHARGE_MS = 700
@@ -210,11 +212,11 @@ export class PracticeArena implements Arena {
     if (!(r?.el === 'H' && r.shape === 'hourglass')) this.reactAt = null
   }
 
-  /** Faster as the fight goes on (medium/hard): about 14% faster after a minute, 22% after three. */
+  /** Faster as the fight goes on, then levels off: about 6% faster after 30 s, 9% after a minute, 10% at most. */
   private speed(now: number) {
     const s = this.style
     if (!s.ramp) return s.speed
-    return s.speed / (1 + 0.12 * Math.log(1 + (now - this.started) / 20000))
+    return s.speed / (1 + 0.1 * (1 - Math.exp(-(now - this.started) / 30000)))
   }
 
   /** What to cast next: heal when low, otherwise attack (hard: press an advantage). */
@@ -246,15 +248,25 @@ export class PracticeArena implements Arena {
       }
     }
     if (this.reactAt === null || now < this.reactAt) return
+    // Committed: already drawing its own spell. It finishes that, then counters if you're still open.
+    const e = this.enemy
+    if (e && !e.counter && now - e.start >= e.chargeMs) {
+      this.reactAt = e.ends + 100
+      return
+    }
     this.reactAt = null
     const healing = this.reactTo === 'H'
     // Only if there's still something to counter: your charge, or (for a heal) a regen ticking.
     if (!(pc?.el === this.reactTo || (healing && this.combat.view(now).regen.player))) return
-    // Nearly done with its own spell: finish that instead.
-    if (this.enemy && !this.enemy.counter && now - this.enemy.start > this.enemy.chargeMs + this.enemy.drawMs * 0.6) return
     // A heal needs the full counterspell (any element); otherwise a quick interrupt or a circle.
-    const shape = healing || Math.random() < s.circle ? 'circle' : 'jab'
-    const el = healing ? ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)] : beaterOf(this.reactTo)
+    const mistake = Math.random() < s.miss
+    let shape = healing || Math.random() < s.circle ? 'circle' : 'jab'
+    let el = healing ? ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)] : beaterOf(this.reactTo)
+    if (mistake && healing) shape = 'jab' // a quick interrupt doesn't stop a heal
+    else if (mistake) {
+      const wrong = ENEMY_ELEMENTS.filter((x) => x !== el)
+      el = wrong[Math.floor(Math.random() * wrong.length)] // wrong element: it misses
+    }
     const sp = spellOf(el, shape, this.speed(now), Math.max(150, COUNTER_HOLD_MS * this.speed(now)))
     this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, counter: true }
     this.combat.sign('enemy', sp.el, now)

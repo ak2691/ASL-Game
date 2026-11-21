@@ -2,16 +2,17 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { classify, loadRecognizer, type Hand } from './recognition'
-import { directionLetter } from './rules'
+import { directionLetter, passesGate } from './rules'
 import { getTracker } from './trackers'
 import { LandmarkSmoother } from './smoothing'
 import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
 import { BEATS, COUNTER, ELEMENTS, QUICK, FORMS, PUNCHES, SIGNATURE, TRAITS, isValidSpell, shapesFor, spellName } from './spells'
 import { DummyArena, PracticeArena, shapePoints, type Arena, type Difficulty, type Side, type Snapshot } from './battle'
-import { BoltLayer, Impacts, StatusFx, useShake } from './effects'
+import { BoltLayer, Impacts, SilenceLock, StatusFx, useShake } from './effects'
 import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
 import { Tutorial } from './Tutorial'
 
+const TOUCH = matchMedia('(hover: none)').matches // phones and tablets: no Esc key to point at
 const DEBUG = new URLSearchParams(location.search).has('debug') // ?debug: cast with buttons, no camera needed
 
 // ?debug: every finished stroke is kept (points + what it was read as), to download and tune
@@ -52,6 +53,7 @@ const MIN_STROKE_PALMS = 1.2 // shorter strokes are ignored (just settling the h
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const DROPOUT_MS = 150
+const RELEASE_MS = 100 // after a throw, the letter must be let go this long before it can charge again
 const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
 
 // Shape guide icons (40×40), and a suggested start point for each.
@@ -93,16 +95,26 @@ function isPointing(lm: NormalizedLandmark[]) {
   return straight && curled && !thumbOut(lm)
 }
 
-/** Pen-up: the middle, ring or pinky finger clearly raised. */
 /** Thumb noticeably out to the side (as in L): not drawing. Tip-to-middle-knuckle, in palm sizes. */
 function thumbOut(lm: NormalizedLandmark[]) {
   return dist(lm[4], lm[9]) / (dist(lm[0], lm[9]) || 1) > THUMB_OUT
 }
 
-/** Pen-up: the middle, ring or pinky finger clearly raised, or the thumb out. */
-function isOpen(lm: NormalizedLandmark[]) {
+/** Pen-up: an open hand. Default: all five fingers up (a "5" is no letter, so it can't be mistaken
+ *  for a sign). Easy pen-up (a setting, for players who can't make a full 5): any second finger up. */
+function isOpen(lm: NormalizedLandmark[], easy: boolean) {
   const w = lm[0]
-  return thumbOut(lm) || [12, 16, 20].some((tip) => dist(w, lm[tip]) > dist(w, lm[tip - 2]) * 1.15)
+  const up = (tip: number) => dist(w, lm[tip]) > dist(w, lm[tip - 2]) * 1.15
+  if (easy) return thumbOut(lm) || [12, 16, 20].some(up)
+  return thumbOut(lm) && [8, 12, 16, 20].every(up)
+}
+const EASY_PEN_KEY = 'spells-easy-pen'
+function loadEasyPen() {
+  try {
+    return localStorage.getItem(EASY_PEN_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 interface Cast {
@@ -123,6 +135,18 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [drawing, setDrawing] = useState(false)
   const [log, setLog] = useState<Cast[]>([])
   const [menu, setMenu] = useState<null | 'main' | 'help'>(null)
+  const [easyPen, setEasyPen] = useState(loadEasyPen)
+  const easyPenRef = useRef(easyPen) // read by the camera loop
+  const toggleEasyPen = () => {
+    const on = !easyPenRef.current
+    easyPenRef.current = on
+    setEasyPen(on)
+    try {
+      localStorage.setItem(EASY_PEN_KEY, on ? '1' : '0')
+    } catch {
+      /* not saved: fine */
+    }
+  }
   const [strokeCount, setStrokeCount] = useState(0)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -220,7 +244,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         const [rec, tracker, shapeModel] = await Promise.all([loadRecognizer(), getTracker(), loadShapeModel()])
         if (stopped) return
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } },
+          // Front camera on phones. Turned sideways, the browser rotates the frames itself.
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } },
         })
         if (stopped) return stream.getTracks().forEach((t) => t.stop())
         const video = videoRef.current!
@@ -251,6 +276,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         let wasSilenced = false
         let sentSign: { el: string; t: number } | null = null // last element sent, so it isn't resent every frame
         let lastCharge: string | null = null // to spot a new charge (see the push below)
+        // After a throw your hand is often still in that letter's shape. It mustn't recharge you: the
+        // letter has to be let go (another shape for a moment) before it can charge again.
+        let release: { el: string; since: number | null } | null = null
         let knockedSeen = 0
 
         const finishStroke = (now: number) => {
@@ -315,6 +343,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             smoother.reset()
           }
 
+          // The phone was turned: the frames changed shape, so the overlay follows.
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+          }
           const W = canvas.width
           const H = canvas.height
           ctx.clearRect(0, 0, W, H)
@@ -382,7 +415,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             if (!pointing && stroke.length === 0 && !silenced && !myReady) {
               // Not drawing: read the handshape as a letter, to charge an element.
               letter = pred.confidence >= CHARGE_PROB ? directionLetter(pred.letter, lm) : ''
-              const el = ELEMENTS[letter] ? letter : null
+              if (letter && !passesGate(letter, lm)) letter = '' // e.g. an open palm read as F
+              let el = ELEMENTS[letter] ? letter : null
+              if (release) {
+                if (el === release.el) release.since = null
+                else if ((release.since ??= now) && now - release.since >= RELEASE_MS) release = null
+                if (release && el === release.el) el = null // still holding the thrown letter
+              }
               if (el !== holdLetter) {
                 holdLetter = el
                 holdSince = now
@@ -411,7 +450,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           } else prevWrist = null
           // The speed limit applies only when the pen-up starts (that's when blur fakes it); once
           // started it holds through a fast move, so pushing right away doesn't cancel it.
-          if (found && lm && !pointing && (isOpen(found) || signingL) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
+          if (found && lm && !pointing && (isOpen(found, easyPenRef.current) || signingL) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
           else openSince = null
           const penUpStart = openSince
           if (stroke.length && !pointing && ((openSince !== null && now - openSince >= PEN_UP_HOLD_MS) || now - lastPointT > LOST_GRACE_MS)) {
@@ -435,6 +474,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             const s = sizes[sizes.length - 1].s
             if (s / Math.min(...sizes.map((x) => x.s)) >= PUSH_GROWTH) {
               arena.current.push()
+              if (myCharge) release = { el: myCharge, since: null }
+              predicted.current = null
               holdLetter = null
               sizes = []
             }
@@ -462,12 +503,23 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             ctx.globalAlpha = alpha
             ctx.strokeStyle = color
             ctx.lineWidth = 10
-            ctx.lineCap = ctx.lineJoin = 'round'
+            const pixel = document.documentElement.dataset.theme === 'pixel'
+            ctx.lineCap = pixel ? 'square' : 'round'
+            ctx.lineJoin = pixel ? 'miter' : 'round'
+            const cartoon = document.documentElement.dataset.theme === 'cartoon'
             ctx.shadowColor = color
-            ctx.shadowBlur = 20
+            ctx.shadowBlur = pixel || cartoon ? 0 : 20
             ctx.beginPath()
             ctx.moveTo(pts[0].x, pts[0].y)
             for (const p of pts) ctx.lineTo(p.x, p.y)
+            if (cartoon) {
+              // Marker look: a dark outline under the colored stroke.
+              ctx.strokeStyle = '#15132e'
+              ctx.lineWidth = 18
+              ctx.stroke()
+              ctx.strokeStyle = color
+              ctx.lineWidth = 10
+            }
             ctx.stroke()
             ctx.shadowBlur = 0
             ctx.globalAlpha = 1
@@ -504,13 +556,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         {side === 'player' ? 'You' : oppName}
         {fight.static[side] && <span className={`tag static ${fight.static[side]}`}>⚡ {fight.static[side] === 'on' ? 'static' : 'gap'}</span>}
         {fight.chill[side] > 0 && <span className="tag chill">chilled +{fight.chill[side]}</span>}
-        {fight.silenced[side] > 0 && <span className="tag silenced">silenced {(fight.silenced[side] / 1000).toFixed(1)}s</span>}
       </div>
       <div className="hp-bar">
         <div className="hp-fill" style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: side === 'player' ? 'var(--you)' : 'var(--foe)' }} />
         <span className="hp-text">
           {fight.maxHp[side] === Infinity ? '∞' : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
         </span>
+        <SilenceLock ms={fight.running ? fight.silenced[side] : 0} />
         {fight.floats
           .filter((f) => f.side === side)
           .map((f) => (
@@ -526,7 +578,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   return (
     <main className="page duel-page">
       <button className="small menu-btn" onClick={() => setMenu('main')} title="Menu (Esc)">
-        Esc
+        {TOUCH ? 'Menu' : 'Esc'}
       </button>
 
       {mode === 'online' && lobby && (
@@ -587,7 +639,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <EnemyCanvas cast={fight.running ? fight.enemyCast : null} />
           <div className="side-hud">
             {fighterHead('enemy')}
-            {mode !== 'dummy' && <CastBar fight={fight} />}
+            {mode !== 'dummy' && mode !== 'tutorial' && <CastBar fight={fight} />}
           </div>
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} />}
           {mode === 'dummy' && (
@@ -644,6 +696,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               </button>
             )}
             {mode !== 'tutorial' && <button onClick={() => setMenu('help')}>How to cast</button>}
+            <button onClick={toggleEasyPen}>Easy pen-up: {easyPen ? 'on' : 'off'}</button>
+            <small className="menu-hint">
+              {easyPen ? 'Raising any second finger finishes a drawing.' : 'Open your whole hand to finish a drawing. Turn on if that’s hard.'}
+            </small>
             <button onClick={goHome}>Home</button>
           </div>
         </div>
@@ -666,7 +722,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                   </li>
                 ))}
               </ul>
-              <b>2. Draw</b> — point your index finger up (thumb tucked, finger visible) and trace a shape. Raise another finger to finish.
+              <b>2. Draw</b> — point your index finger up (thumb tucked, finger visible) and trace a shape. Open your hand, all five fingers up, to finish. (With Easy pen-up on in the Esc menu, any second finger up finishes it.)
               <div className="guide-sub">Attacks + counterspell (every element)</div>
               <div className="shape-guide">
                 {[...PUNCHES, COUNTER].map((sh) => [sh, FORMS[sh]]).map(([sh, fm]) => (
@@ -805,7 +861,7 @@ function OnlinePanel(props: {
               arena?.join(joinCode)
             }}
           >
-            <input className="code-input" value={joinCode} maxLength={4} placeholder="CODE" onChange={(e) => setJoinCode(e.target.value.toUpperCase())} />
+            <input className="code-input" value={joinCode} maxLength={4} placeholder="CODE" autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" aria-label="Room code" onChange={(e) => setJoinCode(e.target.value.toUpperCase())} />
             <button type="submit" disabled={joinCode.length !== 4}>
               Join
             </button>

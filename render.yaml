@@ -1,0 +1,13 @@
+# Render Blueprint: one free web service that serves the web app and runs the game server.
+# Render dashboard → New → Blueprint → pick this repo. (Or set it up by hand: see server/README.md.)
+services:
+  - type: web
+    name: asl-spells
+    runtime: node
+    plan: free
+    buildCommand: npm ci --prefix apps/web && npm run build --prefix apps/web && npm ci --prefix server
+    startCommand: npm start --prefix server
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

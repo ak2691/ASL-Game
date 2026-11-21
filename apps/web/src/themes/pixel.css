@@ -1,0 +1,173 @@
+/* Pixel arcade theme. Active when <html data-theme="pixel"> (see main.tsx).
+   Rules: square corners, hard 1-color shadows instead of glows, a small fixed palette
+   (Sweetie 16 by GrafxKid), pixel fonts, and animations that step frame by frame. */
+
+[data-theme='pixel'] {
+  --bg: #1a1c2c;
+  --sub-alt: #262b44;
+  --sub: #566c86;
+  --text: #f4f4f4;
+  --main: #ffcd75;
+  --thumb: #ef7d57;
+  --you: #38b764;
+  --foe: #b13e53;
+  --shadow: #000;
+  --edge: #0b0c14;
+  --title: 'Press Start 2P', monospace;
+  font-family: 'Pixelify Sans', monospace;
+  font-size: 18px;
+}
+
+/* No smooth motion: every animation advances in a few hard frames. No soft glows or blur. */
+[data-theme='pixel'] *,
+[data-theme='pixel'] *::before,
+[data-theme='pixel'] *::after {
+  animation-timing-function: steps(6, end) !important;
+  transition-timing-function: steps(3, end) !important;
+  border-radius: 0 !important;
+  filter: none !important;
+}
+
+/* Titles and big words in the chunky font, with a hard drop shadow. */
+[data-theme='pixel'] :is(.logo, h1, .result, .tut-title, .room-code, .countdown, .cast, .impact-name, .bolt, .st-silence b, .st-knock span, .tut-push) {
+  font-family: var(--title);
+  font-weight: normal;
+  letter-spacing: 0;
+  text-shadow: 3px 3px 0 var(--edge) !important;
+}
+[data-theme='pixel'] .result { font-size: 28px; }
+[data-theme='pixel'] .cast { font-size: 22px; }
+[data-theme='pixel'] .bolt.tier-light { font-size: clamp(10px, 1.4vw, 16px); }
+[data-theme='pixel'] .bolt.tier-heavy { font-size: clamp(14px, 2vw, 24px); }
+[data-theme='pixel'] .bolt.tier-signature { font-size: clamp(18px, 3vw, 36px); }
+[data-theme='pixel'] .tier-light .impact-name { font-size: clamp(12px, 3.5cqw, 20px); }
+[data-theme='pixel'] .tier-heavy .impact-name { font-size: clamp(16px, 5cqw, 36px); }
+[data-theme='pixel'] .tier-signature .impact-name { font-size: clamp(20px, 6.5cqw, 64px); }
+[data-theme='pixel'] :is(.status-strip, .stage-overlay, .hp-text, .st-silence b) { text-shadow: 2px 2px 0 var(--edge) !important; }
+
+/* Buttons: flat block, 2px dark outline, hard shadow that the press "pushes in". */
+[data-theme='pixel'] button {
+  background: #333c57;
+  color: var(--text);
+  border: 2px solid var(--edge);
+  box-shadow: inset -3px -3px 0 #1f2438, inset 3px 3px 0 #566c86, 3px 3px 0 var(--edge);
+  font-family: var(--title);
+  font-size: 12px;
+  padding: 12px 16px;
+  transition: none;
+}
+[data-theme='pixel'] button.small { font-size: 9px; padding: 8px 10px; }
+[data-theme='pixel'] button:hover { background: #3b5dc9; }
+[data-theme='pixel'] button:active { transform: translate(3px, 3px); box-shadow: inset 3px 3px 0 #1f2438; }
+[data-theme='pixel'] button.active { background: var(--main); color: var(--bg); box-shadow: inset -3px -3px 0 #ef7d57, 3px 3px 0 var(--edge); }
+
+/* Home: big stacked title, menu as a list with a blinking cursor on the hovered item. */
+[data-theme='pixel'] .home { gap: 12px; }
+[data-theme='pixel'] .home .logo {
+  font-size: clamp(28px, 7vw, 56px);
+  color: var(--main);
+  text-shadow: 4px 4px 0 #b13e53, 8px 8px 0 var(--edge) !important;
+  margin-bottom: 36px;
+  text-align: center;
+}
+[data-theme='pixel'] .home button {
+  width: 260px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  font-size: 16px;
+  padding: 10px 0 10px 28px;
+  text-align: left;
+  position: relative;
+  color: var(--sub);
+}
+[data-theme='pixel'] .home button:hover,
+[data-theme='pixel'] .home button:focus-visible { color: var(--text); outline: none; }
+[data-theme='pixel'] .home button:hover::before,
+[data-theme='pixel'] .home button:focus-visible::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  margin-top: -7px;
+  border: 7px solid transparent;
+  border-left: 10px solid var(--main);
+  animation: px-blink 0.8s infinite;
+}
+@keyframes px-blink { 50% { opacity: 0; } }
+
+/* Panels and menus: dark box, double outline. */
+[data-theme='pixel'] .menu-overlay { background: rgba(10, 10, 20, 0.75); }
+[data-theme='pixel'] .menu-card,
+[data-theme='pixel'] .online-panel {
+  background: var(--bg);
+  border: 3px solid var(--text);
+  box-shadow: 0 0 0 3px var(--edge), 6px 6px 0 3px var(--edge);
+}
+[data-theme='pixel'] .pause-menu button { width: 100%; }
+[data-theme='pixel'] .shape-card { background: var(--sub-alt); border: 2px solid var(--edge); }
+[data-theme='pixel'] .tag { border: 2px solid var(--edge); }
+[data-theme='pixel'] .code-input { border: 2px solid var(--text); font-family: var(--title); font-size: 14px; }
+
+/* Bars: segmented blocks with a dark frame. */
+[data-theme='pixel'] .hp-bar,
+[data-theme='pixel'] .cast-bar { background: var(--edge); border: 2px solid var(--edge); box-shadow: 0 0 0 2px var(--sub); }
+[data-theme='pixel'] .hp-fill,
+[data-theme='pixel'] .cast-fill {
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.25), inset 0 -4px 0 rgba(0, 0, 0, 0.25);
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 10px, transparent 10px 12px);
+  mask: repeating-linear-gradient(90deg, #000 0 10px, transparent 10px 12px);
+}
+[data-theme='pixel'] .hp-text { font-family: var(--title); font-size: 9px; }
+[data-theme='pixel'] .fighter-name { font-family: var(--title); font-size: 11px; font-weight: normal; }
+
+/* Duel halves: flat backgrounds, a hard divider, a solid HUD strip. */
+[data-theme='pixel'] .duel { gap: 4px; background: var(--edge); }
+[data-theme='pixel'] .duel-side.opp { background: var(--sub-alt); }
+[data-theme='pixel'] .side-hud { background: var(--bg); border-bottom: 3px solid var(--edge); padding-bottom: 12px; }
+[data-theme='pixel'] .menu-btn { opacity: 1; }
+
+/* Effects: square particles, no glow, flat colors. */
+[data-theme='pixel'] .impact .p,
+[data-theme='pixel'] .st-static i { box-shadow: none !important; }
+[data-theme='pixel'] .p.ember { background: #ef7d57; box-shadow: 3px 3px 0 #b13e53 !important; }
+[data-theme='pixel'] .p.shard { background: #f4f4f4; }
+[data-theme='pixel'] .p.sparkle { background: #a7f070; }
+[data-theme='pixel'] .impact-flash { background: currentColor; }
+[data-theme='pixel'] .impact .ring { border-width: 4px; border-style: dashed; }
+[data-theme='pixel'] .sig-meteor .ball {
+  background: #ef7d57;
+  box-shadow: inset -2cqw -2cqw 0 #b13e53, inset 2cqw 2cqw 0 #ffcd75 !important;
+  clip-path: polygon(30% 0, 70% 0, 70% 10%, 90% 10%, 90% 30%, 100% 30%, 100% 70%, 90% 70%, 90% 90%, 70% 90%, 70% 100%, 30% 100%, 30% 90%, 10% 90%, 10% 70%, 0 70%, 0 30%, 10% 30%, 10% 10%, 30% 10%);
+}
+[data-theme='pixel'] .sig-bar { background: #73eff7; box-shadow: inset -4px 0 0 #41a6f6 !important; }
+[data-theme='pixel'] :is(.st-regen, .st-chill, .st-static.on, .st-static.gap, .impact .frost) { box-shadow: inset 0 0 0 8px currentColor !important; }
+[data-theme='pixel'] .st-regen { color: #38b764; }
+[data-theme='pixel'] .st-chill { color: #73eff7; border: none; }
+[data-theme='pixel'] .st-static.on, [data-theme='pixel'] .st-static.gap { color: #ffcd75; }
+[data-theme='pixel'] .impact .frost { color: #f4f4f4; }
+[data-theme='pixel'] .st-burn { background: repeating-linear-gradient(to top, rgba(239, 125, 87, 0.5) 0 8px, transparent 8px 16px) bottom / 100% 30% no-repeat; }
+[data-theme='pixel'] .st-silence { backdrop-filter: grayscale(1) brightness(0.6); }
+[data-theme='pixel'] .st-silence .left { stroke-linecap: butt; }
+
+/* Tutorial: framed cards, the shape drawn tick by tick with square ends. */
+[data-theme='pixel'] .tut-demo img { border: 3px solid var(--edge); box-shadow: 4px 4px 0 var(--edge); padding: 6px; }
+[data-theme='pixel'] .tut-demo svg { background: var(--bg); border: 3px solid var(--edge); box-shadow: 4px 4px 0 var(--edge); shape-rendering: crispEdges; }
+[data-theme='pixel'] .tut-draw { stroke-width: 3; stroke-linecap: square; stroke-linejoin: miter; animation-timing-function: steps(14, end) !important; }
+[data-theme='pixel'] .tut-ghost { stroke-dasharray: 1.5 1.5; stroke-linecap: butt; opacity: 0.35; }
+[data-theme='pixel'] .tut-demo figcaption { font-family: var(--title); font-size: 10px; line-height: 1.6; }
+[data-theme='pixel'] .tut-hint { font-family: 'Pixelify Sans', monospace; font-size: 14px; }
+[data-theme='pixel'] .tut-push { font-size: 22px; animation-timing-function: steps(2, end) !important; }
+[data-theme='pixel'] .tut-count { font-family: var(--title); font-size: 10px; }
+[data-theme='pixel'] .asl-mini { border: 2px solid var(--edge); }
+[data-theme='pixel'] .hp-lock-stripes { background: repeating-linear-gradient(90deg, #b13e53 0 6px, #5d275d 6px 12px); }
+[data-theme='pixel'] .lock-badge { background: #b13e53; color: #f4f4f4; border: 2px solid var(--edge); font-family: var(--title); font-size: 9px; font-weight: normal; }
+[data-theme='pixel'] .tut-card { border: 3px solid var(--edge); box-shadow: 6px 6px 0 var(--edge); }
+[data-theme='pixel'] .tut-head .tut-title { font-size: 14px; text-shadow: none !important; }
+[data-theme='pixel'] .tut-list { border: 3px solid var(--edge); }
+[data-theme='pixel'] .tut-list-title { font-family: var(--title); font-size: 9px; }
+[data-theme='pixel'] :focus-visible { outline: 3px dashed var(--main); }
+[data-theme='pixel'] button.tut-dot { width: 18px; height: 18px; padding: 0; background: transparent; box-shadow: none; font-size: 8px; }
+[data-theme='pixel'] button.tut-dot.done { background: var(--you); }
+[data-theme='pixel'] .info-card { border: 3px solid var(--edge); box-shadow: 4px 4px 0 var(--edge); }
+[data-theme='pixel'] .info-card h2 { font-family: var(--title); font-size: 14px; font-weight: normal; }

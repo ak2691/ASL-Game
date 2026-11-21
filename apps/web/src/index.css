@@ -15,3 +15,15 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); }
 h1 { color: var(--main); margin: 0; }
+
+/* Keyboard users: a clear outline on whatever is focused. */
+:focus-visible { outline: 3px solid var(--main); outline-offset: 3px; }
+
+/* People who asked their system for less motion: no bobbing, bouncing or looping animations. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

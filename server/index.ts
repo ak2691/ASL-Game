@@ -18,6 +18,10 @@ const COUNTDOWN_MS = 3000
 const TICK_MS = 50
 const GRACE_MS = 15000 // a disconnected player keeps their seat this long
 const MAX_STROKE_PTS = 200 // per message
+const MAX_MSG_BYTES = 64 * 1024
+// Heartbeat: a connection that dies without closing (phone loses signal) would otherwise keep its
+// seat "connected" forever (no pause, no grace timer). Browsers answer pings on their own.
+const PING_MS = 20000
 const DIST = fileURLToPath(new URL('../apps/web/dist/', import.meta.url))
 
 type Phase = 'lobby' | 'countdown' | 'fighting' | 'over'
@@ -95,10 +99,14 @@ function endFight(room: Room) {
 
 function tick(room: Room) {
   room.timer = null
-  if (room.pausedAt === null) room.combat.update(Date.now())
-  sendState(room)
-  if (room.combat.winner) return endFight(room)
-  room.timer = setTimeout(() => tick(room), TICK_MS)
+  try {
+    if (room.pausedAt === null) room.combat.update(Date.now())
+    sendState(room)
+    if (room.combat.winner) return endFight(room)
+  } catch (err) {
+    console.error(`room ${room.code}: tick failed`, err)
+  }
+  if (rooms.get(room.code) === room && room.phase === 'fighting') room.timer = setTimeout(() => tick(room), TICK_MS)
 }
 
 /** Remove a seat for good. Mid-fight, that's a forfeit. */
@@ -287,7 +295,12 @@ const TYPES: Record<string, string> = {
   '.wasm': 'application/wasm',
 }
 const http = createServer(async (req, res) => {
-  const path = normalize(decodeURIComponent((req.url ?? '/').split('?')[0])).replace(/^([/\\])+/, '')
+  let path: string
+  try {
+    path = normalize(decodeURIComponent((req.url ?? '/').split('?')[0])).replace(/^([/\\])+/, '')
+  } catch {
+    return res.writeHead(400).end()
+  }
   if (path.includes('..')) return res.writeHead(400).end()
   for (const file of [join(DIST, path || 'index.html'), join(DIST, 'index.html')]) {
     try {
@@ -301,8 +314,11 @@ const http = createServer(async (req, res) => {
   res.writeHead(404).end('Not built yet: run `npm run build` in apps/web')
 })
 
-const wss = new WebSocketServer({ server: http, path: '/ws' })
+const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: MAX_MSG_BYTES })
+const alive = new WeakMap<WebSocket, boolean>()
 wss.on('connection', (ws) => {
+  alive.set(ws, true)
+  ws.on('pong', () => alive.set(ws, true))
   ws.on('message', (data) => {
     let msg: ClientMsg
     try {
@@ -310,9 +326,36 @@ wss.on('connection', (ws) => {
     } catch {
       return
     }
-    if (msg && typeof msg === 'object') onMessage(ws, msg)
+    if (!msg || typeof msg !== 'object') return
+    // One bad message must never take the server (and every other room) down.
+    try {
+      onMessage(ws, msg)
+    } catch (err) {
+      console.error('message failed', (msg as { t?: unknown }).t, err)
+    }
   })
-  ws.on('close', () => onDisconnect(ws))
+  ws.on('close', () => {
+    try {
+      onDisconnect(ws)
+    } catch (err) {
+      console.error('disconnect failed', err)
+    }
+  })
+  ws.on('error', () => ws.terminate())
 })
+// Drop connections that stopped answering (their 'close' then frees the seat after the grace period).
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!alive.get(ws)) {
+      ws.terminate()
+      continue
+    }
+    alive.set(ws, false)
+    ws.ping()
+  }
+}, PING_MS)
+
+process.on('uncaughtException', (err) => console.error('uncaught', err))
+process.on('unhandledRejection', (err) => console.error('unhandled rejection', err))
 
 http.listen(PORT, () => console.log(`Game server on http://localhost:${PORT} (WebSocket at /ws)`))

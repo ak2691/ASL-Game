@@ -144,13 +144,31 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
   )
 }
 
+/** Silence, shown on the health bar: a lock badge with the seconds left, and stripes over the bar
+ *  that shrink as the silence runs out. */
+export function SilenceLock({ ms }: { ms: number }) {
+  const longest = useRef(0) // how long this silence was at its start
+  if (ms <= 0) longest.current = 0
+  else if (ms > longest.current) longest.current = ms
+  if (ms <= 0) return null
+  return (
+    <div className="hp-lock">
+      <div className="hp-lock-stripes" style={{ width: `${(100 * ms) / (longest.current || 1)}%` }} />
+      <span className="lock-badge">
+        <svg viewBox="0 0 16 18" aria-hidden>
+          <path d="M4 8V5.5a4 4 0 0 1 8 0V8" fill="none" stroke="currentColor" strokeWidth="2.4" />
+          <rect x="1.5" y="8" width="13" height="9" rx="2" fill="currentColor" />
+        </svg>
+        {(ms / 1000).toFixed(1)}
+      </span>
+    </div>
+  )
+}
+
 /** Ongoing effects on one half: silence greys it out, static crackles the edges, chill frosts them,
  *  burn flickers from below, regen pulses green, and a knock-off drops rubble. */
 export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
   const silenced = view.silenced[side]
-  const longest = useRef(0) // how long this silence was at its start, for the countdown ring
-  if (silenced <= 0) longest.current = 0
-  else if (silenced > longest.current) longest.current = silenced
   const knocks = view.knocked[side]
   const seenKnocks = useRef(knocks)
   const [knockId, setKnockId] = useState<number | null>(null)
@@ -176,15 +194,7 @@ export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
             })}
         </div>
       )}
-      {silenced > 0 && (
-        <div className="st-silence">
-          <svg viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="40" className="track" />
-            <circle cx="50" cy="50" r="40" className="left" style={{ strokeDashoffset: 251.3 * (1 - silenced / (longest.current || 1)) }} />
-          </svg>
-          <b>{(silenced / 1000).toFixed(1)}</b>
-        </div>
-      )}
+      {silenced > 0 && <div className="st-silence" />}
       {knockId !== null && (
         <div key={knockId} className="st-knock" onAnimationEnd={() => setKnockId(null)}>
           {Array.from({ length: 10 }, (_, i) => (

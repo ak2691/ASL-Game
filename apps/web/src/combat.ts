@@ -6,31 +6,31 @@ export { isValidSpell }
 
 export const MAX_HP = 150
 const TICK_MS = 500
-const COUNTER_SILENCE_MS = 2000 // a landed counterspell
-const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
-const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
-const CHILL_MS = 4000
+export const COUNTER_SILENCE_MS = 2000 // a landed counterspell
+export const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
+export const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
+export const CHILL_MS = 4000
 // Casting rules. The browser only reports what it recognized (a held letter, a finished shape, a
 // push); these decide what that does. Online, only the server runs them.
 /** A fizzle (failed drawing, or a readied spell that faded) locks all throws this long; the charge stays. */
 export const FIZZLE_LOCK_MS = 500
-const CHARGE_LIFE_MS = 3000 // a charge fades after this long with no drawing (switching elements is instant)
-const READY_LIFE_MS = 3000 // a readied spell fades (and fizzles) if not thrown
+export const CHARGE_LIFE_MS = 3000 // a charge fades after this long with no drawing (switching elements is instant)
+export const READY_LIFE_MS = 3000 // a readied spell fades (and fizzles) if not thrown
 // Simple anti-cheat: a drawing only counts if its stroke has been arriving for this long. Stops a
 // lag switch from sending charge + drawing + push in one burst (a cast the opponent never saw).
 const MIN_DRAW_MS = 100
 
 // Attack damage per element: [light, heavy]. Numbers are a first guess, to tune in playtests.
-const PUNCH: Record<string, [number, number]> = {
+export const PUNCH: Record<string, [number, number]> = {
   E: [10, 30], // hardest direct hits
   F: [7, 22], // + burn
   W: [6, 18], // + mend
   L: [5, 15], // + static
   I: [5, 15], // + chill
 }
-const BURN: [number, number] = [4, 11] // Fire: extra damage over ~1.5 s
-const CHILL: [number, number] = [6, 15] // Ice: bonus on the next hit they take
-const STATIC_PULSES: [number, number] = [1, 3] // Lightning: pulses of 0.5 s, 0.5 s gaps
+export const BURN: [number, number] = [4, 11] // Fire: extra damage over ~1.5 s
+export const CHILL: [number, number] = [6, 15] // Ice: bonus on the next hit they take
+export const STATIC_PULSES: [number, number] = [1, 3] // Lightning: pulses of 0.5 s, 0.5 s gaps
 
 // Static pulse patterns: throws fizzle during "on".
 const PUNCH_STATIC = { on: 500, off: 500 }
