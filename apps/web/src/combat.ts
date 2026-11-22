@@ -10,6 +10,7 @@ export const COUNTER_SILENCE_MS = 2000 // a landed counterspell
 export const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
 export const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
 export const CHILL_MS = 4000
+export const PRISON_CHILL = 0.35 // Frozen Prison also chills: +35% on the next hit they take within CHILL_MS
 // Holy buffs, Unholy curses, combos. First guesses, to tune in playtests.
 export const AEGIS_HP = 40 // Aegis: armor that soaks direct-hit damage...
 export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be recast while any is left.
@@ -38,7 +39,8 @@ export const PUNCH: Record<string, [number, number]> = {
   I: [5, 15], // + chill
 }
 export const BURN: [number, number] = [4, 11] // Fire: extra damage over ~1.5 s
-export const CHILL: [number, number] = [6, 15] // Ice: bonus on the next hit they take
+export const CHILL: [number, number] = [0.25, 0.4] // Ice (light, heavy): the next hit they take does this much more
+export const BLIZZARD_CHILL = 0.4
 export const STATIC_PULSES: [number, number] = [1, 3] // Lightning: pulses of 0.5 s, 0.75 s gaps
 
 // Static pulse patterns: throws fizzle during "on".
@@ -111,7 +113,7 @@ export interface CombatView {
   maxHp: Record<Side, number> // Infinity = the training dummy
   silenced: Record<Side, number> // ms of silence left (0 = free)
   static: Record<Side, 'on' | 'gap' | null> // a Lightning static pattern on that side
-  chill: Record<Side, number> // pending Ice bonus on their next hit taken
+  chill: Record<Side, number> // pending Ice chill on their next hit taken, in % (0 = none)
   burning: Record<Side, boolean> // Fire burn ticks still to come
   regen: Record<Side, boolean> // hourglass heal ticks still to come
   knocked: Record<Side, number> // counts Earthquake knock-offs (a change = drop your charge)
@@ -141,7 +143,7 @@ export class Combat {
   private strokeStart: Record<Side, number | null> = { player: null, enemy: null } // when the current stroke began
   notes: Note[] = []
   private static: Record<Side, Static | null> = { player: null, enemy: null }
-  private chill: Record<Side, { bonus: number; until: number } | null> = { player: null, enemy: null }
+  private chill: Record<Side, { pct: number; until: number } | null> = { player: null, enemy: null }
   private knocked: Record<Side, number> = { player: 0, enemy: 0 }
   private dealt: Record<Side, number> = { player: 0, enemy: 0 }
   private shield: Record<Side, { hp: number; at: number } | null> = { player: null, enemy: null } // armor as of `at` (it drains)
@@ -192,8 +194,8 @@ export class Combat {
   /** A direct hit on `target`: Ice's chill mark adds its bonus and is used up. */
   private hit(target: Side, amount: number, color: string, now: number): number {
     const c = this.chill[target]
-    if (c && c.until > now) {
-      amount += c.bonus
+    if (c && c.until > now && amount > 0) {
+      amount = Math.round(amount * (1 + c.pct))
       this.chill[target] = null
     }
     const armor = this.armor(target, now)
@@ -216,6 +218,14 @@ export class Combat {
   private armor(side: Side, now: number) {
     const sh = this.shield[side]
     return sh ? Math.max(0, sh.hp - (AEGIS_DRAIN * (now - sh.at)) / 1000) : 0
+  }
+
+  /** Chill doesn't stack: one at a time. A stronger (or equal) chill replaces it and restarts the clock;
+   *  a weaker one changes nothing. */
+  private chillOn(side: Side, pct: number, now: number) {
+    const c = this.chill[side]
+    if (c && c.until > now && c.pct > pct) return
+    this.chill[side] = { pct, until: now + CHILL_MS }
   }
 
   isSilenced(side: Side, now: number) {
@@ -476,7 +486,7 @@ export class Combat {
           break
         case 'blizzard': // chill and a short silence
           this.hit(target, 15, color, now)
-          this.chill[target] = { bonus: 15, until: now + CHILL_MS }
+          this.chillOn(target, BLIZZARD_CHILL, now)
           this.silence(target, BLIZZARD_SILENCE_MS, now)
           this.float(target, 'Frozen!', color, now)
           break
@@ -498,7 +508,7 @@ export class Combat {
       const dealt = this.hit(target, PUNCH[el][p], color, now)
       if (el === 'F') this.burn(target, BURN[p], 3, color, now)
       if (el === 'W') this.changeHp(caster, Math.floor(dealt / 2), color, now)
-      if (el === 'I') this.chill[target] = { bonus: CHILL[p], until: now + CHILL_MS }
+      if (el === 'I') this.chillOn(target, CHILL[p], now)
       // Static doesn't chain: a hit while it's still running does damage but doesn't restart it.
       if (el === 'L' && !this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
       return
@@ -513,6 +523,7 @@ export class Combat {
       case 'cage': // Frozen Prison: a short silence on any element
         this.hit(target, 10, color, now)
         this.silence(target, PRISON_SILENCE_MS, now)
+        this.chillOn(target, PRISON_CHILL, now) // and chilled
         this.float(target, 'Frozen!', color, now)
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
@@ -624,7 +635,7 @@ export class Combat {
   view(now: number): CombatView {
     const chill = (s: Side) => {
       const c = this.chill[s]
-      return c && c.until > now ? c.bonus : 0
+      return c && c.until > now ? Math.round(c.pct * 100) : 0
     }
     const tick = (s: Side, sign: number) => this.ticking.some((t) => t.side === s && t.left > 0 && Math.sign(t.amount) === sign)
     return {

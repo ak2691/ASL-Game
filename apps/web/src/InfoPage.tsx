@@ -1,13 +1,13 @@
 // Spell info: every spell's damage and effects. Attack numbers come straight from combat.ts;
 // signature and heal numbers are written here (keep them in sync with land() in combat.ts).
-import { AEGIS_DRAIN, AEGIS_HP, BLIZZARD_SILENCE_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
+import { AEGIS_DRAIN, AEGIS_HP, BLIZZARD_SILENCE_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 
 const s = (ms: number) => `${ms / 1000} s`
 
 const ATTACK_EFFECT: Record<string, string> = {
   F: `Burn: +${BURN[0]} / +${BURN[1]} extra damage over 1.5 s`,
-  I: `Chill: the next hit they take within ${s(CHILL_MS)} does +${CHILL[0]} / +${CHILL[1]}`,
+  I: `Chill: the next hit they take within ${s(CHILL_MS)} does +${CHILL[0] * 100}% / +${CHILL[1] * 100}% (doesn't stack)`,
   W: 'Mend: you heal half the damage dealt',
   E: 'None, just the hardest hits',
   L: `Static: ${STATIC_PULSES[0]} / ${STATIC_PULSES[1]} pulses where their throws fizzle`,
@@ -15,7 +15,7 @@ const ATTACK_EFFECT: Record<string, string> = {
 
 const SIGNATURES = [
   { el: 'F', name: 'Meteor', draw: 'Circle with 4 spikes', dmg: '30', effect: '+15 burn over 2.5 s. The most total damage.' },
-  { el: 'I', name: 'Frozen Prison', draw: 'Square + both diagonals', dmg: '10', effect: `Silences them for ${s(PRISON_SILENCE_MS)}, whatever their element.` },
+  { el: 'I', name: 'Frozen Prison', draw: 'Square + both diagonals', dmg: '10', effect: `Silences them for ${s(PRISON_SILENCE_MS)}, whatever their element, and chills them: their next hit within ${s(CHILL_MS)} does +${PRISON_CHILL * 100}%.` },
   { el: 'W', name: 'Tidal Wave', draw: 'Spiral', dmg: '22', effect: 'You heal 20.' },
   { el: 'E', name: 'Earthquake', draw: '3 towers', dmg: '35', effect: 'Knocks off their charge and readied spell.' },
   { el: 'L', name: 'Thunderbolt', draw: '7 zigzag lines', dmg: '18', effect: 'Five fast static pulses where their throws fizzle.' },

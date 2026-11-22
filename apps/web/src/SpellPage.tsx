@@ -731,7 +731,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       <div className="fighter-name">
         {side === 'player' ? 'You' : oppName}
         {fight.static[side] && <span className={`tag static ${fight.static[side]}`}>⚡ {fight.static[side] === 'on' ? 'static' : 'gap'}</span>}
-        {fight.chill[side] > 0 && <span className="tag chill">chilled +{fight.chill[side]}</span>}
+        {fight.chill[side] > 0 && <span className="tag chill">chilled +{fight.chill[side]}%</span>}
       </div>
       <div className="hp-bar">
         <div
