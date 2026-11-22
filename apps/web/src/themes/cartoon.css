@@ -186,3 +186,8 @@
 [data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(1) { background: #ffd23f; color: var(--ink); }
 [data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(2) { background: #2ec4b6; }
 [data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(3) { background: #ff5470; }
+
+/* Outlined game text: the 4px stroke is painted behind the letters, so each glyph grows ~2px per side and eats
+   the gaps between characters ("40%", "100 +40" touch). Give back that space; tags are too small for the stroke. */
+[data-theme='cartoon'] :is(.status-strip, .stage-overlay, .hp-text, .fighter-name) { letter-spacing: 0.08em; word-spacing: 0.2em; }
+[data-theme='cartoon'] .tag { -webkit-text-stroke: 0; letter-spacing: 0.02em; }
