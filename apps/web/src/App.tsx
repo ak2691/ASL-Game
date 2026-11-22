@@ -65,6 +65,7 @@ export default function App() {
   if (mode) return <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => setMode(null)} />
   return (
     <main className="home">
+      <img className="hero-logo" src="/logo.svg" alt="" />
       <h1 className="logo">ASL Spells</h1>
       <button onClick={() => setMode('tutorial')}>Tutorial</button>
       <button onClick={() => setMode('dummy')}>Dummy</button>
