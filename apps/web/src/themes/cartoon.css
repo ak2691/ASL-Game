@@ -182,3 +182,7 @@
 [data-theme='cartoon'] .home > button:nth-of-type(5) { background: #ffd23f; color: var(--ink); }
 [data-theme='cartoon'] .enemy-ink { display: inline; stroke: var(--ink); stroke-width: 25; }
 [data-theme='cartoon'] .enemy-stroke { opacity: 1; }
+
+[data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(1) { background: #ffd23f; color: var(--ink); }
+[data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(2) { background: #2ec4b6; }
+[data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(3) { background: #ff5470; }

@@ -17,7 +17,7 @@ def accepted(p):
 
 g = Gen(4242)
 kinds = {
- "flame 2 peaks": lambda: g.flame(n=2), "crown only": lambda: g.flame(bowl=False), "flame round": lambda: g.flame(round_tips=True),
+ "flame 3 spikes": lambda: g.flame(n=3), "flame 5 spikes": lambda: g.flame(n=5), "flame 2 spikes": lambda: g.flame(n=2), "crown only": lambda: g.flame(bowl=False), "flame round": lambda: g.flame(round_tips=True),
  "battle 2 humps": lambda: g.battlements(n=2), "battle 4 humps": lambda: g.battlements(n=4), "battle slant": lambda: g.battlements(slant=0.4),
  "battle round": lambda: g.battlements(round_tops=True), "unfinished": g.unfinished, "almost done": g.almost, "circle+X": g.circle_x, "sideways": g.sideways,
  "M": lambda: g.w(flip=True), "zig 6/8": lambda: g.zigzag(n=int(g.r.choice([6, 8]))),

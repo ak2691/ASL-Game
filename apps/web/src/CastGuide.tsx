@@ -108,7 +108,7 @@ export function CastGuide() {
         <b>Interrupt</b> — sign the element that beats theirs and just push, no drawing. Faster to land but weaker: 0.5 s silence. It
         can't stop heals. Holy has no interrupt{BEATS.H ? ', only the counterspell' : ''}.
       </p>
-      <p className="shape-note">Fast strokes are fine — just keep your hand in view. A charge fades after 3 s if you don't draw.</p>
+      <p className="shape-note">Fast strokes are fine — just keep your hand in view.</p>
     </div>
   )
 }

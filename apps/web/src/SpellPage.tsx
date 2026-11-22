@@ -346,7 +346,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             return
           }
           const m = recognizeShape(shapeModel, pts)
-          const need = STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
+          // Meteor: its 4 spikes are checked by a counting rule (shapes.ts), so the normal bar is enough.
+          const need = STRICT_SHAPES.has(m.name) && m.name !== 'flame' ? SIGNATURE_SCORE : MATCH_SCORE
           const shape = m.score >= need && m.name !== 'none' ? m.name : null
           const el = fightRef.current.charge.player
           if (DEBUG) {
@@ -824,7 +825,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             {fighterHead('enemy')}
             {mode !== 'dummy' && mode !== 'tutorial' && <OppStatus fight={fight} />}
           </div>
-          {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} />}
+          {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} twoHands={twoHands} />}
           {mode === 'dummy' && (
             <div className="stage-center">
               <b className="result">{fight.dealt.player}</b>

@@ -143,11 +143,74 @@ function isLine(points: Pt[]) {
   return Math.hypot(b.x - a.x, b.y - a.y) / (len || 1) > 0.9
 }
 
+/** Meteor's spikes: sharp upward tips above the circle. The circle is fitted to the bottom half of the
+ *  stroke (all circle); only tips higher than 0.8 radius above its center count, so the circle's own
+ *  top and the corners where the crown joins it don't. Tuned on ml/synth data (see ml/eval_shapes.py). */
+export function spikeCount(points: Pt[]) {
+  const N = 128
+  const K = 2
+  const q = resample(points, N)
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+  for (const v of q) [x0, x1, y0, y1] = [Math.min(x0, v.x), Math.max(x1, v.x), Math.min(y0, v.y), Math.max(y1, v.y)]
+  const s = Math.max(x1 - x0, y1 - y0) || 1
+  // Least-squares circle through the lower half: x² + y² = 2ax + 2by + c.
+  const ys = q.map((v) => v.y).sort((m, n) => m - n)
+  const med = ys[N >> 1]
+  const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+  const R = [0, 0, 0]
+  for (const v of q) {
+    if (v.y <= med) continue
+    const row = [2 * v.x, 2 * v.y, 1]
+    const t = v.x * v.x + v.y * v.y
+    for (let i = 0; i < 3; i++) {
+      R[i] += row[i] * t
+      for (let j = 0; j < 3; j++) M[i][j] += row[i] * row[j]
+    }
+  }
+  const sol = solve3(M, R)
+  if (!sol) return 0
+  const [cx, cy, c] = sol
+  const r = Math.sqrt(Math.max(1e-9, c + cx * cx + cy * cy))
+  let n = 0
+  let last = -99
+  for (let i = K; i < N - K; i++) {
+    const y = q[i].y
+    if (y > cy - 0.8 * r) continue // only tips above the circle
+    let top = true
+    for (let j = i - K; j <= i + K; j++) if (q[j].y < y - 1e-9) top = false
+    if (!top || (q[i - K].y - y) / s < 0.01 || (q[i + K].y - y) / s < 0.01) continue
+    const ax = q[i - K].x - q[i].x, ay = q[i - K].y - y, bx = q[i + K].x - q[i].x, by = q[i + K].y - y
+    const ang = (Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (Math.hypot(ax, ay) * Math.hypot(bx, by) || 1)))) * 180) / Math.PI
+    if (ang < 135 && i - last > K) {
+      n++
+      last = i
+    }
+  }
+  return n
+}
+
+/** 3x3 linear solve (Cramer's rule); null if singular. */
+function solve3(m: number[][], r: number[]): [number, number, number] | null {
+  const det = (a: number[][]) =>
+    a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0])
+  const d = det(m)
+  if (Math.abs(d) < 1e-12) return null
+  const col = (k: number) => m.map((row, i) => row.map((v, j) => (j === k ? r[i] : v)))
+  return [det(col(0)) / d, det(col(1)) / d, det(col(2)) / d]
+}
+
 export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { top: { name: string; prob: number }[] } {
   if (isLine(points)) return { name: 'line', score: 1, top: [{ name: 'line', prob: 1 }] }
   let x = shapeFeatures(points)
   for (const l of model.layers) x = runLayer(l, x)
   const top = Array.from(x, (prob, i) => ({ name: model.labels[i], prob })).sort((a, b) => b.prob - a.prob)
+  // Meteor: the network can't count spikes reliably, so a rule does. Exactly 4 spikes (and a network that
+  // at least leans Meteor) is a Meteor even if the drawing is wobbly; any other count never is.
+  const flame = top.find((t) => t.name === 'flame')!.prob
+  if (top[0].name === 'flame' || flame >= 0.3) {
+    if (spikeCount(points) === 4) return { name: 'flame', score: Math.max(0.7, flame), top }
+    if (top[0].name === 'flame') return { name: 'none', score: top[0].prob, top }
+  }
   return { name: top[0].name, score: top[0].prob, top }
 }
 

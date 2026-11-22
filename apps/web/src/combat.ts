@@ -24,7 +24,6 @@ export const BLIZZARD_SILENCE_MS = 800
 // push); these decide what that does. Online, only the server runs them.
 /** A fizzle (failed drawing, or a readied spell that faded) locks all throws this long; the charge stays. */
 export const FIZZLE_LOCK_MS = 500
-export const CHARGE_LIFE_MS = 3000 // a charge fades after this long with no drawing (switching elements is instant)
 export const READY_LIFE_MS = 3000 // a readied spell fades (and fizzles) if not thrown
 // Simple anti-cheat: a drawing only counts if its stroke has been arriving for this long. Stops a
 // lag switch from sending charge + drawing + push in one burst (a cast the opponent never saw).
@@ -594,8 +593,6 @@ export class Combat {
         this.note(s, 'Fizzle', `${spellName(r.el, r.shape)} faded (no push)`, '#888', false, now)
         this.fizzle(s, now)
       }
-      const c = this.charge[s]
-      if (c && !this.ready[s] && now - c.active > CHARGE_LIFE_MS) this.charge[s] = null
       if (this.doomAt[s] && now >= this.doomAt[s] && !this.winner) {
         this.doomAt[s] = 0
         this.note(s, 'Doom!', `no spell thrown in ${DOOM_MS / 1000} s`, ELEMENTS.U.color, false, now)

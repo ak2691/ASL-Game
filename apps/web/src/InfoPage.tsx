@@ -1,6 +1,6 @@
 // Spell info: every spell's damage and effects. Attack numbers come straight from combat.ts;
 // signature and heal numbers are written here (keep them in sync with land() in combat.ts).
-import { AEGIS_DRAIN, AEGIS_HP, BLIZZARD_SILENCE_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHARGE_LIFE_MS, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
+import { AEGIS_DRAIN, AEGIS_HP, BLIZZARD_SILENCE_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 
 const s = (ms: number) => `${ms / 1000} s`
@@ -207,7 +207,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
       <section className="info-card">
         <h2>Timing</h2>
         <ul className="info-list">
-          <li>A charge fades after {s(CHARGE_LIFE_MS)} if you don't draw. Open all five fingers (not right after a drawing) to drop it at once.</li>
+          <li>A charge stays until you use it. Open all five fingers (not right after a drawing) to drop it.</li>
           <li>A drawn spell fades (and fizzles) after {s(READY_LIFE_MS)} if you don't push.</li>
           <li>Spells fly before they land: light is fastest, signatures slowest. Counters fly fastest of all.</li>
         </ul>

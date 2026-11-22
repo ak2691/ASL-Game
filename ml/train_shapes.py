@@ -19,7 +19,7 @@ OUT = Path("../apps/web/public/models/shapes.json")
 torch.manual_seed(0)
 
 print("generating...")
-Xtr, Ytr = dataset(5000, seed=1, none_mult=5)
+Xtr, Ytr = dataset(5000, seed=1, none_mult=5, real=True)
 Xte, Yte = dataset(400, seed=999, none_mult=5)
 print(Xtr.shape, Xte.shape)
 

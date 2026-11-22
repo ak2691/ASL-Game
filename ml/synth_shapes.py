@@ -6,7 +6,7 @@ versions are near-misses where that changes the shape (W upside down = M = none)
   circle      counterspell: one closed loop
   star        heal: upright five-point star
   hourglass   regen: top edge, diagonal, bottom edge, diagonal
-  flame       Meteor: a circle, then 3-5 sharp spikes along its top (a crown); either order
+  flame       Meteor: a circle, then exactly 4 sharp spikes along its top (a crown); either order
   cage        Frozen Prison: square + X (one stroke, so one edge is drawn twice)
   zigzag7     Thunderbolt: 7-line zigzag
   battlements Earthquake: 3 square humps
@@ -241,24 +241,30 @@ class Gen:
 
     def flame(self, n=None, round_tips=False, flip=False, bowl=True):
         """Circle (any direction), then a crown of n spikes from its upper-left to its upper-right."""
-        n = n if n is not None else int(self.r.choice([3, 4, 4, 4, 5]))
+        n = n if n is not None else 4  # exactly 4 spikes (3 or 5 are near-misses)
         rx = self.u(0.85, 1.15)
         al, ar = np.pi + self.u(0.05, 0.45), 2 * np.pi - self.u(0.05, 0.45)  # attach points (y down: sin < 0 is up)
         L, R = np.array([rx * np.cos(al), np.sin(al)]), np.array([rx * np.cos(ar), np.sin(ar)])
         sgn = 1 if self.r.random() < 0.5 else -1
         th = al + sgn * np.linspace(0, 2 * np.pi * self.u(0.95, 1.08), 90)
         circ = np.stack([rx * np.cos(th), np.sin(th)], 1)
-        xs = L[0] + (R[0] - L[0]) * ((np.arange(n) + 0.5) / n + self.r.uniform(-0.06, 0.06, n))
-        tip = self.u(0.5, 1.0)
+        xs = L[0] + (R[0] - L[0]) * ((np.arange(n) + 0.5) / n + self.r.uniform(-0.08, 0.08, n))
+        tall = self.r.random() < 0.6  # how real players draw it: tall finger-like spikes (recorded Nov 22)
+        tip = self.u(0.9, 1.7) if tall else self.u(0.45, 1.0)
         crown = [L]
         for k in range(n):
-            crown.append([xs[k], -1 - tip * self.u(0.8, 1.2)])
+            crown.append([xs[k], -1 - tip * self.u(0.6, 1.3)])  # uneven, small or big spikes are all fine
             if k < n - 1:
                 xm = (xs[k] + xs[k + 1]) / 2
-                crown.append([xm, -np.sqrt(max(0.0, 1 - (xm / rx) ** 2)) - self.u(0.0, 0.15)])
+                crown.append([xm, -np.sqrt(max(0.0, 1 - (xm / rx) ** 2)) - self.u(0.0, 0.05 if tall else 0.15)])
         crown.append(R)
         crown = self.jv(crown, 0.03)
-        crown = chaikin(crown, 0.3, 3) if round_tips else (chaikin(crown, self.u(0.03, 0.1)) if self.r.random() < 0.4 else crown)
+        if round_tips:  # bumps, no tips at all (a near-miss)
+            crown = chaikin(crown, 0.3, 3)
+        elif self.r.random() < 0.5:  # rounded tips, still clearly peaked (common in real drawings)
+            crown = chaikin(crown, self.u(0.15, 0.25), 2)
+        elif self.r.random() < 0.4:
+            crown = chaikin(crown, self.u(0.03, 0.1))
         crown = dense(crown)
         p = np.vstack([circ, crown]) if bowl else crown
         if flip:
@@ -527,7 +533,7 @@ class Gen:
             return self.none_new()
         c = r.integers(31)
         if c >= 29: return self.almost()
-        if c >= 22: return [lambda: self.flame(n=2), lambda: self.flame(n=1), lambda: self.flame(n=7), lambda: self.flame(bowl=False),
+        if c >= 22: return [lambda: self.flame(n=3), lambda: self.flame(n=5), lambda: self.flame(n=3), lambda: self.flame(bowl=False),
                             lambda: self.flame(round_tips=True), lambda: self.battlements(round_tops=True),
                             lambda: self.battlements(round_tops=True)][c - 22]()
         if c >= 17: return [self.unfinished, self.almost, self.almost, self.circle_x, self.sideways][c - 17]()
@@ -535,7 +541,7 @@ class Gen:
         if c == 1: return self.w(flip=True)  # M
         if c == 2: return self.loop(self.u(1.25, 1.8))  # spiral with too few turns
         if c == 3: return self.loop(self.u(4.6, 6))  # too many turns
-        if c == 4: return self.flame(n=int(r.choice([1, 2, 7, 8])))
+        if c == 4: return self.flame(n=int(r.choice([1, 2, 3, 3, 5, 5, 6])))
         if c == 5: return self.flame(round_tips=True)
         if c == 6: return self.flame(flip=True)
         if c == 7: return self.flame(bowl=False)
@@ -615,9 +621,37 @@ class Gen:
                 "cloud": self.cloud, "trefoil": self.trefoil, "yinyang": self.yinyang}[cls]()
 
 
-def dataset(per_class, seed, none_mult=3):
+def real_flames(g, copies=40):
+    """Recorded Fire strokes (ml/data/strokes/*.json), labelled by spike count: 4 = flame, 3 or 5 = none."""
+    import glob, json, sys, os
+    sys.path.insert(0, os.path.dirname(__file__))
+    from spike_count import spikes
+    X, Y = [], []
+    seen = set()
+    for f in glob.glob(os.path.join(os.path.dirname(__file__), "data", "strokes", "strokes-2026-11-22*.json")):
+        for s in json.load(open(f)):
+            if s.get("charge") != "F":
+                continue
+            p = np.array([[q["x"], q["y"]] if isinstance(q, dict) else q[:2] for q in s["points"]], float)
+            key = (len(p), round(float(p[0, 0]), 2))
+            if key in seen:
+                continue
+            seen.add(key)
+            c = spikes(p)
+            if c not in (3, 4, 5):
+                continue
+            q = (p - p.mean(0)) / (np.ptp(p, 0).max() or 1)
+            for _ in range(copies):
+                X.append(features(g.finish(q, rot=8)))
+                Y.append(CLASSES.index("flame") if c == 4 else 0)
+    return X, Y
+
+
+def dataset(per_class, seed, none_mult=3, real=False):
     g = Gen(seed)
     X, Y = [], []
+    if real:
+        X, Y = real_flames(g)
     for ci, c in enumerate(CLASSES):
         n = per_class * (none_mult if c == "none" else 1)
         for _ in range(n):

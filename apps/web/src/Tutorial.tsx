@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
-import { CHARGE_LIFE_MS, READY_LIFE_MS } from './combat'
+import type { Hand } from './recognition'
 
 interface Step {
   el: string
@@ -13,12 +13,11 @@ interface Step {
 }
 
 const TIPS: Record<string, string> = {
-  'F line': 'Hold F and draw a line, open your hand, push.',
+  'F line': 'Hold F until it charges, keep holding it while you trace a line, then open all five fingers and push toward the camera.',
   'I w': 'Keep holding I for the whole W. Opening your hand early ends the drawing.',
   'F w': 'Any size works. Just keep the shape.',
   'F flame': 'Signatures are harder to draw but hit much harder.',
   'I line': 'Wrong shape or no charge means a fizzle. Wait it out and try again.',
-  'W line': 'A charge fades after 3 seconds if you don’t draw.',
   'W spiral': 'Start in the middle and spiral out.',
   'E battlements': 'Earthquake knocks off your opponent’s charge.',
   'L line': 'Lightning static makes their throws fizzle.',
@@ -61,38 +60,15 @@ const HINTS: Record<string, string> = {
 }
 
 /** Read-only cards before the first spell: how a cast works and what drops a drawing. */
+/** One read-only card before the first spell. How to cast is on each spell card itself. */
 const BASICS: { title: string; points: string[] }[] = [
   {
     title: 'Get set up',
     points: [
       'Sit about an arm’s length from the camera.',
       'Keep both hands inside the frame the whole time.',
-      'With two hands, one hand draws (your right, unless you change it in Settings) and the other signs the spell’s letter.',
+      'One hand signs the spell’s letter, the other draws with its index tip (change which in Settings).',
       'Bright, even light helps. Avoid a window behind you.',
-    ],
-  },
-  {
-    title: '1. Charge',
-    points: [
-      'Sign a letter and hold it steady until its element lights up.',
-      `The charge fades after ${CHARGE_LIFE_MS / 1000} s if you don’t start drawing.`,
-    ],
-  },
-  {
-    title: '2. Draw',
-    points: [
-      'Your drawing hand’s index tip is the pen. Any finger shape works.',
-      'Keep holding your letter once it charges. The dot fills in and you’re drawing.',
-      'Trace the shape, mostly with your wrist. Draw big, at a steady speed. Tiny shapes fizzle.',
-      'Fast moves can lose your hand. Under half a second is fine, the line carries on.',
-    ],
-  },
-  {
-    title: '3. Finish and throw',
-    points: [
-      'Open your signing hand, all five fingers up. That finishes the drawing.',
-      `Then push your signing hand quickly toward the camera within ${READY_LIFE_MS / 1000} s.`,
-      'Your hand has to grow on screen, so push straight in, not sideways.',
     ],
   },
 ]
@@ -110,7 +86,7 @@ const STEPS: Step[] = [
   { el: 'W', shape: QUICK },
 ].map((s) => ({ ...s, tip: TIPS[`${s.el} ${s.shape}`] }))
 
-export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: () => void }) {
+export function Tutorial({ notes, onHome, drawHand, twoHands }: { notes: Snapshot['notes']; onHome: () => void; drawHand: Hand; twoHands: boolean }) {
   const [i, setI] = useState(-BASICS.length)
   const [done, setDone] = useState(() => new Set<number>())
   const seen = useRef(new Set<number>())
@@ -194,8 +170,9 @@ export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: 
           </span>
         </div>
         <div className="tut-body">
-          <div className="tut-demo">
+          <div className="tut-demo" style={{ flexDirection: twoHands && drawHand === 'left' ? 'row-reverse' : 'row' }}>
             <figure>
+              <b className="tut-hand">{twoHands ? (drawHand === 'right' ? 'Left hand' : 'Right hand') : 'Sign'}</b>
               <div className="tut-signs">
                 {signs.map((l) => (
                   <img key={l} src={`/asl/${l}.svg`} alt={`ASL letter ${l}`} />
@@ -204,6 +181,7 @@ export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: 
               <figcaption>Sign {signs.join(', then ')}</figcaption>
             </figure>
             <figure>
+              <b className="tut-hand">{twoHands ? (drawHand === 'right' ? 'Right hand' : 'Left hand') : 'Then draw'}</b>
               {step.shape === QUICK ? (
                 <div className="tut-push">Push!</div>
               ) : (
