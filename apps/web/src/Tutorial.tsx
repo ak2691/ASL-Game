@@ -1,9 +1,10 @@
 // Tutorial: cast every spell once on the dummy. Each step shows the ASL letter, an animated
 // drawing of the shape, and one short tip. A step passes when that spell is thrown.
 import { useEffect, useRef, useState } from 'react'
-import { COUNTER, ELEMENTS, FORMS, QUICK, SIGNATURE, spellName } from './spells'
-import { SHAPE_PATHS, SHAPE_STARTS } from './SpellPage'
+import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
+import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
+import { CHARGE_LIFE_MS, READY_LIFE_MS } from './combat'
 
 interface Step {
   el: string
@@ -12,8 +13,8 @@ interface Step {
 }
 
 const TIPS: Record<string, string> = {
-  'F line': 'Hold the F sign to charge. Point only your index finger to draw. Open your whole hand (all five fingers) to finish, then push it at the camera to throw.',
-  'I w': 'Hard to spread all five fingers? Turn on Easy pen-up in the Esc menu. Then raising any second finger finishes a drawing.',
+  'F line': 'Hold F and draw a line, open your hand, push.',
+  'I w': 'Keep holding I for the whole W. Opening your hand early ends the drawing.',
   'F w': 'Any size works. Just keep the shape.',
   'F flame': 'Signatures are harder to draw but hit much harder.',
   'I line': 'Wrong shape or no charge means a fizzle. Wait it out and try again.',
@@ -23,6 +24,15 @@ const TIPS: Record<string, string> = {
   'L line': 'Lightning static makes their throws fizzle.',
   'H star': 'Heal yourself.',
   'H hourglass': 'Regen heals a little at a time.',
+  'H aegis': 'Aegis soaks the next hits for a few seconds.',
+  'H mirror': 'Mirror sends their next hit back at them.',
+  'U scythe': 'Doom: they must land a cast within 2.5 seconds or take a big hit.',
+  'U veil': 'Shroud hides your charge and drawing from them.',
+  'U blade': 'Execute hits harder the lower their health.',
+  'magma volcano': 'Combo: sign C, then F and E, then draw. Starting to draw locks the mix.',
+  'storm cloud': 'A mix that is not a combo fizzles.',
+  'blizzard trefoil': 'A combo can be countered by beating either of its elements.',
+  'twilight yinyang': 'The strongest spell: strips their buffs and clears your curses.',
   'W circle': 'Counterspell: use the element that beats theirs. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.',
   'W jab': 'Interrupt: sign and push, no drawing. Faster but weaker.',
 }
@@ -31,7 +41,7 @@ const TIPS: Record<string, string> = {
 const HINTS: Record<string, string> = {
   line: 'Any direction',
   w: '4 lines. Keep it upright (an M won’t count)',
-  flame: 'Points up, round bowl at the bottom',
+  flame: 'A circle, then four spikes along its top',
   cage: 'A square, then both diagonals, in one stroke',
   zigzag7: '7 lines',
   battlements: '3 towers, flat side down',
@@ -39,22 +49,73 @@ const HINTS: Record<string, string> = {
   star: '5 lines, point up',
   hourglass: 'Top, diagonal, bottom, diagonal back',
   circle: 'Any direction',
+  aegis: 'Shield outline, then a line up the middle',
+  mirror: 'Sideways 8',
+  scythe: 'Up, a big blade out and back, then cross the handle twice',
+  veil: 'Three loops in a row',
+  blade: 'A box, a blade under it, a post on top',
+  volcano: 'Slopes with a smoke loop on top',
+  cloud: 'Three bumps, then a bolt out the bottom',
+  trefoil: 'Three petals',
+  yinyang: 'A circle, then an S through it',
 }
+
+/** Read-only cards before the first spell: how a cast works and what drops a drawing. */
+const BASICS: { title: string; points: string[] }[] = [
+  {
+    title: 'Get set up',
+    points: [
+      'Sit about an arm’s length from the camera.',
+      'Keep both hands inside the frame the whole time.',
+      'Your signing hand charges and throws. Your other hand only draws.',
+      'Bright, even light helps. Avoid a window behind you.',
+    ],
+  },
+  {
+    title: '1. Charge',
+    points: [
+      'Sign a letter and hold it steady until its element lights up.',
+      `The charge fades after ${CHARGE_LIFE_MS / 1000} s if you don’t start drawing.`,
+    ],
+  },
+  {
+    title: '2. Draw',
+    points: [
+      'Your drawing hand’s index tip is the pen. Any finger shape works.',
+      'Keep holding your letter once it charges. The dot fills in and you’re drawing.',
+      'Trace the shape, mostly with your wrist. Draw big, at a steady speed. Tiny shapes fizzle.',
+      'Fast moves can lose your hand. Under half a second is fine, the line carries on.',
+    ],
+  },
+  {
+    title: '3. Finish and throw',
+    points: [
+      'Open your signing hand, all five fingers up. That finishes the drawing.',
+      `Then push your signing hand quickly toward the camera within ${READY_LIFE_MS / 1000} s.`,
+      'Your hand has to grow on screen, so push straight in, not sideways.',
+    ],
+  },
+]
 
 const STEPS: Step[] = [
   ...['F', 'I', 'W', 'E', 'L'].flatMap((el) => ['line', 'w', SIGNATURE[el]].map((shape) => ({ el, shape }))),
   { el: 'H', shape: 'star' },
   { el: 'H', shape: 'hourglass' },
+  { el: 'H', shape: 'aegis' },
+  { el: 'U', shape: 'scythe' },
+  { el: 'U', shape: 'veil' },
+  { el: 'U', shape: 'blade' },
+  ...(COMBOS_ON ? Object.entries(COMBO_SHAPE).map(([el, shape]) => ({ el, shape })) : []),
   { el: 'W', shape: COUNTER },
   { el: 'W', shape: QUICK },
 ].map((s) => ({ ...s, tip: TIPS[`${s.el} ${s.shape}`] }))
 
 export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: () => void }) {
-  const [i, setI] = useState(0)
+  const [i, setI] = useState(-BASICS.length)
   const [done, setDone] = useState(() => new Set<number>())
   const seen = useRef(new Set<number>())
   const step = STEPS[i]
-  const go = (d: number) => setI((x) => Math.max(0, Math.min(STEPS.length, x + d)))
+  const go = (d: number) => setI((x) => Math.max(-BASICS.length, Math.min(STEPS.length, x + d)))
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') go(-1)
@@ -76,6 +137,36 @@ export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: 
     }
   }, [notes, step, i])
 
+  if (i < 0) {
+    const b = BASICS[i + BASICS.length]
+    return (
+      <div className="tutorial">
+        <div className="tut-card">
+          <div className="tut-head" style={{ background: 'var(--main)' }}>
+            <b className="tut-title">{b.title}</b>
+            <span className="tut-count">
+              Basics {i + BASICS.length + 1} / {BASICS.length}
+            </span>
+          </div>
+          <div className="tut-body">
+            <ul className="tut-basics">
+              {b.points.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+            {i === -BASICS.length && <p className="tut-hint">Your camera video stays on your device. It's never saved or shown to anyone.</p>}
+            <div className="row">
+              <button className="small" onClick={() => go(-1)} disabled={i === -BASICS.length} aria-label="Previous step">
+                {'<'}
+              </button>
+              <button onClick={() => go(1)}>{i === -1 ? 'Start casting' : 'Next'}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!step)
     return (
       <div className="tutorial">
@@ -90,7 +181,8 @@ export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: 
       </div>
     )
 
-  const el = ELEMENTS[step.el]
+  const el = chargeInfo(step.el)
+  const signs = signsFor(step.el)
   return (
     <div className="tutorial">
       <Checklist at={i} done={done} onPick={setI} />
@@ -104,8 +196,12 @@ export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: 
         <div className="tut-body">
           <div className="tut-demo">
             <figure>
-              <img src={`/asl/${step.el}.svg`} alt={`ASL letter ${step.el}`} />
-              <figcaption>Sign {step.el}</figcaption>
+              <div className="tut-signs">
+                {signs.map((l) => (
+                  <img key={l} src={`/asl/${l}.svg`} alt={`ASL letter ${l}`} />
+                ))}
+              </div>
+              <figcaption>Sign {signs.join(', then ')}</figcaption>
             </figure>
             <figure>
               {step.shape === QUICK ? (
@@ -124,14 +220,11 @@ export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: 
             </figure>
           </div>
           {step.tip && <p className="tut-tip">{step.tip}</p>}
-          {i === 0 && <p className="tut-hint">Your camera video stays on your device. It's never saved or shown to anyone.</p>}
           <div className="row">
-            <button className="small" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous step">
+            <button className="small" onClick={() => go(-1)} aria-label="Previous step">
               {'<'}
             </button>
-            <button className="small" onClick={() => go(1)} aria-label="Next step">
-              {'>'}
-            </button>
+            <button onClick={() => go(1)}>Next</button>
           </div>
         </div>
       </div>
@@ -146,7 +239,9 @@ const GROUPS = [
   { label: 'Water', els: ['W'], shapes: ['line', 'w', 'spiral'] },
   { label: 'Earth', els: ['E'] },
   { label: 'Lightning', els: ['L'] },
-  { label: 'Heal', els: ['H'] },
+  { label: 'Holy', els: ['H'] },
+  { label: 'Unholy', els: ['U'] },
+  ...(COMBOS_ON ? [{ label: 'Combos', els: Object.keys(COMBO_SHAPE) }] : []),
   { label: 'Counters', shapes: [COUNTER, QUICK] },
 ]
 function Checklist({ at, done, onPick }: { at: number; done: Set<number>; onPick: (i: number) => void }) {
@@ -163,7 +258,7 @@ function Checklist({ at, done, onPick }: { at: number; done: Set<number>; onPick
               <button
                 key={i}
                 className={`tut-dot ${done.has(i) ? 'done' : ''} ${i === at ? 'now' : ''}`}
-                style={{ color: ELEMENTS[s.el].color }}
+                style={{ color: chargeInfo(s.el).color }}
                 onClick={() => onPick(i)}
                 aria-label={`${spellName(s.el, s.shape)}${done.has(i) ? ' (done)' : ''}`}
                 aria-current={i === at ? 'step' : undefined}

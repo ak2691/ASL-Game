@@ -1,10 +1,12 @@
 // Spell impact visuals: the name flies across, then the target's half gets an element effect.
 // Strength sets the size: light (line) < heavy (W, counter, heal) < signature.
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
-import type { Bolt, CombatView, Side } from './combat'
+import { AEGIS_HP, MIRROR_MS, SHROUD_MS, type Bolt, type CombatView, type Side } from './combat'
 
 const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
 const COUNT = { light: 6, heavy: 14, signature: 30 }
+/** A combo's impact uses both of its elements' particles. */
+const PARTS: Record<string, string[]> = { magma: ['F', 'E'], storm: ['W', 'L'], blizzard: ['I', 'W'], twilight: ['H', 'U'] }
 
 /** Same numbers on every render for the same bolt (it re-renders every 50 ms). */
 function rng(seed: number) {
@@ -85,25 +87,26 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
   const n = COUNT[b.tier]
   const delay = b.kind === 'heal' || landed ? 0 : b.fly
   const el = b.kind === 'counter' ? 'counter' : b.el
+  const els = PARTS[el] ?? [el]
   const parts: ReactElement[] = []
   const add = (cls: string, v: Vars) => parts.push(<i key={parts.length} className={cls} style={v} />)
   const d = (extra = 0) => `${delay + extra}ms`
 
-  if (el === 'F')
+  if (els.includes('F'))
     for (let i = 0; i < n; i++) {
       const a = r() * Math.PI * 2
       const dist = 60 + r() * (b.tier === 'signature' ? 380 : 200)
       add('p ember', { '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist * 0.7 - 60 - r() * 80}px`, '--s': `${5 + r() * 9}px`, '--d': d(r() * 80), '--t': `${600 + r() * 500}ms` })
     }
-  if (el === 'I' || el === 'counter') {
+  if (els.includes('I') || el === 'counter') {
     for (let i = 0; i < n; i++) {
       const a = r() * Math.PI * 2
       const dist = 70 + r() * (b.tier === 'signature' ? 340 : 180)
       add('p shard', { '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist}px`, '--rot': `${(a * 180) / Math.PI}deg`, '--s': `${10 + r() * 16}px`, '--d': d(r() * 40), '--t': `${500 + r() * 300}ms` })
     }
-    if (el === 'I' && b.tier !== 'light') add('frost', { '--d': d(), '--t': b.tier === 'signature' ? '1800ms' : '900ms' })
+    if (els.includes('I') && b.tier !== 'light') add('frost', { '--d': d(), '--t': b.tier === 'signature' ? '1800ms' : '900ms' })
   }
-  if (el === 'W') {
+  if (els.includes('W')) {
     const rings = b.tier === 'light' ? 1 : b.tier === 'heavy' ? 2 : 4
     for (let i = 0; i < rings; i++) add('ring', { '--d': d(i * 140), '--t': `${700 + i * 60}ms`, '--end': b.tier === 'signature' ? 40 : 22 })
     for (let i = 0; i < n / 2; i++) {
@@ -112,10 +115,10 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
       add('p drop', { '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist}px`, '--s': `${5 + r() * 7}px`, '--d': d(r() * 60), '--t': `${600 + r() * 300}ms` })
     }
   }
-  if (el === 'E')
+  if (els.includes('E'))
     for (let i = 0; i < n; i++)
       add('p rock', { '--x': `${(r() - 0.5) * 90}%`, '--s': `${8 + r() * (b.tier === 'signature' ? 26 : 14)}px`, '--rot': `${r() * 360}deg`, '--d': d(r() * 200), '--t': `${500 + r() * 400}ms` })
-  if (el === 'L') {
+  if (els.includes('L')) {
     const bolts = b.tier === 'light' ? 1 : b.tier === 'heavy' ? 2 : 4
     add('lflash', { '--d': d(), '--t': b.tier === 'signature' ? '500ms' : '260ms' })
     for (let k = 0; k < bolts; k++) {
@@ -129,11 +132,20 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
       )
     }
   }
-  if (el === 'H')
+  if (els.includes('H'))
     for (let i = 0; i < n; i++)
       add('p sparkle', { '--x': `${(r() - 0.5) * 70}%`, '--s': `${4 + r() * 7}px`, '--d': d(r() * 400), '--t': `${800 + r() * 500}ms` })
 
+  if (els.includes('U'))
+    // Curses: violet wisps curl up and away.
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI * (0.1 + r() * 0.8)
+      const dist = 60 + r() * 220
+      add('p wisp', { '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist}px`, '--s': `${8 + r() * 14}px`, '--d': d(r() * 150), '--t': `${900 + r() * 600}ms` })
+    }
+
   if (b.tier === 'signature' && b.kind === 'hit') signature(b, r, parts)
+  if (b.kind !== 'counter') special(b, r, parts, delay)
 
   return (
     <div className={`impact ${b.kind} tier-${b.tier}`} style={{ color: b.color, '--d': d(), '--fly': d() } as Vars}>
@@ -183,6 +195,15 @@ export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
       {view.burning[side] && <div className="st-burn" />}
       {view.regen[side] && <div className="st-regen" />}
       {view.chill[side] > 0 && <div className="st-chill" />}
+      {view.shield[side] > 0 && <div className="st-aegis" />}
+      {view.mirror[side] > 0 && <div className="st-mirror" />}
+      {view.shroud[side] > 0 && <div className="st-shroud" />}
+      {view.doom[side] > 0 && (
+        <div className="st-doom">
+          <b>{(view.doom[side] / 1000).toFixed(1)}</b>
+        </div>
+      )}
+      <Timers view={view} side={side} />
       {st && (
         <div className={`st-static ${st}`}>
           {st === 'on' &&
@@ -258,4 +279,74 @@ function signature(b: Bolt, r: () => number, parts: ReactElement[]) {
         </svg>
       </div>,
     )
+}
+
+/** Holy, Unholy and combo spells: one look each, on top of their particles. */
+function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number) {
+  const k = () => parts.length
+  const d = (extra = 0) => `${delay + extra}ms`
+  switch (b.shape) {
+    case 'aegis': // a dome of light settles over the caster
+      parts.push(<div key={k()} className="fx-aegis" style={{ '--d': d() } as Vars} />)
+      break
+    case 'mirror': // a glassy sheen sweeps across
+      parts.push(<div key={k()} className="fx-mirror" style={{ '--d': d() } as Vars} />)
+      break
+    case 'scythe': // a curved blade swings through
+      parts.push(
+        <svg key={k()} className="fx-scythe" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ '--d': d() } as Vars}>
+          <path d="M8 18 Q60 -10 92 70" pathLength={1} />
+        </svg>,
+      )
+      break
+    case 'veil': // dark fog rolls over the caster
+      parts.push(<div key={k()} className="fx-shroud" style={{ '--d': d() } as Vars} />)
+      break
+    case 'blade': // a blade drops from the top
+      parts.push(<div key={k()} className="fx-blade" style={{ '--d': d() } as Vars} />)
+      break
+    case 'volcano': // lava wells up from below
+      parts.push(<div key={k()} className="fx-lava" style={{ '--d': d() } as Vars} />)
+      break
+    case 'cloud': {
+      // the sky darkens and a bolt splits it
+      parts.push(<div key={k()} className="sig-dark" style={{ '--d': d(100) } as Vars} />)
+      let x = 50
+      const pts = [`${x},-2`]
+      for (let y = 8; y <= 100; y += 8) pts.push(`${(x = Math.max(15, Math.min(85, x + (r() - 0.5) * 30)))},${y}`)
+      parts.push(
+        <svg key={k()} className="sig-bolt" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ '--d': d(150) } as Vars}>
+          <polyline points={pts.join(' ')} />
+        </svg>,
+      )
+      break
+    }
+    case 'trefoil': // snow drives down
+      for (let i = 0; i < 26; i++)
+        parts.push(<i key={k()} className="p snow" style={{ '--x': `${(r() - 0.5) * 100}%`, '--s': `${4 + r() * 6}px`, '--d': d(r() * 500), '--t': `${900 + r() * 700}ms` } as Vars} />)
+      break
+    case 'yinyang': // light and dark split the half and spin
+      parts.push(<div key={k()} className="fx-twilight" style={{ '--d': d() } as Vars} />)
+      break
+  }
+}
+
+/** Buffs with a clock: how much is left, as a label and a bar that runs down. */
+function Timers({ view, side }: { view: CombatView; side: Side }) {
+  const items = [
+    view.shield[side] > 0 && { k: 'aegis', label: `Armor ${view.shield[side]}`, f: view.shield[side] / AEGIS_HP },
+    view.mirror[side] > 0 && { k: 'mirror', label: `Mirror ${(view.mirror[side] / 1000).toFixed(1)} s`, f: view.mirror[side] / MIRROR_MS },
+    view.shroud[side] > 0 && { k: 'shroud', label: `Shroud ${(view.shroud[side] / 1000).toFixed(1)} s`, f: view.shroud[side] / SHROUD_MS },
+  ].filter((x): x is { k: string; label: string; f: number } => !!x)
+  if (!items.length) return null
+  return (
+    <div className={`st-timers ${side === 'player' ? 'mine' : ''}`}>
+      {items.map((t) => (
+        <span key={t.k} className={`st-timer ${t.k}`}>
+          {t.label}
+          <i style={{ width: `${Math.min(1, t.f) * 100}%` }} />
+        </span>
+      ))}
+    </div>
+  )
 }

@@ -1,15 +1,25 @@
 // Combat rules shared by practice mode (in the browser) and online matches (on the server).
 // No DOM, no timers: the caller passes `now` (ms). Design: MVP Plan.md ("Spell structure v2").
-import { BEATS, COUNTER, ELEMENTS, FORMS, PUNCHES, QUICK, beats, isValidSpell, spellName } from './spells'
+import { COMBO, COMBOS_ON, COMBO_CHARGES, COUNTER, ELEMENTS, FORMS, MIXABLE, PUNCHES, QUICK, beats, canQuick, chargeInfo, comboOf, isValidSpell, spellName } from './spells'
 
 export { isValidSpell }
 
-export const MAX_HP = 150
+export const MAX_HP = 300
 const TICK_MS = 500
 export const COUNTER_SILENCE_MS = 2000 // a landed counterspell
 export const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
 export const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
 export const CHILL_MS = 4000
+// Holy buffs, Unholy curses, combos. First guesses, to tune in playtests.
+export const AEGIS_HP = 40 // Aegis: armor that soaks direct-hit damage...
+export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be recast while any is left.
+export const MIRROR_MS = 4000 // Mirror: the next direct-damage spell within this time flies back
+export const DOOM_MS = 2500 // Doom: land a cast within this time...
+export const DOOM_DMG = 30 // ...or take this
+export const SHROUD_MS = 5000 // Shroud: they can't see your charge or your drawing
+export const EXECUTE: [number, number, number] = [15, 0.3, 60] // Execute: base + share of their missing HP, capped
+// (a readied Execute hit by a counterspell backfires: the caster takes half of what it would do to them)
+export const BLIZZARD_SILENCE_MS = 800
 // Casting rules. The browser only reports what it recognized (a held letter, a finished shape, a
 // push); these decide what that does. Online, only the server runs them.
 /** A fizzle (failed drawing, or a readied spell that faded) locks all throws this long; the charge stays. */
@@ -71,6 +81,7 @@ export interface Bolt {
   color: string
   kind: 'hit' | 'heal' | 'counter' | 'missed' | 'fizzle'
   el: string
+  shape: string // what was drawn ('' for a static fizzle)
   tier: 'light' | 'heavy' | 'signature' // how big the impact looks
   fly: number // ms in the air
   landed?: boolean // set when it arrives (a counter's result is only known then)
@@ -92,7 +103,7 @@ interface Static {
   count: number
 }
 
-/** Result of a throw. 'static' = it fizzled in a static pulse (spell lost, charge kept). */
+/** Result of a throw. 'static' = it fizzled in a static pulse (spell and charge lost). */
 export type CastResult = 'ok' | 'invalid' | 'silenced' | 'static' | 'fizzled'
 
 /** What a client needs to draw the fight, from one side's point of view. */
@@ -105,9 +116,14 @@ export interface CombatView {
   burning: Record<Side, boolean> // Fire burn ticks still to come
   regen: Record<Side, boolean> // hourglass heal ticks still to come
   knocked: Record<Side, number> // counts Earthquake knock-offs (a change = drop your charge)
-  charge: Record<Side, string | null> // charged element
+  charge: Record<Side, string | null> // charged element ('C' = mixing a combo, or a locked combo)
+  mix: Record<Side, string[]> // elements mixed into a 'C' combo so far
   ready: Record<Side, { el: string; shape: string } | null> // readied spell, waiting for a push
   fizzled: Record<Side, number> // ms of fizzle lockout left (no throws)
+  shield: Record<Side, number> // Aegis armor left (0 = none)
+  mirror: Record<Side, number> // ms of Mirror left
+  doom: Record<Side, number> // ms until Doom hits (0 = none)
+  shroud: Record<Side, number> // ms of Shroud left (the other side can't see your charge or drawing)
   notes: Note[]
   dealt: Record<Side, number> // total damage dealt (the dummy shows this)
   floats: Float[]
@@ -121,7 +137,7 @@ export class Combat {
   private silencedUntil: Record<Side, number> = { player: 0, enemy: 0 }
   private fizzledUntil: Record<Side, number> = { player: 0, enemy: 0 }
   // active = last drawing/charging activity (idle fade); since = when charged
-  private charge: Record<Side, { el: string; since: number; active: number } | null> = { player: null, enemy: null }
+  private charge: Record<Side, { el: string; since: number; active: number; mix?: string[] } | null> = { player: null, enemy: null }
   private ready: Record<Side, { el: string; shape: string; at: number } | null> = { player: null, enemy: null }
   private strokeStart: Record<Side, number | null> = { player: null, enemy: null } // when the current stroke began
   notes: Note[] = []
@@ -129,6 +145,10 @@ export class Combat {
   private chill: Record<Side, { bonus: number; until: number } | null> = { player: null, enemy: null }
   private knocked: Record<Side, number> = { player: 0, enemy: 0 }
   private dealt: Record<Side, number> = { player: 0, enemy: 0 }
+  private shield: Record<Side, { hp: number; at: number } | null> = { player: null, enemy: null } // armor as of `at` (it drains)
+  private mirrorUntil: Record<Side, number> = { player: 0, enemy: 0 }
+  private doomAt: Record<Side, number> = { player: 0, enemy: 0 }
+  private shroudUntil: Record<Side, number> = { player: 0, enemy: 0 }
   private ticking: Ticking[] = []
   private flying: { caster: Side; el: string; shape: string; landAt: number; bolt: Bolt }[] = []
   floats: Float[] = []
@@ -145,7 +165,7 @@ export class Combat {
   private bolt(from: Side, name: string, color: string, kind: Bolt['kind'], now: number, el = '', shape = '') {
     const p = PUNCHES.indexOf(shape)
     const tier: Bolt['tier'] = p === 0 || shape === QUICK ? 'light' : p === 1 || shape === COUNTER || el === 'H' || !shape ? 'heavy' : 'signature'
-    const b: Bolt = { id: this.nextId++, from, name, color, kind, el, tier, fly: flyMs(shape, tier), t: now }
+    const b: Bolt = { id: this.nextId++, from, name, color, kind, el, shape, tier, fly: flyMs(shape, tier), t: now }
     this.bolts.push(b)
     return b
   }
@@ -177,7 +197,26 @@ export class Combat {
       amount += c.bonus
       this.chill[target] = null
     }
+    const armor = this.armor(target, now)
+    if (armor > 0 && amount > 0) {
+      const soak = Math.min(Math.floor(armor), amount)
+      amount -= soak
+      this.shield[target] = armor - soak >= 1 ? { hp: armor - soak, at: now } : null
+      this.float(target, `Blocked ${soak}`, ELEMENTS.H.color, now)
+    }
     return Math.max(0, this.changeHp(target, -amount, color, now))
+  }
+
+  /** What an Execute does to `side`: base + a share of their missing HP, capped. */
+  private executeDmg(side: Side) {
+    const missing = this.maxHp[side] === Infinity ? 0 : this.maxHp[side] - this.hp[side]
+    return Math.min(EXECUTE[2], Math.round(EXECUTE[0] + EXECUTE[1] * missing))
+  }
+
+  /** Aegis armor left on `side` (it drains over time). */
+  private armor(side: Side, now: number) {
+    const sh = this.shield[side]
+    return sh ? Math.max(0, sh.hp - (AEGIS_DRAIN * (now - sh.at)) / 1000) : 0
   }
 
   isSilenced(side: Side, now: number) {
@@ -201,25 +240,43 @@ export class Combat {
     this.strokeStart[side] = null
   }
 
-  /** A fizzle: no throws for a moment. The charge is kept (and its idle clock restarts). */
+  /** A fizzle: no throws for a moment, and the charge is lost (sign again, any element). */
   private fizzle(side: Side, now: number) {
     this.fizzledUntil[side] = now + FIZZLE_LOCK_MS
-    const c = this.charge[side]
-    if (c) c.active = now
+    this.charge[side] = null
   }
 
   // ---- Inputs: what a fighter's browser recognized -------------------------------------------
 
   /** A held letter was recognized as an element. Returns true if it (newly) charged. */
   sign(side: Side, el: string, now: number): boolean {
-    if (this.winner || !ELEMENTS[el] || this.isSilenced(side, now) || this.ready[side]) return false
+    if (this.winner || !(ELEMENTS[el] || (el === COMBO && COMBOS_ON)) || this.isSilenced(side, now) || this.ready[side]) return false
     const c = this.charge[side]
+    // Mixing a combo: element letters go into the mix instead of replacing the charge.
+    if (c?.el === COMBO && MIXABLE.includes(el)) {
+      c.active = now
+      if (c.mix!.includes(el)) return false
+      c.mix!.push(el)
+      return true
+    }
     if (c?.el === el) {
       c.active = now
       return false
     }
-    this.charge[side] = { el, since: now, active: now }
+    this.charge[side] = el === COMBO ? { el, since: now, active: now, mix: [] } : { el, since: now, active: now }
     return true
+  }
+
+  /** An open hand held while charged (nothing drawn or readied): drop the charge. Returns true if it did. */
+  uncharge(side: Side): boolean {
+    if (!this.charge[side] || this.ready[side] || this.strokeStart[side] !== null) return false
+    this.charge[side] = null
+    return true
+  }
+
+  /** The charged element (or combo) right now. */
+  chargeOf(side: Side) {
+    return this.charge[side]?.el ?? null
   }
 
   /** A stroke is being drawn: keeps the charge alive. Drawing while a spell is readied abandons it
@@ -227,10 +284,25 @@ export class Combat {
   drawing(side: Side, now: number): boolean {
     const c = this.charge[side]
     if (c) c.active = now
+    // A combo still being mixed (fewer than 2 elements) ignores drawing: the hand passing through a
+    // pointing shape between two letters (W to L) must not drop it. Open your hand to drop it.
+    if (c?.el === COMBO && c.mix!.length < 2) return false
+    // Starting to draw locks a combo in: its mix becomes the combo charge (or fizzles if it's no combo).
+    if (c?.el === COMBO && this.strokeStart[side] === null) {
+      const combo = comboOf(c.mix!)
+      if (combo) this.charge[side] = { el: combo, since: now, active: now, mix: c.mix } // the mix stays counterable
+      else {
+        this.charge[side] = null
+        this.note(side, 'Fizzle', c.mix!.length ? 'Not a combo' : 'Nothing mixed', '#888', false, now)
+        this.fizzle(side, now)
+      }
+      this.strokeStart[side] = now
+      return true
+    }
     this.strokeStart[side] ??= now
     const r = this.ready[side]
     if (!r) return false
-    // A readied spell is a commitment: drawing again abandons it, and that fizzles (lockout, charge kept).
+    // A readied spell is a commitment: drawing again abandons it, and that fizzles (lockout, charge lost).
     this.ready[side] = null
     this.note(side, 'Fizzle', `${spellName(r.el, r.shape)} abandoned (redraw)`, '#888', false, now)
     this.fizzle(side, now)
@@ -255,7 +327,7 @@ export class Combat {
       return { el: c.el, shape }
     }
     if (shape && !c) this.note(side, 'Fizzle', 'No element charged', '#888', false, now)
-    else if (shape && c) this.note(side, 'Fizzle', `${ELEMENTS[c.el].name} can't use ${FORMS[shape] ?? shape}`, '#888', false, now)
+    else if (shape && c) this.note(side, 'Fizzle', `${chargeInfo(c.el).name} can't use ${FORMS[shape] ?? shape}`, '#888', false, now)
     this.fizzle(side, now)
     return null
   }
@@ -270,12 +342,15 @@ export class Combat {
    *  if there was nothing to throw. */
   push(side: Side, now: number): CastResult | null {
     if (this.winner) return null
-    if (this.fizzledUntil[side] > now) return 'fizzled'
+    if (this.fizzledUntil[side] > now) {
+      this.charge[side] = null // any throw uses up your charge, even one that can't go yet
+      return 'fizzled'
+    }
     const r = this.ready[side]
     const c = this.charge[side]
     let el: string, shape: string
     if (r) [el, shape] = [r.el, r.shape]
-    else if (c && c.el in BEATS) [el, shape] = [c.el, QUICK]
+    else if (c && canQuick(c.el)) [el, shape] = [c.el, QUICK]
     else return null
     return this.cast(side, el, shape, now)
   }
@@ -286,23 +361,27 @@ export class Combat {
     if (this.isSilenced(caster, now)) return 'silenced'
     if (this.fizzledUntil[caster] > now) return 'fizzled'
     if (this.staticAt(caster, now) === 'on') {
-      // Lightning static: the throw fizzles. The spell is lost; the charge is kept.
+      // Lightning static: the throw fizzles. The spell and the charge are lost.
       this.float(caster, 'Fizzled (static)', ELEMENTS.L.color, now)
       this.bolt(caster, 'Fizzled', ELEMENTS.L.color, 'fizzle', now, 'L')
       this.note(caster, 'Fizzled (static)', 'Wait for the gap', ELEMENTS.L.color, false, now)
       this.ready[caster] = null
-      const c = this.charge[caster]
-      if (c) c.active = now
+      this.charge[caster] = null // any throw uses up your charge
       return 'static'
     }
-    const color = ELEMENTS[el].color
+    const color = chargeInfo(el).color
     this.charge[caster] = null // throwing uses up your charge
     this.ready[caster] = null
     this.note(caster, spellName(el, shape), FORMS[shape] ?? '', color, true, now)
-    const kind = shape === COUNTER || shape === QUICK ? 'counter' : el === 'H' ? 'heal' : 'hit'
+    const self = el === 'H' || shape === 'veil' // spells on yourself (Holy, and Shroud)
+    if (this.doomAt[caster]) {
+      this.doomAt[caster] = 0
+      this.float(caster, 'Doom lifted', ELEMENTS.U.color, now)
+    }
+    const kind = shape === COUNTER || shape === QUICK ? 'counter' : self ? 'heal' : 'hit'
     const bolt = this.bolt(caster, spellName(el, shape), color, kind, now, el, shape)
     // Heals take effect at once; everything else flies across and acts when it lands.
-    const landAt = el === 'H' ? now : now + bolt.fly
+    const landAt = self ? now : now + bolt.fly
     this.flying.push({ caster, el, shape, landAt, bolt })
     this.update(now)
     return 'ok'
@@ -312,14 +391,23 @@ export class Combat {
   private land(caster: Side, el: string, shape: string, now: number, bolt: Bolt) {
     bolt.landed = true
     const target = other(caster)
-    const color = ELEMENTS[el].color
+    const color = chargeInfo(el).color
+
 
     if (shape === COUNTER || shape === QUICK) {
       // Lands if the target is (still) charged with the element ours beats, however fresh the charge.
       // A counterspell of any element also stops healing: a Heal charge, or an hourglass still ticking.
       const c = this.charge[target]
       const healing = shape === COUNTER && (c?.el === 'H' || this.ticking.some((t) => t.side === target && t.amount > 0))
-      if ((c && beats(el, c.el)) || healing) {
+      // A combo (mixing or locked) is countered by beating any element in its mix.
+      const combo = !!c?.mix?.some((m) => beats(el, m))
+      if ((c && beats(el, c.el)) || combo || healing) {
+        // A readied Execute caught by a counterspell (not a quick interrupt) backfires on its caster.
+        if (shape === COUNTER && this.ready[target]?.shape === 'blade') {
+          const back = Math.round(this.executeDmg(target) / 2)
+          this.hit(target, back, ELEMENTS.U.color, now)
+          this.note(target, 'Execute backfired!', `took ${back}`, ELEMENTS.U.color, false, now)
+        }
         this.ticking = this.ticking.filter((t) => !(t.side === target && t.amount > 0))
         this.silence(target, shape === COUNTER ? COUNTER_SILENCE_MS : QUICK_SILENCE_MS, now)
         this.float(target, 'Interrupted!', color, now)
@@ -333,7 +421,75 @@ export class Combat {
 
     if (el === 'H') {
       if (shape === 'star') this.changeHp(caster, 20, color, now)
-      else this.ticking.push({ side: caster, amount: 6, left: 5, next: now, color }) // hourglass
+      else if (shape === 'hourglass') this.ticking.push({ side: caster, amount: 6, left: 5, next: now, color })
+      else if (shape === 'aegis') {
+        // Armor doesn't stack or refresh: a new Aegis only takes once the old armor is gone.
+        if (this.armor(caster, now) > 0) this.float(caster, 'Armor still up', color, now)
+        else {
+          this.shield[caster] = { hp: AEGIS_HP, at: now }
+          this.float(caster, 'Aegis', color, now)
+        }
+      } else if (shape === 'mirror') {
+        this.mirrorUntil[caster] = now + MIRROR_MS
+        this.float(caster, 'Mirror', color, now)
+      }
+      return
+    }
+
+    if (shape === 'veil') {
+      this.shroudUntil[caster] = now + SHROUD_MS
+      this.float(caster, 'Shrouded', color, now)
+      return
+    }
+
+    // Mirror: a spell that hits directly turns around and flies back at its caster.
+    const direct = !(el === 'U' && shape === 'scythe')
+    if (direct && this.mirrorUntil[target] > now) {
+      this.mirrorUntil[target] = 0
+      this.float(target, 'Reflected!', ELEMENTS.H.color, now)
+      this.note(target, 'Reflected!', `${spellName(el, shape)} sent back`, ELEMENTS.H.color, true, now)
+      const back = this.bolt(target, spellName(el, shape), color, 'hit', now, el, shape)
+      this.flying.push({ caster: target, el, shape, landAt: now + back.fly, bolt: back })
+      bolt.kind = 'missed'
+      return
+    }
+
+    if (el === 'U') {
+      if (shape === 'scythe') {
+        this.doomAt[target] = now + DOOM_MS
+        this.float(target, 'Doomed!', color, now)
+        this.note(target, 'Doomed!', `throw a spell within ${DOOM_MS / 1000} s`, color, false, now)
+      } else if (shape === 'blade') {
+        this.hit(target, this.executeDmg(target), color, now)
+      }
+      return
+    }
+
+    if (el in COMBO_CHARGES) {
+      switch (el) {
+        case 'magma': // a big hit and a long burn
+          this.hit(target, 25, color, now)
+          this.burn(target, 20, 8, color, now)
+          break
+        case 'storm': // a hit and three static pulses
+          this.hit(target, 20, color, now)
+          if (!this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: 3 }
+          break
+        case 'blizzard': // chill and a short silence
+          this.hit(target, 15, color, now)
+          this.chill[target] = { bonus: 15, until: now + CHILL_MS }
+          this.silence(target, BLIZZARD_SILENCE_MS, now)
+          this.float(target, 'Frozen!', color, now)
+          break
+        case 'twilight': // strips their buffs, cleanses you, heavy hit
+          this.shield[target] = null
+          this.mirrorUntil[target] = 0
+          this.ticking = this.ticking.filter((t) => !(t.side === target && t.amount > 0))
+          this.cleanse(caster)
+          this.hit(target, 35, color, now)
+          this.float(target, 'Stripped!', color, now)
+          break
+      }
       return
     }
 
@@ -379,6 +535,14 @@ export class Combat {
     }
   }
 
+  /** Ends curses and bad status on `side` (burn, chill, static, Doom). */
+  private cleanse(side: Side) {
+    this.ticking = this.ticking.filter((t) => !(t.side === side && t.amount < 0))
+    this.chill[side] = null
+    this.static[side] = null
+    this.doomAt[side] = 0
+  }
+
   /** Split `total` damage over `ticks` ticks (every TICK_MS, starting on the next tick). */
   private burn(target: Side, total: number, ticks: number, color: string, now: number) {
     // Whole numbers that add up exactly (e.g. 4 over 3 ticks = 2, 1, 1).
@@ -411,6 +575,11 @@ export class Combat {
       if (st) st.start += ms
       const ch = this.chill[s]
       if (ch) ch.until += ms
+      const sh = this.shield[s]
+      if (sh) sh.at += ms
+      if (this.mirrorUntil[s]) this.mirrorUntil[s] += ms
+      if (this.doomAt[s]) this.doomAt[s] += ms
+      if (this.shroudUntil[s]) this.shroudUntil[s] += ms
     }
     for (const t of this.ticking) t.next += ms
     for (const f of this.flying) f.landAt += ms
@@ -427,6 +596,12 @@ export class Combat {
       }
       const c = this.charge[s]
       if (c && !this.ready[s] && now - c.active > CHARGE_LIFE_MS) this.charge[s] = null
+      if (this.doomAt[s] && now >= this.doomAt[s] && !this.winner) {
+        this.doomAt[s] = 0
+        this.note(s, 'Doom!', `no spell thrown in ${DOOM_MS / 1000} s`, ELEMENTS.U.color, false, now)
+        this.hit(s, DOOM_DMG, ELEMENTS.U.color, now)
+      }
+      if (this.shield[s] && this.armor(s, now) < 1) this.shield[s] = null
     }
     // Spells land in arrival order (a fast punch can beat a slow signature thrown earlier);
     // a finished match drops whatever is still in the air.
@@ -468,11 +643,16 @@ export class Combat {
       regen: { player: tick('player', 1), enemy: tick('enemy', 1) },
       knocked: { ...this.knocked },
       charge: { player: this.charge.player?.el ?? null, enemy: this.charge.enemy?.el ?? null },
+      mix: { player: [...(this.charge.player?.mix ?? [])], enemy: [...(this.charge.enemy?.mix ?? [])] },
       ready: {
         player: this.ready.player && { el: this.ready.player.el, shape: this.ready.player.shape },
         enemy: this.ready.enemy && { el: this.ready.enemy.el, shape: this.ready.enemy.shape },
       },
       fizzled: { player: Math.max(0, this.fizzledUntil.player - now), enemy: Math.max(0, this.fizzledUntil.enemy - now) },
+      shield: { player: Math.round(this.armor('player', now)), enemy: Math.round(this.armor('enemy', now)) },
+      mirror: { player: Math.max(0, this.mirrorUntil.player - now), enemy: Math.max(0, this.mirrorUntil.enemy - now) },
+      doom: { player: this.doomAt.player ? Math.max(0, this.doomAt.player - now) : 0, enemy: this.doomAt.enemy ? Math.max(0, this.doomAt.enemy - now) : 0 },
+      shroud: { player: Math.max(0, this.shroudUntil.player - now), enemy: Math.max(0, this.shroudUntil.enemy - now) },
       notes: [...this.notes],
       dealt: { ...this.dealt },
       floats: [...this.floats],
@@ -495,8 +675,13 @@ export function flipView(v: CombatView): CombatView {
     regen: f(v.regen),
     knocked: f(v.knocked),
     charge: f(v.charge),
+    mix: f(v.mix),
     ready: f(v.ready),
     fizzled: f(v.fizzled),
+    shield: f(v.shield),
+    mirror: f(v.mirror),
+    doom: f(v.doom),
+    shroud: f(v.shroud),
     notes: v.notes.map((n) => ({ ...n, side: other(n.side) })),
     dealt: f(v.dealt),
     floats: v.floats.map((x) => ({ ...x, side: other(x.side) })),
@@ -504,3 +689,4 @@ export function flipView(v: CombatView): CombatView {
     over: v.over && other(v.over),
   }
 }
+

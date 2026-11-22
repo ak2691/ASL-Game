@@ -13,6 +13,8 @@ const NAMES = [
   'E_impact2', 'sig_F', 'sig_I', 'sig_L', 'sig_E', 'sig_W',
 ] as const
 export type Sfx = (typeof NAMES)[number]
+/** Spells with no sounds of their own borrow an element's, pitched (Unholy: low and eerie). */
+const SOUND_OF: Record<string, [string, number]> = { U: ['I', 0.6], magma: ['F', 0.8], storm: ['L', 0.85], blizzard: ['I', 0.85], twilight: ['W', 0.7] }
 
 const VOL_KEY = 'sfx-volume'
 let ctx: AudioContext | null = null
@@ -101,7 +103,10 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
     if (v.over && !p?.over) play(v.over === me ? 'win' : 'lose', { vol: 0.9 })
 
     // Your sign and your shape locking in.
-    if (v.charge[me] && v.charge[me] !== p?.charge[me]) play(`charge_${v.charge[me]}` as Sfx, { vol: 0.6 })
+    if (v.charge[me] && v.charge[me] !== p?.charge[me]) {
+      const [c, pitch] = SOUND_OF[v.charge[me]!] ?? [v.charge[me]!, 1]
+      play((c === 'C' ? 'charge' : `charge_${c}`) as Sfx, { vol: 0.6, pitch })
+    }
     if (v.ready[me] && !p?.ready[me]) play('lockin', { vol: 0.6 })
 
     // Fizzles (static, faded, bad throw), either side.
@@ -121,18 +126,19 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
           play(interrupt ? 'interrupt' : 'counter_cast', { vol: 0.8 })
           continue // result plays when it lands
         }
-        const el = b.el as 'F' | 'I' | 'W' | 'E' | 'L' | 'H'
+        const [base, low] = SOUND_OF[b.el] ?? [b.el, 1]
+        const el = base as 'F' | 'I' | 'W' | 'E' | 'L' | 'H'
         const big = b.tier === 'signature'
         const heavy = b.tier === 'heavy'
         if (el === 'H') {
           play('H_impact', { vol: 0.8 })
           continue
         }
-        play(`${el}_cast`, { vol: 0.7 })
-        play(`${el}_travel`, { vol: 0.5, pitch: big ? 0.85 : 1 })
+        play(`${el}_cast`, { vol: 0.7, pitch: low })
+        play(`${el}_travel`, { vol: 0.5, pitch: (big ? 0.85 : 1) * low })
         if (big && el === 'F') play('sig_F', { vol: 0.8 }) // the meteor whistles on the way down
         const at = { delay: b.fly }
-        const pitch = heavy ? 0.85 : big ? 0.8 : 1
+        const pitch = (heavy ? 0.85 : big ? 0.8 : 1) * low
         play(`${el}_impact`, { ...at, vol: 1, pitch })
         if (el === 'E') play('E_impact2', { ...at, vol: big ? 1 : 0.6 })
         if (el === 'F') play('F_impact2', { ...at, vol: 0.8 })

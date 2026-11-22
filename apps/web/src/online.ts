@@ -3,7 +3,7 @@
 import { MAX_HP, type CombatView } from './combat'
 import type { Arena, OppCast, Pt01, Snapshot } from './battle'
 import type { ClientMsg, OppEvent, ServerMsg } from './protocol'
-import { ELEMENTS, spellName } from './spells'
+import { chargeInfo, spellName } from './spells'
 
 export type OnlinePhase = 'connecting' | 'reconnecting' | 'menu' | 'lobby' | 'countdown' | 'fighting' | 'over' | 'offline'
 
@@ -28,6 +28,11 @@ const EMPTY_VIEW: CombatView = {
   regen: { player: false, enemy: false },
   knocked: { player: 0, enemy: 0 },
   charge: { player: null, enemy: null },
+  mix: { player: [], enemy: [] },
+  shield: { player: 0, enemy: 0 },
+  mirror: { player: 0, enemy: 0 },
+  doom: { player: 0, enemy: 0 },
+  shroud: { player: 0, enemy: 0 },
   ready: { player: null, enemy: null },
   fizzled: { player: 0, enemy: 0 },
   notes: [],
@@ -199,7 +204,7 @@ export class OnlineArena implements Arena {
   }
 
   private onOpp(ev: OppEvent) {
-    const colorOf = (el: string | null) => (el && ELEMENTS[el] ? ELEMENTS[el].color : '#cccccc')
+    const colorOf = (el: string | null) => (el ? chargeInfo(el).color : '#cccccc')
     const base = (el: string | null): OppCast => ({ el: el ?? '?', name: null, color: colorOf(el), phase: 'charge', points: [], view: { aspect: 16 / 9, fit: 'cover' }, progress: null })
     switch (ev.kind) {
       case 'charge':
@@ -242,6 +247,9 @@ export class OnlineArena implements Arena {
   }
   push() {
     this.send({ t: 'push' })
+  }
+  uncharge() {
+    this.send({ t: 'uncharge' })
   }
 
   private flush() {

@@ -11,6 +11,7 @@ import { GuidePose } from './GuidePose'
 import { CLIP_MS, Recorder } from './recorder'
 import { SpellPage, type Mode } from './SpellPage'
 import { getOnlineFlag } from './online'
+import { GuidePage } from './CastGuide'
 import { InfoPage } from './InfoPage'
 import { PrivacyPage } from './PrivacyPage'
 import { VolumeSlider } from './VolumeSlider'
@@ -57,8 +58,9 @@ const HAND: Hand = 'right'
 
 export default function App() {
   // A refresh goes back home, except mid online room (the server puts you back in your seat).
-  const [mode, setMode] = useState<Mode | 'info' | 'privacy' | null>(() => (getOnlineFlag() ? 'online' : null))
+  const [mode, setMode] = useState<Mode | 'info' | 'guide' | 'privacy' | null>(() => (getOnlineFlag() ? 'online' : null))
   if (mode === 'info') return <InfoPage onHome={() => setMode(null)} />
+  if (mode === 'guide') return <GuidePage onHome={() => setMode(null)} />
   if (mode === 'privacy') return <PrivacyPage onHome={() => setMode(null)} />
   if (mode) return <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => setMode(null)} />
   return (
@@ -68,6 +70,7 @@ export default function App() {
       <button onClick={() => setMode('dummy')}>Dummy</button>
       <button onClick={() => setMode('practice')}>Practice AI</button>
       <button onClick={() => setMode('online')}>Online</button>
+      <button onClick={() => setMode('guide')}>How to cast</button>
       <button onClick={() => setMode('info')}>Spell Info</button>
       <VolumeSlider />
       <p className="home-privacy">

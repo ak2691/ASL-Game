@@ -6,11 +6,20 @@ versions are near-misses where that changes the shape (W upside down = M = none)
   circle      counterspell: one closed loop
   star        heal: upright five-point star
   hourglass   regen: top edge, diagonal, bottom edge, diagonal
-  flame       Meteor: 4 sharp peaks on top, round bowl underneath (closed)
+  flame       Meteor: a circle, then 3-5 sharp spikes along its top (a crown); either order
   cage        Frozen Prison: square + X (one stroke, so one edge is drawn twice)
   zigzag7     Thunderbolt: 7-line zigzag
   battlements Earthquake: 3 square humps
   spiral      Tidal Wave: spiral with ~3 turns
+  aegis       Holy Aegis: shield (flat top, curved sides to a bottom point) + a line up the middle
+  mirror      Holy Mirror: sideways figure 8 (a vertical 8 is a near-miss)
+  scythe      Unholy Doom: handle up, a big curved blade out and back, then a line down across the handle and a grip back across it
+  veil        Unholy Shroud: three cursive loops in a row
+  blade       Unholy Execute: guillotine: post on top, box, triangle blade hanging under the box
+  volcano     Magma (F+E): volcano slopes with a smoke loop out of the crater
+  cloud       Storm (W+L): closed three-bump cloud with a lightning tail out of the bottom
+  trefoil     Blizzard (I+W): three-petal loop
+  yinyang     Twilight (H+U): circle, then an S through it
   none        near-misses (wrong counts, upside down, rounded instead of sharp...) and scribbles
 The straight line (light attack) is caught by a rule before the network (see shapes.ts).
 
@@ -19,7 +28,8 @@ features() must match apps/web/src/shapes.ts.
 
 import numpy as np
 
-CLASSES = ["none", "w", "circle", "star", "hourglass", "flame", "cage", "zigzag7", "battlements", "spiral"]
+CLASSES = ["none", "w", "circle", "star", "hourglass", "flame", "cage", "zigzag7", "battlements", "spiral",
+           "aegis", "mirror", "scythe", "veil", "blade", "volcano", "cloud", "trefoil", "yinyang"]
 RES = 128  # resample for the raster / sequence
 SEQ = 32  # points kept for the sequence part
 GRID = 16
@@ -229,39 +239,31 @@ class Gen:
             p = p[:, ::-1]
         return self.finish(p, rot=10)
 
-    def flame(self, n=4, round_tips=False, flip=False, bowl=True):
-        tall = self.r.random() < 0.6
-        tip_y = [self.u(-0.05, 0.08) for _ in range(n)]
-        vlo, vhi = (0.5, 0.85) if tall else (0.35, 0.55)
-        xs = np.sort(self.r.uniform(0.08, 0.92, n)) * 0.3 + (np.arange(n) + 0.5) / n * 0.7
-        top = [[0, self.u(0.4, 0.6) + (0.2 if tall else 0)]]
-        for i in range(n):
-            top.append([xs[i], tip_y[i]])
-            if i < n - 1:
-                top.append([(xs[i] + xs[i + 1]) / 2 + self.u(-0.03, 0.03), self.u(vlo, vhi)])
-        top.append([1, self.u(0.4, 0.6) + (0.2 if tall else 0)])
-        top = self.jv(top, 0.025)
-        if round_tips:
-            top = chaikin(top, 0.3, 3)
-        elif self.r.random() < 0.4:
-            top = chaikin(top, self.u(0.03, 0.1))
-        top = dense(top)
-        if not bowl:
-            p = top
-        else:
-            yl, yr = top[0, 1], top[-1, 1]
-            depth = self.u(0.5, 0.9) if tall else self.u(0.4, 0.75)
-            th = np.linspace(0, np.pi, 60)
-            bx = 0.5 + 0.5 * np.cos(th)
-            by = (yr + (yl - yr) * th / np.pi) + depth * np.sin(th) * self.u(0.9, 1.3)
-            bowl_p = np.stack([bx, by], 1)
-            p = np.vstack([top, bowl_p[1:]])
-            p = self.cyc(p) if self.r.random() < 0.35 else p
-        if tall:
-            p = p * [self.u(0.65, 0.9), 1]
+    def flame(self, n=None, round_tips=False, flip=False, bowl=True):
+        """Circle (any direction), then a crown of n spikes from its upper-left to its upper-right."""
+        n = n if n is not None else int(self.r.choice([3, 4, 4, 4, 5]))
+        rx = self.u(0.85, 1.15)
+        al, ar = np.pi + self.u(0.05, 0.45), 2 * np.pi - self.u(0.05, 0.45)  # attach points (y down: sin < 0 is up)
+        L, R = np.array([rx * np.cos(al), np.sin(al)]), np.array([rx * np.cos(ar), np.sin(ar)])
+        sgn = 1 if self.r.random() < 0.5 else -1
+        th = al + sgn * np.linspace(0, 2 * np.pi * self.u(0.95, 1.08), 90)
+        circ = np.stack([rx * np.cos(th), np.sin(th)], 1)
+        xs = L[0] + (R[0] - L[0]) * ((np.arange(n) + 0.5) / n + self.r.uniform(-0.06, 0.06, n))
+        tip = self.u(0.5, 1.0)
+        crown = [L]
+        for k in range(n):
+            crown.append([xs[k], -1 - tip * self.u(0.8, 1.2)])
+            if k < n - 1:
+                xm = (xs[k] + xs[k + 1]) / 2
+                crown.append([xm, -np.sqrt(max(0.0, 1 - (xm / rx) ** 2)) - self.u(0.0, 0.15)])
+        crown.append(R)
+        crown = self.jv(crown, 0.03)
+        crown = chaikin(crown, 0.3, 3) if round_tips else (chaikin(crown, self.u(0.03, 0.1)) if self.r.random() < 0.4 else crown)
+        crown = dense(crown)
+        p = np.vstack([circ, crown]) if bowl else crown
         if flip:
             p = p * [1, -1]
-        return self.finish(p)
+        return self.finish(p, rot=10)
 
     CAGE_V = [(0, 0), (1, 0), (1, 1), (0, 1)]
 
@@ -344,12 +346,188 @@ class Gen:
             p = np.cumsum(v, 0)
         return self.finish(p, rot=180)
 
+    # ---------------------------------------------------------- Holy / Unholy / combos
+    def arc(self, cx, cy, rx, ry, a0, a1, n=40):
+        th = np.linspace(a0, a1, n)
+        return np.stack([cx + rx * np.cos(th), cy + ry * np.sin(th)], 1)
+
+    def shield_outline(self, h):
+        """Top-left -> top-right, right side curving to the bottom point, left side back up."""
+        bulge = self.u(0.05, 0.25)
+        t = np.linspace(0, 1, 30)
+        right = np.stack([1 - 0.5 * t ** self.u(1.6, 2.6) + bulge * np.sin(np.pi * t) * 0.5, h * t], 1)
+        left = right[::-1] * [-1, 1] + [1, 0]
+        return right, left
+
+    def aegis(self, line=True):
+        h = self.u(1.0, 1.4)
+        right, left = self.shield_outline(h)
+        vs = [dense([[0.5, h], [0.5, 0], [1, 0]])] if line else [dense([[0, 0], [1, 0]])]
+        vs += [right, left]
+        if line:
+            vs.append(dense([[0, 0], [0.5, 0]]))
+        p = np.vstack(self.jv(np.vstack(vs), 0.01))
+        return self.finish(p, rot=10)
+
+    def mirror(self, vertical=False, loops=1.0):
+        th = np.linspace(0, 2 * np.pi * loops, 140) + self.u(-0.3, 0.3)
+        a = self.u(0.35, 0.6)
+        p = np.stack([np.cos(th), a * np.sin(2 * th) / 1.0 * self.u(0.8, 1.2)], 1)
+        p[:, 0] *= np.where(p[:, 0] > 0, self.u(0.85, 1.15), self.u(0.85, 1.15))
+        if vertical:
+            p = p[:, ::-1]
+        return self.finish(p, rot=12 if not vertical else 15)
+
+    def scythe(self, stage=4):
+        """Doom: handle (slightly slanted) up, the blade's outer curve out and down to its tip, the inner curve
+        back toward the handle, a line down-left across the handle, then a grip line right across it again.
+        stage < 4 stops early (near-misses)."""
+        def bez(p0, p1, p2, p3, n=40):
+            t = np.linspace(0, 1, n)[:, None]
+            return (1 - t) ** 3 * p0 + 3 * (1 - t) ** 2 * t * p1 + 3 * (1 - t) * t ** 2 * p2 + t ** 3 * p3
+        s, W, h = self.u(0.0, 0.25), self.u(0.5, 0.8), self.u(0.35, 0.6)
+        top, tip = np.array([s, 0.0]), np.array([s + W, h])
+        back = np.array([s + self.u(0.03, 0.12), self.u(0.2, 0.32)])
+        parts = [dense([[0, 1], top])]
+        parts.append(bez(top, top + [W * 0.4, -0.12], tip + [0.08, -h * 0.7], tip)[1:])
+        if stage >= 2:
+            parts.append(bez(tip, tip + [-0.05, -h * 0.4], back + [W * 0.4, -0.06], back)[1:])
+        if stage >= 3:
+            low = np.array([s - self.u(0.25, 0.4), self.u(0.5, 0.65)])
+            parts.append(dense([back, low])[1:])
+        if stage >= 4:
+            parts.append(dense([low, [s + self.u(0.25, 0.45), low[1] + self.u(-0.02, 0.1)]])[1:])
+        p = self.jv(np.vstack(parts), 0.006)
+        return self.finish(p, rot=10)
+
+    def hook(self, blade=None, upside=False, hairpin=False, grip=True):
+        """Handle straight up, then the blade hooks over to one side and down (a big upside-down U end)."""
+        L = blade if blade is not None else self.u(0.5, 0.85)  # blade width vs handle
+        handle = dense([[0, 1], [0, 0]])
+        ry = L * self.u(0.35, 0.6)
+        th = np.linspace(0, -np.pi - self.u(0.3, 0.9), 50)  # from the handle top, over, and down the far side
+        hook = np.stack([-L / 2 + (L / 2) * np.cos(th), ry * np.sin(th)], 1)
+        p = np.vstack([handle, hook[1:]])
+        if hairpin:  # the far side runs a long way back down: an upside-down U / hairpin, not a blade
+            p = np.vstack([p, dense([p[-1], [p[-1][0] + self.u(-0.08, 0.08), self.u(0.45, 0.95)]])[1:]])
+        if grip and not hairpin:  # a grip line from the blade tip back across the handle
+            p = np.vstack([p, dense([p[-1], [self.u(0.25, 0.55), self.u(0.25, 0.6)]])[1:]])
+        p = self.jv(p, 0.006)
+        if upside:
+            p = p * [1, -1]
+        return self.finish(p, rot=12)
+
+    def veil(self, loops=3, flat=False):
+        """Cursive loops in a row (a prolate cycloid): flat=True is a plain wave, no loops."""
+        b = self.u(0.35, 0.75) if flat else self.u(1.5, 2.6)
+        t = np.linspace(-self.u(0.3, 1.2), 2 * np.pi * (loops - 0.5) + self.u(0.6, 1.8), 50 * loops + 40)
+        p = np.stack([t - b * np.sin(t), b * np.cos(t) * self.u(0.8, 1.4)], 1)
+        return self.finish(p, rot=10)
+
+    def blade(self, post=True, tri=True, old=False):
+        """Guillotine: post above a box, triangle blade under it (one stroke; the post is drawn up and back)."""
+        if old:  # the old Execute: triangle on a short post
+            h, w = self.u(0.8, 1.2), self.u(0.8, 1.2)
+            return self.finish(self.sharp([[0.5 * w, h + 0.4], [0.5 * w, h], [w, h], [0.5 * w, 0], [0, h], [0.5 * w, h]], 0.025), rot=10)
+        bh, px, ph, tp = self.u(0.4, 0.7), self.u(0.3, 0.7), self.u(0.3, 0.6), self.u(0.5, 0.95)
+        if post and tri:
+            vs = [[0, bh], [1, bh + tp], [1, bh], [0, bh], [0, 0], [px, 0], [px, -ph], [px, 0], [1, 0], [1, bh]]
+        elif post:
+            vs = [[px, -ph], [px, 0], [0, 0], [0, bh], [1, bh], [1, 0], [px, 0]]
+        else:
+            vs = [[0, bh], [1, bh + tp], [1, bh], [0, bh], [0, 0], [1, 0], [1, bh]]
+        return self.finish(self.sharp(vs, 0.02) * [self.u(0.8, 1.3), 1], rot=10)
+
+    def volcano(self, smoke=True):
+        cw = self.u(0.25, 0.4)  # crater width
+        top = self.u(0.25, 0.4)
+        l, r = 0.5 - cw / 2, 0.5 + cw / 2
+        left = dense(self.jv([[0, 1], [l, top]], 0.02))
+        right = dense(self.jv([[r, top], [1, 1]], 0.02))
+        if smoke:
+            rad = self.u(0.1, 0.18)
+            cy = top - rad - self.u(0.1, 0.25)
+            up = dense([[l + cw * 0.3, top], [0.5 - rad * 0.3, cy + rad]])
+            loop = self.arc(0.5, cy, rad, rad, np.pi / 2, np.pi / 2 + 2 * np.pi * self.u(0.9, 1.1), 40)
+            down = dense([loop[-1], [r - cw * 0.3, top]])
+            mid = [dense([[l, top], [l + cw * 0.3, top]]), up, loop, down, dense([[r - cw * 0.3, top], [r, top]])]
+        else:
+            mid = [dense([[l, top], [r, top]])]
+        p = np.vstack([left] + mid + [right])
+        return self.finish(p, rot=8, flip_ok_x=True)
+
+    def cloud(self, bolt=True, bumps=3):
+        y0 = 0.6
+        xs = np.linspace(1, 0, bumps + 1)
+        parts = [dense([[0.45, y0], [1, y0]])]
+        for i in range(bumps):
+            a, b = xs[i], xs[i + 1]
+            c, rad = (a + b) / 2, (a - b) / 2
+            hgt = self.u(1.1, 1.7) * rad * (1.25 if i == bumps // 2 else 1)
+            parts.append(self.arc(c, y0, rad, hgt, 0, -np.pi, 20)[::1] if False else np.stack([c + rad * np.cos(np.linspace(0, np.pi, 20)), y0 - hgt * np.sin(np.linspace(0, np.pi, 20))], 1))
+        parts.append(dense([[0, y0], [0.45, y0]]))
+        if bolt:
+            z = self.u(0.12, 0.2)
+            parts.append(self.sharp([[0.45, y0], [0.45 - z, y0 + 0.25], [0.45 + z * 0.6, y0 + 0.28], [0.45 - z * 0.2, y0 + 0.6]], 0.015))
+        return self.finish(self.jv(np.vstack(parts), 0.006), rot=8)
+
+    def trefoil(self, k=3):
+        th = np.linspace(0, np.pi if k % 2 else 2 * np.pi, 160)
+        r = np.cos(k * th) * self.u(0.9, 1.1)
+        a0 = -np.pi / 2 + self.u(-0.2, 0.2)
+        p = np.stack([r * np.cos(th + a0), r * np.sin(th + a0)], 1)
+        p = self.cyc(p) if self.r.random() < 0.5 else p
+        return self.finish(p, rot=15)
+
+    def yinyang(self, inner="s"):
+        T = self.u(0.97, 1.08)
+        th = np.linspace(-np.pi / 2, -np.pi / 2 + 2 * np.pi * T, 90)
+        circ = np.stack([np.cos(th), np.sin(th)], 1)
+        start = circ[-1]
+        if inner == "s":
+            s1 = self.arc(0, -0.5, 0.5, 0.5, -np.pi / 2, np.pi / 2, 30)
+            s2 = self.arc(0, 0.5, 0.5, 0.5, -np.pi / 2, -3 * np.pi / 2, 30)
+            if self.r.random() < 0.5:
+                s1, s2 = s1 * [-1, 1], s2 * [-1, 1]
+            ins = np.vstack([s1, s2[1:]])
+        else:  # straight line through: a near-miss
+            ins = dense([[0, -1], [0, 1]])
+        p = np.vstack([circ, dense([start, ins[0]]), ins])
+        return self.finish(p, rot=12)
+
+    def none_new(self):
+        """Near-misses for the Holy/Unholy/combo shapes."""
+        c = int(self.r.integers(19))
+        return [
+            lambda: self.aegis(line=False),                      # shield, no middle line
+            lambda: self.mirror(vertical=True),                  # a vertical 8
+            lambda: self.mirror(loops=0.55),                     # half an 8
+            lambda: self.hook(blade=self.u(0.08, 0.2)),          # tiny hook: a cane, not a scythe
+            lambda: self.hook(upside=True, grip=False),          # a J
+            lambda: self.hook(hairpin=True),                     # hairpin: long leg back down
+            lambda: self.hook(),                                 # the easy scythe (hook + grip)
+            lambda: self.scythe(stage=int(self.r.choice([2, 3]))),  # Doom stopped early
+            lambda: self.veil(loops=int(self.r.choice([1, 2]))), # too few loops
+            lambda: self.veil(flat=True),                        # a wave, no loops
+            lambda: self.blade(tri=False),                       # box + post, no blade
+            lambda: self.blade(post=False),                      # box + blade, no post
+            lambda: self.blade(old=True),                        # old Execute: triangle on a post
+            lambda: self.volcano(smoke=False),                   # volcano, no smoke
+            lambda: self.cloud(bolt=False),                      # cloud, no bolt
+            lambda: self.cloud(bolt=True, bumps=int(self.r.choice([2, 5]))),  # wrong bump count
+            lambda: self.trefoil(k=int(self.r.choice([2, 5]))),  # 4 or 5 petals
+            lambda: self.yinyang(inner="line"),                  # circle + straight line
+            lambda: self.loop(self.u(1.6, 2.0)),                 # double circle
+        ][c]()
+
     # ---------------------------------------------------------- near-misses
     def none(self):
         r = self.r
+        if r.random() < 0.35:
+            return self.none_new()
         c = r.integers(31)
         if c >= 29: return self.almost()
-        if c >= 22: return [lambda: self.flame(n=3), lambda: self.flame(n=3), lambda: self.flame(n=5), lambda: self.flame(n=5),
+        if c >= 22: return [lambda: self.flame(n=2), lambda: self.flame(n=1), lambda: self.flame(n=7), lambda: self.flame(bowl=False),
                             lambda: self.flame(round_tips=True), lambda: self.battlements(round_tops=True),
                             lambda: self.battlements(round_tops=True)][c - 22]()
         if c >= 17: return [self.unfinished, self.almost, self.almost, self.circle_x, self.sideways][c - 17]()
@@ -357,10 +535,10 @@ class Gen:
         if c == 1: return self.w(flip=True)  # M
         if c == 2: return self.loop(self.u(1.25, 1.8))  # spiral with too few turns
         if c == 3: return self.loop(self.u(4.6, 6))  # too many turns
-        if c == 4: return self.flame(n=int(r.choice([2, 3, 3, 3, 5, 6])))
-        if c == 5: return self.flame(round_tips=True, n=int(r.choice([3, 4, 5])))
+        if c == 4: return self.flame(n=int(r.choice([1, 2, 7, 8])))
+        if c == 5: return self.flame(round_tips=True)
         if c == 6: return self.flame(flip=True)
-        if c == 7: return self.flame(bowl=False, n=int(r.choice([3, 4, 5])))
+        if c == 7: return self.flame(bowl=False)
         if c == 8: return self.finish(self.walk("half_walks"), rot=10)  # square + one diagonal
         if c == 9: return self.finish(self.walk("sq_walks"), rot=10)  # square only
         if c == 10: return self.battlements(n=int(r.choice([2, 4])))
@@ -371,8 +549,7 @@ class Gen:
         if c == 15:  # open arc / figure-8
             if r.random() < 0.5:
                 return self.loop(self.u(0.45, 0.75), r0=1.0)
-            th = np.linspace(0, 2 * np.pi, 120)
-            return self.finish(np.stack([np.sin(th), np.sin(2 * th) / 2], 1), rot=180)
+            return self.mirror(vertical=True)
         return self.star(flip=True)
 
     def unfinished(self):
@@ -433,7 +610,9 @@ class Gen:
     def make(self, cls):
         return {"w": self.w, "circle": self.circle, "star": self.star, "hourglass": self.hourglass,
                 "flame": self.flame, "cage": self.cage, "zigzag7": self.zigzag, "battlements": self.battlements,
-                "spiral": self.spiral, "none": self.none}[cls]()
+                "spiral": self.spiral, "none": self.none, "aegis": self.aegis, "mirror": self.mirror,
+                "scythe": self.scythe, "veil": self.veil, "blade": self.blade, "volcano": self.volcano,
+                "cloud": self.cloud, "trefoil": self.trefoil, "yinyang": self.yinyang}[cls]()
 
 
 def dataset(per_class, seed, none_mult=3):

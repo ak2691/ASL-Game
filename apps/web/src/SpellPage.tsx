@@ -1,4 +1,4 @@
-// Spellcasting prototype: sign an element letter to charge, then point and draw a shape.
+// Spellcasting prototype: sign an element letter to charge, then pinch (or point) and draw a shape.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { openCamera, type CameraInfo } from './camera'
@@ -6,8 +6,9 @@ import { classify, loadRecognizer, trueShape, type Hand } from './recognition'
 import { directionLetter, passesGate } from './rules'
 import { getTracker } from './trackers'
 import { LandmarkSmoother } from './smoothing'
+import { CastGuide } from './CastGuide'
 import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
-import { BEATS, COUNTER, ELEMENTS, QUICK, FORMS, PUNCHES, SIGNATURE, TRAITS, isValidSpell, shapesFor, spellName } from './spells'
+import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, spellName } from './spells'
 import { DummyArena, PracticeArena, shapePoints, type Arena, type Difficulty, type Side, type Snapshot } from './battle'
 import { BoltLayer, Impacts, SilenceLock, StatusFx, useShake } from './effects'
 import { play, useFightSfx } from './sfx'
@@ -47,6 +48,9 @@ const CHARGE_MS = 150 // ...held this long
 // A stroke ends right away only on a deliberate pen-up (a second finger raised). Losing the
 // hand or a blurry index (fast moves) keeps the stroke open this long; the gap is bridged.
 const LOST_GRACE_MS = 400
+// Two hands: a hand lost on a fast move never ends the drawing; when it's back, the line joins up from
+// where it was last seen. Only a hand gone this long (out of frame, put down) ends it.
+const TWO_LOST_MS = 3000
 // Fast moves blur the fingers together and can fake a raised finger for a frame or two. So the
 // pen-up must be held this long, and only counts while the hand is moving slower than this.
 const PEN_UP_HOLD_MS = 100
@@ -65,32 +69,6 @@ const DROPOUT_MS = 150
 const RELEASE_MS = 100 // after a throw, letting go of the letter this long frees it to charge again
 const REHOLD_MS = 400 // ...or keep holding it this long after the throw (charges again without letting go)
 const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
-
-// Shape guide icons (40×40), and a suggested start point for each.
-export const SHAPE_PATHS: Record<string, string> = {
-  line: 'M6 34 L34 6',
-  w: 'M4 8 L12 32 L20 14 L28 32 L36 8',
-  hourglass: 'M8 6 L32 6 L8 34 L32 34 Z',
-  star: 'M20 4 L29.4 32.9 L4.8 15.1 L35.2 15.1 L10.6 32.9 Z',
-  flame: 'M5 18 L9 5 L12.5 14 L16 6 L19.5 14 L23 5 L26.5 14 L31 6 L35 18 A15 17 0 0 1 5 18',
-  cage: 'M8 8 L32 8 L32 32 L8 32 L8 8 L32 32 L32 8 L8 32',
-  zigzag7: 'M3 8 L8 32 L13 14 L18 32 L23 14 L28 32 L33 14 L38 32',
-  battlements: 'M3 30 L3 14 L9 14 L9 30 L15 30 L15 14 L21 14 L21 30 L27 30 L27 14 L33 14 L33 30',
-  circle: 'M20 6 A14 14 0 1 1 19.9 6',
-  spiral: 'M20 20 A2 2 0 0 1 24 20 A4 4 0 0 1 16 20 A6 6 0 0 1 28 20 A8 8 0 0 1 12 20 A10 10 0 0 1 32 20 A12 12 0 0 1 8 20 A14 14 0 0 1 36 20',
-}
-export const SHAPE_STARTS: Record<string, [number, number]> = {
-  line: [6, 34],
-  w: [4, 8],
-  hourglass: [8, 6],
-  star: [20, 4],
-  flame: [5, 18],
-  cage: [8, 8],
-  zigzag7: [3, 8],
-  battlements: [3, 30],
-  spiral: [20, 20],
-  circle: [20, 6],
-}
 
 const THUMB_OUT = 0.75 // thumb tip this far from the middle knuckle (palm sizes) = out
 const L_VETO_PROB = 0.6 // the letter model this sure it sees L = signing Lightning, not drawing
@@ -117,6 +95,45 @@ function isOpen(lm: NormalizedLandmark[], easy: boolean) {
   const up = (tip: number) => dist(w, lm[tip]) > dist(w, lm[tip - 2]) * 1.15
   if (easy) return thumbOut(lm) || [12, 16, 20].some(up)
   return thumbOut(lm) && [8, 12, 16, 20].every(up)
+}
+// Two hands: the drawing hand's index tip is the pen, always. The signing hand works the pen: while
+// you're charged, holding an element letter (or C) is pen down, an open hand (all five up) is pen up and
+// finishes the drawing. Anything in between keeps the pen as it was. Then push to throw.
+const PEN_SWITCH_MS = 100 // the signing hand must hold a change (letter / open) this long to flip the pen
+const TWO_HANDS_KEY = 'spells-two-hands'
+const DRAW_HAND_KEY = 'spells-draw-hand'
+function loadDrawHand(signHand: Hand): Hand {
+  try {
+    const v = localStorage.getItem(DRAW_HAND_KEY)
+    if (v === 'left' || v === 'right') return v
+  } catch {
+    /* fall through */
+  }
+  return signHand === 'right' ? 'left' : 'right'
+}
+function loadTwoHands() {
+  try {
+    return localStorage.getItem(TWO_HANDS_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+type Wrist = { x: number; y: number } | null
+/** Which hand signs and which draws. The video isn't mirrored, so the player's right hand is on the
+ *  left of the frame (smaller x). One hand in view: whichever hand was last nearest, else by side. */
+function splitHands(hands: NormalizedLandmark[][], signHand: Hand, prev: { sign: Wrist; draw: Wrist }) {
+  const signLeftInFrame = signHand === 'right'
+  if (hands.length >= 2) {
+    const [a, b] = [...hands].sort((p, q) => p[0].x - q[0].x)
+    return signLeftInFrame ? { sign: a, draw: b } : { sign: b, draw: a }
+  }
+  if (hands.length === 0) return { sign: null, draw: null }
+  const h = hands[0]
+  const near = (w: Wrist) => (w ? Math.hypot(w.x - h[0].x, w.y - h[0].y) : Infinity)
+  const ds = near(prev.sign)
+  const dd = near(prev.draw)
+  const isSign = Math.min(ds, dd) < 0.25 ? ds <= dd : signLeftInFrame === h[0].x < 0.5
+  return isSign ? { sign: h, draw: null } : { sign: null, draw: h }
 }
 const EASY_PEN_KEY = 'spells-easy-pen'
 function loadEasyPen() {
@@ -154,6 +171,31 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     setEasyPen(on)
     try {
       localStorage.setItem(EASY_PEN_KEY, on ? '1' : '0')
+    } catch {
+      /* not saved: fine */
+    }
+  }
+  const [twoHands, setTwoHands] = useState(loadTwoHands)
+  const twoHandsRef = useRef(twoHands) // read by the camera loop
+  const toggleTwoHands = () => {
+    const on = !twoHandsRef.current
+    twoHandsRef.current = on
+    setTwoHands(on)
+    try {
+      localStorage.setItem(TWO_HANDS_KEY, on ? '1' : '0')
+    } catch {
+      /* not saved: fine */
+    }
+  }
+  // Two hands: which hand draws (the other one signs). Defaults to the hand you didn't pick to sign with.
+  const [drawHand, setDrawHand] = useState<Hand>(() => loadDrawHand(hand))
+  const drawHandRef = useRef(drawHand)
+  const swapDrawHand = () => {
+    const next: Hand = drawHandRef.current === 'right' ? 'left' : 'right'
+    drawHandRef.current = next
+    setDrawHand(next)
+    try {
+      localStorage.setItem(DRAW_HAND_KEY, next)
     } catch {
       /* not saved: fine */
     }
@@ -256,7 +298,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // ?debug: cast a spell without the camera (for testing online play with two tabs).
   const debugCast = (el: string, shape: string) => {
     const a = arena.current
-    a.sign(el)
+    for (const l of signsFor(el)) a.sign(l)
     if (shape !== QUICK) {
       a.stroke(shapePoints(shape), 1)
       setTimeout(() => a.drew(shape), 300)
@@ -270,7 +312,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
     async function start() {
       try {
-        const [rec, tracker, shapeModel] = await Promise.all([loadRecognizer(), getTracker(), loadShapeModel()])
+        const [rec, tracker, tracker2, shapeModel] = await Promise.all([loadRecognizer(), getTracker(1), getTracker(2), loadShapeModel()])
         if (stopped) return
         // Front camera, 60 fps where it offers it (see camera.ts).
         const cam = await openCamera()
@@ -309,7 +351,17 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         // After a throw your hand is often still in that letter's shape. It mustn't recharge you: the
         // letter has to be let go (another shape for a moment) before it can charge again.
         let release: { el: string; since: number | null; thrown: number } | null = null
+        let penUpU = false // a stroke just ended: a U hand is the pen-up, not Unholy, until the hand changes
+        let penUpOpen = false // a stroke just ended with an open hand: it doesn't drop the charge until the hand changes
+        let openHoldSince: number | null = null // open hand held while charged (drops the charge after CHARGE_MS)
+        let sentUncharge = 0
         let knockedSeen = 0
+        // Two hands: the drawing hand, tracked on its own.
+        const drawSmoother = new LandmarkSmoother()
+        let drawLast: { lm: NormalizedLandmark[]; t: number } | null = null
+        const roles: { sign: Wrist; draw: Wrist } = { sign: null, draw: null }
+        let penDown = false // two hands: the pen, as the signing hand set it
+        let penFlipSince: number | null = null // the signing hand has wanted the other pen state since then
 
         const finishStroke = (now: number) => {
           const pts = stroke
@@ -324,14 +376,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           if (palms < NOISE_STROKE_PALMS) return arena.current.cleared() // just settling the hand: not a drawing
           if (palms < MIN_STROKE_PALMS) {
             // A real attempt that came out too short: a fizzle like any failed drawing (lockout, charge
-            // kept), so a botched spell can't fall back to an instant quick interrupt.
+            // lost), so a botched spell can't fall back to an instant quick interrupt.
             arena.current.drew(null)
             fade = { pts, color: '#888', t: now }
             setLog((l) => [{ name: 'Fizzle', detail: 'Too short', color: '#888', ok: false, t: now }, ...l].slice(0, 8))
             return
           }
           const m = recognizeShape(shapeModel, pts)
-          const need = Object.values(SIGNATURE).includes(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
+          const need = STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
           const shape = m.score >= need && m.name !== 'none' ? m.name : null
           const el = fightRef.current.charge.player
           if (DEBUG) {
@@ -354,7 +406,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           // knows is logged here: why a stroke wasn't a spell shape.
           arena.current.drew(shape)
           const fits = shape && el && isValidSpell(el, shape)
-          fade = { pts, color: fits ? ELEMENTS[el].color : '#888', t: now }
+          fade = { pts, color: fits ? chargeInfo(el).color : '#888', t: now }
           if (!shape) log({ name: 'Fizzle', detail: m.name === 'none' ? 'Not a spell shape' : 'Shape unclear', color: '#888', ok: false, t: now })
         }
         const log = (c: Cast) => setLog((l) => [c, ...l].slice(0, 8))
@@ -365,8 +417,29 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           if (video.currentTime === lastVideoTime) return
           lastVideoTime = video.currentTime
           const now = performance.now()
-          const found = await tracker.detect(video, now)
+          const two = twoHandsRef.current
+          // Two hands: the signing hand is whichever one doesn't draw (the letter model reads it as that hand).
+          const signHand: Hand = two ? (drawHandRef.current === 'right' ? 'left' : 'right') : hand
+          let found: NormalizedLandmark[] | null
+          let drawFound: NormalizedLandmark[] | null = null
+          if (two) {
+            const all = await tracker2.detectAll(video, now)
+            const split = splitHands(all.image, signHand, roles)
+            found = split.sign
+            drawFound = split.draw
+            if (found) roles.sign = { x: found[0].x, y: found[0].y }
+            if (drawFound) roles.draw = { x: drawFound[0].x, y: drawFound[0].y }
+          } else found = await tracker.detect(video, now)
           if (stopped) return
+          let dLm: NormalizedLandmark[] | null = null
+          if (drawFound) {
+            dLm = drawSmoother.smooth(drawFound, now)
+            drawLast = { lm: dLm, t: now }
+          } else if (drawLast && now - drawLast.t < DROPOUT_MS) dLm = drawLast.lm
+          else {
+            drawLast = null
+            drawSmoother.reset()
+          }
 
           let lm: NormalizedLandmark[] | null = null
           if (found) {
@@ -399,6 +472,17 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             sizes = []
           }
           const myReady = view.ready.player
+          // Two hands: a stroke still under NOISE_STROKE_PALMS (a dot, a twitch) isn't a drawing yet. Until it
+          // is, the signing hand can still switch element or open to drop the charge (the dot is thrown
+          // away). Past that you're committed: only the open hand ends it (a spell or a fizzle).
+          const committed = stroke.length > 1 && pathLength(stroke) / (palmSum / stroke.length || 1) >= NOISE_STROKE_PALMS
+          const dropDot = () => {
+            if (!stroke.length) return
+            stroke = []
+            palmSum = 0
+            setDrawing(false)
+            arena.current.cleared()
+          }
           // Silenced (a counterspell landed on you): your charge, drawing and ready spell are gone,
           // and you can't charge or draw until it ends.
           const silenced = fightRef.current.running && fightRef.current.silenced.player > 0
@@ -424,17 +508,48 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
           // The letter model runs every frame: a confident L (index up, thumb out) is Lightning
           // being signed, never drawing, even if the geometry check alone would call it pointing.
-          const pred = shapeLm ? classify(rec, shapeLm, hand) : null
+          const pred = shapeLm ? classify(rec, shapeLm, signHand) : null
           const signingL = pred !== null && pred.letter === 'L' && pred.confidence >= L_VETO_PROB
-          const pointing = shapeLm && !silenced ? isPointing(shapeLm) && !signingL : false
-          // Ending a drawing by signing your charged letter again counts as a pen-up, like opening your hand.
+          // Mixing a combo (fewer than 2 elements in): pointing between letters (W to L) isn't drawing.
+          const mixing = myCharge === COMBO && view.mix.player.length < 2
+          // Two hands: the signing hand holding an element letter (or C) = pen down, open hand = pen up.
+          // Only while charged with nothing readied, and both hands in view.
           const signingCharge = pred !== null && !!myCharge && pred.letter === myCharge && pred.confidence >= CHARGE_PROB
+          if (two) {
+            const can = !!myCharge && !myReady && !silenced && !mixing
+            const holdingType = pred !== null && pred.confidence >= CHARGE_PROB && (!!ELEMENTS[pred.letter] || (pred.letter === COMBO && COMBOS_ON))
+            const signOpen = !!shapeLm && isOpen(shapeLm, false)
+            const want = can && (penDown ? !signOpen : holdingType && !signOpen)
+            if (!can) {
+              penDown = false
+              penFlipSince = null
+            } else if (!lm) penFlipSince = null // signing hand lost (fast move): the pen stays as it was
+            else if (want === penDown) penFlipSince = null
+            else if ((penFlipSince ??= now) && now - penFlipSince >= PEN_SWITCH_MS) {
+              penDown = want
+              penFlipSince = null
+            }
+          }
+          const pointing = silenced || mixing ? false : two ? penDown : !!shapeLm && isPointing(shapeLm) && !signingL
+          // The pen, in pixels: the index tip.
+          const penHand = two ? dLm : lm
+          const pen: Pt | null = penHand ? { x: penHand[8].x * W, y: penHand[8].y * H } : null
+          if (two && dLm && pen) {
+            drawer.drawConnectors(dLm, HandLandmarker.HAND_CONNECTIONS, { color: 'rgba(255,255,255,0.5)', lineWidth: 2 })
+            // Pen cursor: hollow while hovering, filled while drawing.
+            ctx.beginPath()
+            ctx.arc(pen.x, pen.y, 0.012 * W, 0, 2 * Math.PI)
+            ctx.lineWidth = 3
+            ctx.strokeStyle = ctx.fillStyle = myCharge ? chargeInfo(myCharge).color : '#ffffff'
+            if (pointing) ctx.fill()
+            else ctx.stroke()
+          }
           let letter = ''
           if (lm && pred) {
             // Fizzle lockout: the hand goes dim and grey until you can throw again.
             const dim = view.fizzled.player > 0
             if (dim) ctx.globalAlpha = 0.3
-            drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: dim ? '#888' : myCharge ? ELEMENTS[myCharge].color : '#e2b714', lineWidth: 3 })
+            drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: dim ? '#888' : myCharge ? chargeInfo(myCharge).color : '#e2b714', lineWidth: 3 })
             ctx.globalAlpha = 1
             if (dim) {
               // "Fizzled" over the palm. The canvas is mirrored on screen, so flip the text back.
@@ -453,14 +568,31 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               ctx.restore()
             }
             // Not while drawing, silenced or with a spell readied (the fight would refuse it anyway).
-            if (!pointing && stroke.length === 0 && !silenced && !myReady) {
+            // An open hand ("none") held CHARGE_MS while charged, nothing drawn: drop the charge. Not the
+            // open hand that just ended a stroke (that one has to change shape first).
+            const canSwitch = two ? !committed : !pointing && stroke.length === 0
+            const openHand = canSwitch && !!shapeLm && isOpen(shapeLm, false)
+            if (!openHand) penUpOpen = false
+            if (openHand && myCharge && !myReady && !penUpOpen && !silenced && view.running) {
+              openHoldSince ??= now
+              if (now - openHoldSince >= CHARGE_MS && now - sentUncharge > 300) {
+                dropDot()
+                arena.current.uncharge()
+                sentUncharge = now
+                predicted.current = null
+                holdLetter = null
+              }
+            } else openHoldSince = null
+            if (canSwitch && !silenced && !myReady) {
               // Not drawing: read the handshape as a letter, to charge an element.
               letter = pred.confidence >= CHARGE_PROB ? directionLetter(pred.letter, shapeLm) : ''
               if (letter && !passesGate(letter, shapeLm)) letter = '' // e.g. an open palm read as F
+              if (letter !== 'U') penUpU = false
+              else if (penUpU) letter = ''
               // An open "5" is no letter. Until the letter model has a "none" class it still picks its
               // closest letter (C, H, ...), so a full open hand never charges.
               if (letter && shapeLm && isOpen(shapeLm, false)) letter = ''
-              let el = ELEMENTS[letter] ? letter : null
+              let el = ELEMENTS[letter] || (letter === COMBO && COMBOS_ON) ? letter : null
               if (release) {
                 if (el === release.el) release.since = null
                 else if ((release.since ??= now) && now - release.since >= RELEASE_MS) release = null
@@ -475,18 +607,19 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               } else if (el && view.running && el !== myCharge && now - holdSince >= CHARGE_MS && (sentSign?.el !== el || now - sentSign.t > 300)) {
                 // Only in a fight (a running match, or the dummy): between matches and in lobbies
                 // nothing can be cast, so nothing charges and no guessed charge flashes up.
+                dropDot() // switching element: the dot drawn so far goes
                 arena.current.sign(el) // the fight decides (e.g. not right after a throw)
                 sentSign = { el, t: now }
-                if (!silenced) predicted.current = { el, t: now }
+                if (!silenced && myCharge !== COMBO) predicted.current = { el, t: now } // mixing a combo keeps the C charge
               }
             }
           }
 
           // Pen: the index fingertip, in pixels (so circles aren't squashed by the 16:9 frame).
-          if (lm && pointing) {
+          if (penHand && pen && pointing) {
             if (stroke.length === 0) setDrawing(true) // drawing with a spell readied drops it (the fight decides)
             release = null // pointing to draw is letting go of the thrown letter (else signing it again right after stays blocked)
-            stroke.push({ x: lm[8].x * W, y: lm[8].y * H })
+            stroke.push(pen)
             // For the opponent: the fingertip as a fraction of what YOU see (your camera cropped to fill
             // your window, mirrored), plus that view's shape. Their panel shows the same view filling it
             // the same way, so a circle stays round and edge to edge stays edge to edge on any screen.
@@ -495,8 +628,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             const k = Math.max(cw / W, ch / H) // object-fit: cover
             const vw = cw / k
             const vh = ch / k
-            arena.current.stroke([{ x: ((1 - lm[8].x) * W - (W - vw) / 2) / vw, y: (lm[8].y * H - (H - vh) / 2) / vh }], vw / vh)
-            palmSum += Math.hypot((lm[0].x - lm[9].x) * W, (lm[0].y - lm[9].y) * H)
+            arena.current.stroke([{ x: (W - pen.x - (W - vw) / 2) / vw, y: (pen.y - (H - vh) / 2) / vh }], vw / vh)
+            palmSum += Math.hypot((penHand[0].x - penHand[9].x) * W, (penHand[0].y - penHand[9].y) * H) 
             lastPointT = now
           }
           // Hand speed (palm-widths per second), from the smoothed wrist.
@@ -509,16 +642,29 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           } else prevWrist = null
           // The speed limit applies only when the pen-up starts (that's when blur fakes it); once
           // started it holds through a fast move, so pushing right away doesn't cancel it.
-          if (found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
+          if (!two && found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
           else openSince = null
-          if (found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge)) openFastSince ??= now
+          if (!two && found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge)) openFastSince ??= now
           else openFastSince = null
           const penUpStart = openSince ?? openFastSince
           const fastPenUp = openFastSince !== null && now - openFastSince >= FAST_PEN_UP_MS
-          if (stroke.length && !pointing && ((openSince !== null && now - openSince >= PEN_UP_HOLD_MS) || fastPenUp || now - lastPointT > LOST_GRACE_MS)) {
+          // Two hands: charge gone (open palm, knocked off, silenced) = the drawing is dropped, no fizzle.
+          if (two && stroke.length && !myCharge) {
+            stroke = []
+            palmSum = 0
+            setDrawing(false)
+            arena.current.cleared()
+          }
+          // Two hands: the signing hand opened (pen up), or the drawing hand has been gone TWO_LOST_MS.
+          const twoEnd = two && (!pointing || now - lastPointT > TWO_LOST_MS)
+          if (stroke.length && (twoEnd || (!two && !pointing && ((openSince !== null && now - openSince >= PEN_UP_HOLD_MS) || fastPenUp || now - lastPointT > LOST_GRACE_MS)))) {
             openSince = null
             openFastSince = null
             finishStroke(now)
+            // The hand that ended the stroke mustn't read as a letter (one hand) or drop the charge until it
+            // changes. Two hands: unless it was only a dot, then the open hand drops the charge as usual.
+            penUpU = !two
+            penUpOpen = !two || committed
             // A push that began with the pen-up still counts: keep hand sizes from that moment on.
             sizes = sizes.filter((x) => penUpStart !== null && x.t >= penUpStart)
           }
@@ -533,9 +679,12 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           // Push: the hand quickly grows on screen (moves toward the camera). Reported only with something
           // to throw (a readied spell, or a counter element for a quick interrupt) and no stroke in
           // progress, so drawing never throws by accident. The fight decides what it throws, if anything.
-          if ((myReady || (myCharge && myCharge in BEATS)) && sizes.length > 1 && stroke.length === 0 && !pointing) {
+          // Two hands: holding the letter already puts the pen down, so a push still counts while the line is
+          // only a dot (the dot is thrown away). That's the quick interrupt: sign, then push before you draw.
+          if ((myReady || (myCharge && canQuick(myCharge))) && sizes.length > 1 && (two ? !committed : stroke.length === 0 && !pointing)) {
             const s = sizes[sizes.length - 1].s
             if (s / Math.min(...sizes.map((x) => x.s)) >= PUSH_GROWTH) {
+              dropDot()
               arena.current.push()
               if (myCharge) release = { el: myCharge, since: null, thrown: now }
               predicted.current = null
@@ -549,8 +698,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               const cx = ((lm[0].x + lm[9].x) / 2) * W
               const cy = ((lm[0].y + lm[9].y) / 2) * H
               ctx.globalAlpha = 0.35 + 0.25 * Math.sin(now / 120)
-              ctx.fillStyle = ELEMENTS[myReady.el].color
-              ctx.shadowColor = ELEMENTS[myReady.el].color
+              ctx.fillStyle = chargeInfo(myReady.el).color
+              ctx.shadowColor = chargeInfo(myReady.el).color
               ctx.shadowBlur = 40
               ctx.beginPath()
               ctx.arc(cx, cy, 0.08 * W, 0, 2 * Math.PI)
@@ -587,7 +736,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             ctx.shadowBlur = 0
             ctx.globalAlpha = 1
           }
-          trail(stroke, myCharge ? ELEMENTS[myCharge].color : '#ffffff', 0.9)
+          trail(stroke, myCharge ? chargeInfo(myCharge).color : '#ffffff', 0.9)
           if (fade) {
             const a = 1 - (now - fade.t) / 1200
             if (a <= 0) fade = null
@@ -596,7 +745,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
           if (now - lastUi > 100) {
             lastUi = now
-            setSeeing(pointing ? 'pointing (drawing)' : letter || '–')
+            setSeeing(pointing ? 'drawing' : letter || '–')
           }
         }
         loop()
@@ -621,9 +770,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         {fight.chill[side] > 0 && <span className="tag chill">chilled +{fight.chill[side]}</span>}
       </div>
       <div className="hp-bar">
-        <div className="hp-fill" style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: side === 'player' ? 'var(--you)' : 'var(--foe)' }} />
+        <div
+          className="hp-fill"
+          style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: fight.shield[side] > 0 ? 'var(--armor-hp)' : side === 'player' ? 'var(--you)' : 'var(--foe)' }}
+        />
+        <ArmorBar hp={fight.hp[side]} max={fight.maxHp[side]} armor={fight.shield[side]} />
         <span className="hp-text">
           {fight.maxHp[side] === Infinity ? '∞' : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
+          {fight.shield[side] > 0 && <b className="armor-text">+{fight.shield[side]}</b>}
         </span>
         <SilenceLock ms={fight.running ? fight.silenced[side] : 0} />
         {fight.floats
@@ -657,8 +811,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           </button>
           {camInfo && <span>camera {camInfo.width}×{camInfo.height} @ {camInfo.fps} fps</span>}
           debug cast:
-          {['F', 'I', 'L', 'E', 'W', 'H'].map((el) =>
-            [...shapesFor(el), ...(el in BEATS ? [COUNTER, QUICK] : [])].map((shape) => (
+          {['F', 'I', 'L', 'E', 'W', 'H', 'U', ...(COMBOS_ON ? Object.keys(COMBO_SHAPE) : [])].map((el) =>
+            [...shapesFor(el), ...(el in BEATS ? [COUNTER] : []), ...(canQuick(el) ? [QUICK] : [])].map((shape) => (
               <button key={el + shape} className="small" onClick={() => debugCast(el, shape)}>
                 {el} {shape}
               </button>
@@ -676,8 +830,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <div className="side-hud">
             {fighterHead('player')}
             <div className="status-strip">
-              <span className="charge" style={{ color: charge ? ELEMENTS[charge].color : undefined }}>
-                {charge ? `${ELEMENTS[charge].name} charged` : 'no charge'}
+              <span className="charge" style={{ color: charge ? chargeInfo(charge).color : undefined }}>
+                {chargeLabel(charge, fight.mix.player)}
               </span>
               <span className="sub-line">
                 {fight.running && fight.silenced.player > 0
@@ -702,7 +856,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         </div>
 
         <div className="duel-side opp" ref={oppRef}>
-          <EnemyCanvas cast={fight.running ? fight.enemyCast : null} />
+          <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />
           <div className="side-hud">
             {fighterHead('enemy')}
             {mode !== 'dummy' && mode !== 'tutorial' && <OppStatus fight={fight} />}
@@ -762,10 +916,20 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               </button>
             )}
             {mode !== 'tutorial' && <button onClick={() => setMenu('help')}>How to cast</button>}
-            <button onClick={toggleEasyPen}>Easy pen-up: {easyPen ? 'on' : 'off'}</button>
+            <button onClick={toggleTwoHands}>Two hands: {twoHands ? 'on' : 'off'}</button>
             <small className="menu-hint">
-              {easyPen ? 'Raising any second finger finishes a drawing.' : 'Open your whole hand to finish a drawing. Turn on if that’s hard.'}
+              {twoHands ? `Your ${drawHand} hand draws with its index tip. Your ${drawHand === 'right' ? 'left' : 'right'} hand signs.` : 'One hand signs and points to draw.'}
             </small>
+            {twoHands && <button onClick={swapDrawHand}>Draw with: {drawHand === 'right' ? 'Right hand' : 'Left hand'}</button>}
+            {twoHands && <small className="menu-hint">Hold your letter to draw. Open your hand to finish, then push.</small>}
+            {!twoHands && (
+              <>
+                <button onClick={toggleEasyPen}>Easy pen-up: {easyPen ? 'on' : 'off'}</button>
+                <small className="menu-hint">
+                  {easyPen ? 'Raising any second finger finishes a drawing.' : 'Open your whole hand to finish a drawing. Turn on if that’s hard.'}
+                </small>
+              </>
+            )}
             <button onClick={() => (inRoom || inPracticeMatch ? setMenu('leave') : goHome())}>Home</button>
             <VolumeSlider />
           </div>
@@ -796,77 +960,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                 Back
               </button>
             </div>
-            <div className="spell-help">
-              <b>1. Charge</b> — sign an element letter and hold:
-              <ul>
-                {Object.entries(ELEMENTS).map(([l, e]) => (
-                  <li key={l} style={{ color: e.color }}>
-                    <img className="asl-mini" src={`/asl/${l}.svg`} alt={`ASL ${l}`} /> {l} = {e.name}
-                  </li>
-                ))}
-              </ul>
-              <b>2. Draw</b> — point your index finger up (thumb tucked, finger visible) and trace a shape. Open your hand, all five fingers up, to finish. (With Easy pen-up on in the Esc menu, any second finger up finishes it.)
-              <div className="guide-sub">Attacks + counterspell (every element)</div>
-              <div className="shape-guide">
-                {[...PUNCHES, COUNTER].map((sh) => [sh, FORMS[sh]]).map(([sh, fm]) => (
-                  <div key={sh} className="shape-card">
-                    <svg viewBox="0 0 40 40" width="48" height="48" aria-hidden>
-                      <path d={SHAPE_PATHS[sh]} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx={SHAPE_STARTS[sh][0]} cy={SHAPE_STARTS[sh][1]} r="3" fill="var(--main)" />
-                    </svg>
-                    <span>{fm}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="guide-sub">Signatures (harder, stronger)</div>
-              <div className="shape-guide">
-                {Object.entries(SIGNATURE).map(([el, sh]) => (
-                  <div key={sh} className="shape-card" style={{ color: ELEMENTS[el].color }}>
-                    <svg viewBox="0 0 40 40" width="48" height="48" aria-hidden>
-                      <path d={SHAPE_PATHS[sh]} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx={SHAPE_STARTS[sh][0]} cy={SHAPE_STARTS[sh][1]} r="3" fill="var(--main)" />
-                    </svg>
-                    <span>{FORMS[sh]}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="guide-sub">Heal (H)</div>
-              <div className="shape-guide">
-                {['star', 'hourglass'].map((sh) => (
-                  <div key={sh} className="shape-card" style={{ color: ELEMENTS.H.color }}>
-                    <svg viewBox="0 0 40 40" width="48" height="48" aria-hidden>
-                      <path d={SHAPE_PATHS[sh]} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx={SHAPE_STARTS[sh][0]} cy={SHAPE_STARTS[sh][1]} r="3" fill="var(--main)" />
-                    </svg>
-                    <span>{FORMS[sh]}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="shape-note">yellow dot = a place to start (any start or direction works)</div>
-              <div className="guide-sub">What each element's attacks do</div>
-              <ul>
-                {Object.entries(TRAITS).map(([el, t]) => (
-                  <li key={el} style={{ color: ELEMENTS[el].color }}>
-                    {ELEMENTS[el].name}: {t}
-                  </li>
-                ))}
-              </ul>
-              <b>3. Throw</b> — push your hand toward the camera.
-              <p>
-                <b>Counter cycle</b> — Water → Fire → Ice → Earth → Lightning → Water (each beats the next).
-              </p>
-              <p>
-                <b>Counterspell</b> — sign an element, draw a <b>circle</b>, push. If your opponent is still charged with the element
-                yours beats when it lands, they're silenced for 2 s and lose their charge. Otherwise it's wasted. They can see the
-                circle coming, so throwing first or switching elements dodges it. A counterspell of <b>any</b> element also stops a
-                heal (a Heal charge, or a regen still ticking).
-              </p>
-              <p>
-                <b>Interrupt</b> — sign the element that beats theirs and just push, no drawing. Faster to land but weaker: 0.5 s
-                silence. It can't stop heals.
-              </p>
-              <p className="shape-note">Fast strokes are fine — just keep your hand in view. A charge fades after 3 s if you don't draw.</p>
-            </div>
+            <CastGuide />
           </div>
         </div>
       )}
@@ -891,15 +985,49 @@ function EnemyCanvas({ cast }: { cast: Snapshot['enemyCast'] }) {
   )
 }
 
+/** Aegis armor on the health bar: blue after your health; whatever doesn't fit wraps back in from the left. */
+function ArmorBar({ hp, max, armor }: { hp: number; max: number; armor: number }) {
+  if (armor <= 0) return null
+  const m = max === Infinity ? 100 : max
+  const start = max === Infinity ? 0 : Math.min(hp, m)
+  const end = Math.min(m, start + armor)
+  const over = start + armor - m // overflow, wrapped from the left
+  return (
+    <>
+      <div className="armor-fill" style={{ left: `${(100 * start) / m}%`, width: `${(100 * (end - start)) / m}%` }} />
+      {over > 0 && <div className="armor-fill over" style={{ left: 0, width: `${(100 * Math.min(over, m)) / m}%` }} />}
+    </>
+  )
+}
+
+/** A charge as text: a combo lists what's mixed in so far. */
+function chargeLabel(el: string | null, mix: string[]) {
+  if (!el) return 'no charge'
+  const mixed = mix.map((e) => ELEMENTS[e].name).join(' + ')
+  if (el === COMBO) return mixed ? `Charging combo: ${mixed}` : 'Charging combo'
+  return mixed ? `${chargeInfo(el).name} charged (${mixed})` : `${chargeInfo(el).name} charged`
+}
+
 /** What the opponent is doing, as text (same style as your own charge line). */
 function OppStatus({ fight }: { fight: Snapshot }) {
   const c = fight.enemyCast
   const silenced = fight.running && fight.silenced.enemy > 0
-  const elName = c ? ELEMENTS[c.el]?.name : null
+  // The fight's view shows a combo's mix as it grows.
+  const el = fight.charge.enemy ?? (c && c.el !== '?' ? c.el : null)
+  if (fight.shroud.enemy > 0 && !silenced)
+    // Shroud: you can't see what they're charging or drawing.
+    return (
+      <div className="status-strip">
+        <span className="charge" style={{ color: ELEMENTS.U.color }}>
+          Shrouded
+        </span>
+        <span className="sub-line">can't see their spell</span>
+      </div>
+    )
   return (
     <div className="status-strip">
-      <span className="charge" style={{ color: c && elName ? c.color : undefined }}>
-        {elName ? `${elName} charged` : 'no charge'}
+      <span className="charge" style={{ color: el ? chargeInfo(el).color : undefined }}>
+        {chargeLabel(el, fight.mix.enemy)}
       </span>
       <span className="sub-line">{silenced ? 'Silenced!' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
     </div>

@@ -7,7 +7,8 @@ export const ELEMENTS: Record<string, { name: string; color: string }> = {
   W: { name: 'Water', color: '#3d8bff' },
   E: { name: 'Earth', color: '#b58a4c' },
   L: { name: 'Lightning', color: '#ffe14d' },
-  H: { name: 'Heal', color: '#6be38a' }, // not part of the counter cycle
+  H: { name: 'Holy', color: '#6be38a' }, // heals and buffs; Holy and Unholy counter each other
+  U: { name: 'Unholy', color: '#a05cd6' }, // curses and debuffs
 }
 
 /** One-line identity of each element's punches (shown in the guide). */
@@ -20,21 +21,54 @@ export const TRAITS: Record<string, string> = {
 }
 
 /** Counter cycle: each element beats the next. Used by counterspells. */
-export const BEATS: Record<string, string> = { W: 'F', F: 'I', I: 'E', E: 'L', L: 'W' }
+export const BEATS: Record<string, string> = { W: 'F', F: 'I', I: 'E', E: 'L', L: 'W', H: 'U', U: 'H' }
 export const beats = (a: string, b: string) => BEATS[a] === b
 
 /** The counterspell's shape: a circle, with any element in the counter cycle. */
 export const COUNTER = 'circle'
 /** The quick interrupt: charge the matching element and push, no drawing. Weaker, faster. */
 export const QUICK = 'jab'
+/** Holy only has the full counterspell, no quick interrupt. */
+export const canQuick = (el: string) => el in BEATS && el !== 'H'
 
 /** Shared attacks (same drawing for every element): light (a line) and heavy (a W). */
 export const PUNCHES = ['line', 'w']
 /** Each element's signature move: a unique, harder drawing. */
 export const SIGNATURE: Record<string, string> = { F: 'flame', I: 'cage', L: 'zigzag7', E: 'battlements', W: 'spiral' }
-const HEAL_SHAPES = ['star', 'hourglass']
+/** Holy: heals plus buffs. Unholy: curses. All signature-level drawings (no lines or Ws). */
+export const HOLY_SHAPES = ['star', 'hourglass', 'aegis'] // Mirror removed for now (code kept)
+export const UNHOLY_SHAPES = ['scythe', 'veil', 'blade']
 
-export const shapesFor = (el: string) => (el === 'H' ? HEAL_SHAPES : [...PUNCHES, SIGNATURE[el]])
+// ---- Combos: sign C, then the elements to mix. Starting to draw locks the mix into its combo charge.
+/** Combos are switched off until their design is settled (signing C does nothing; hidden everywhere). */
+export const COMBOS_ON = false
+export const COMBO = 'C'
+export const COMBO_INFO = { name: 'Combo', color: '#d9d9d9' }
+/** Mixed elements (sorted letters) -> combo charge. */
+export const COMBOS: Record<string, string> = { EF: 'magma', LW: 'storm', IW: 'blizzard', HU: 'twilight' } // Steam (FW) removed for now
+export const COMBO_CHARGES: Record<string, { name: string; color: string }> = {
+  magma: { name: 'Magma', color: '#ff8a1f' },
+  storm: { name: 'Storm', color: '#7f9cff' },
+  blizzard: { name: 'Blizzard', color: '#d4f1ff' },
+  twilight: { name: 'Twilight', color: '#c8a2ff' },
+}
+/** Each combo's one drawing (its signature). */
+export const COMBO_SHAPE: Record<string, string> = { magma: 'volcano', storm: 'cloud', blizzard: 'trefoil', twilight: 'yinyang' }
+/** The letters each combo mixes, in guide order. */
+export const COMBO_MIX: Record<string, string[]> = { magma: ['F', 'E'], storm: ['W', 'L'], blizzard: ['I', 'W'], twilight: ['H', 'U'] }
+/** Elements that can go into a combo. */
+export const MIXABLE = ['F', 'I', 'W', 'E', 'L', 'H', 'U']
+/** The letters to sign for a charge: a combo is C, then its two elements. */
+export const signsFor = (el: string) => (el in COMBO_MIX ? [COMBO, ...COMBO_MIX[el]] : [el])
+export const comboOf = (mix: string[]) => COMBOS[[...mix].sort().join('')] ?? null
+/** Name and color of any charge: an element, the combo being mixed, or a locked combo. */
+export const chargeInfo = (el: string) => ELEMENTS[el] ?? COMBO_CHARGES[el] ?? COMBO_INFO
+
+export const shapesFor = (el: string) =>
+  el === 'H' ? HOLY_SHAPES : el === 'U' ? UNHOLY_SHAPES : el in COMBO_CHARGES ? [COMBO_SHAPE[el]] : el in ELEMENTS ? [...PUNCHES, SIGNATURE[el]] : []
+
+/** Shapes held to the stricter signature threshold when recognized. */
+export const STRICT_SHAPES = new Set([...Object.values(SIGNATURE), 'aegis', 'mirror', ...UNHOLY_SHAPES, ...Object.values(COMBO_SHAPE)])
 
 /** Short labels for the guide. */
 export const FORMS: Record<string, string> = {
@@ -49,11 +83,23 @@ export const FORMS: Record<string, string> = {
   spiral: 'Tidal Wave',
   circle: 'Counterspell',
   jab: 'Interrupt',
+  aegis: 'Aegis',
+  mirror: 'Mirror',
+  scythe: 'Doom',
+  veil: 'Shroud',
+  blade: 'Execute',
+  volcano: 'Magma',
+  cloud: 'Storm',
+  trefoil: 'Blizzard',
+  yinyang: 'Twilight',
 }
 
 export const isValidSpell = (el: unknown, shape: unknown): boolean => {
-  if (typeof el !== 'string' || typeof shape !== 'string' || !(el in ELEMENTS)) return false
-  if (shape === COUNTER || shape === QUICK) return el in BEATS
+  if (typeof el !== 'string' || typeof shape !== 'string') return false
+  if (el in COMBO_CHARGES) return COMBO_SHAPE[el] === shape
+  if (!(el in ELEMENTS)) return false
+  if (shape === COUNTER) return el in BEATS
+  if (shape === QUICK) return canQuick(el)
   return shapesFor(el).includes(shape)
 }
 
@@ -63,8 +109,11 @@ const NAMES: Record<string, Record<string, string>> = {
   W: { line: 'Water', w: 'Heavy Water', spiral: 'Tidal Wave' },
   E: { line: 'Earth', w: 'Heavy Earth', battlements: 'Earthquake' },
   L: { line: 'Lightning', w: 'Heavy Lightning', zigzag7: 'Thunderbolt' },
-  H: { star: 'Heal', hourglass: 'Regenerate' },
+  H: { star: 'Heal', hourglass: 'Regenerate', aegis: 'Aegis', mirror: 'Mirror' },
+  U: { scythe: 'Doom', veil: 'Shroud', blade: 'Execute' },
 }
 
 export const spellName = (el: string, shape: string) =>
-  shape === COUNTER ? `${ELEMENTS[el].name} Counterspell` : shape === QUICK ? `${ELEMENTS[el].name} Interrupt` : NAMES[el]?.[shape] ?? `${ELEMENTS[el].name} ${FORMS[shape] ?? shape}`
+  el in COMBO_CHARGES
+    ? COMBO_CHARGES[el].name
+    : shape === COUNTER ? `${ELEMENTS[el].name} Counterspell` : shape === QUICK ? `${ELEMENTS[el].name} Interrupt` : NAMES[el]?.[shape] ?? `${ELEMENTS[el].name} ${FORMS[shape] ?? shape}`

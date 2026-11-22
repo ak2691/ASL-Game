@@ -153,24 +153,6 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
 
 // ---- Example paths (guide drawing + the AI's drawing), y down, any box ---------------------
 
-/** Meteor: 4 sharp peaks across the top, then a round bowl back to the start. */
-export function flamePoints(): Pt[] {
-  const top: Pt[] = [{ x: 0, y: 0.5 }]
-  for (let i = 0; i < 4; i++) {
-    top.push({ x: (i + 0.5) / 4, y: i % 2 ? 0.05 : 0 })
-    if (i < 3) top.push({ x: (i + 1) / 4, y: 0.35 })
-  }
-  top.push({ x: 1, y: 0.5 })
-  const pts: Pt[] = []
-  for (let i = 1; i < top.length; i++)
-    for (let k = 0; k < 8; k++) pts.push({ x: top[i - 1].x + ((top[i].x - top[i - 1].x) * k) / 8, y: top[i - 1].y + ((top[i].y - top[i - 1].y) * k) / 8 })
-  for (let k = 0; k <= 30; k++) {
-    const t = (k / 30) * Math.PI
-    pts.push({ x: 0.5 + 0.5 * Math.cos(t), y: 0.5 + 0.6 * Math.sin(t) })
-  }
-  return pts
-}
-
 /** Tidal Wave: a 3-turn spiral, from the middle out. */
 export function spiralPoints(): Pt[] {
   const pts: Pt[] = []

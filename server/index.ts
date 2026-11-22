@@ -255,12 +255,16 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
   switch (msg.t) {
     case 'sign': {
       const el = typeof msg.el === 'string' ? msg.el.slice(0, 1) : ''
-      if (room.combat.sign(side, el, now)) relay(room, seat, { kind: 'charge', el })
+      if (room.combat.sign(side, el, now)) relay(room, seat, { kind: 'charge', el: room.combat.chargeOf(side) })
       return sendState(room) // even a refusal: it corrects the player's own early display
     }
     case 'stroke':
       if (!Array.isArray(msg.pts)) return
-      if (room.combat.drawing(side, now)) sendState(room) // a redraw dropped their readied spell
+      if (room.combat.drawing(side, now)) {
+        // A redraw dropped their readied spell, or a combo locked in.
+        relay(room, seat, { kind: 'charge', el: room.combat.chargeOf(side) })
+        sendState(room)
+      }
       return relay(room, seat, {
         kind: 'stroke',
         a: Math.min(4, Math.max(0.25, Number(msg.a) || 16 / 9)), // their visible view's width / height
@@ -271,6 +275,9 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       relay(room, seat, r ? { kind: 'readied', el: r.el, shape: r.shape } : { kind: 'cleared' })
       return sendState(room)
     }
+    case 'uncharge':
+      if (room.combat.uncharge(side)) relay(room, seat, { kind: 'charge', el: null })
+      return sendState(room)
     case 'cleared':
       room.combat.strokeCancelled(side)
       return relay(room, seat, { kind: 'cleared' })

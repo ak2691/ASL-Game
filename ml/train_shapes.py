@@ -1,6 +1,6 @@
 """Train the spell-shape network on synthetic drawings (synth_shapes.py).
 
-Model: 326 -> 192 -> 64 -> 10 MLP (same JSON layer format as letters.json).
+Model: 326 -> 256 -> 96 -> 19 MLP (same JSON layer format as letters.json).
 Usage:  .venv/Scripts/python train_shapes.py
 Output: ../apps/web/public/models/shapes.json
 """
@@ -24,9 +24,9 @@ Xte, Yte = dataset(400, seed=999, none_mult=5)
 print(Xtr.shape, Xte.shape)
 
 model = nn.Sequential(
-    nn.Linear(N_FEATURES, 192), nn.ReLU(), nn.Dropout(0.2),
-    nn.Linear(192, 64), nn.ReLU(), nn.Dropout(0.1),
-    nn.Linear(64, len(CLASSES)),
+    nn.Linear(N_FEATURES, 256), nn.ReLU(), nn.Dropout(0.2),
+    nn.Linear(256, 96), nn.ReLU(), nn.Dropout(0.1),
+    nn.Linear(96, len(CLASSES)),
 )
 xt, yt = torch.tensor(Xtr), torch.tensor(Ytr, dtype=torch.long)
 counts = np.bincount(Ytr, minlength=len(CLASSES))

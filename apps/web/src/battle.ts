@@ -1,8 +1,9 @@
 // Arenas: what the Spells page fights in. Practice = an AI enemy in the browser; online = a real
 // opponent through the server (online.ts). Both give the page the same Snapshot to draw.
 import { Combat, FIZZLE_LOCK_MS, MAX_HP, type CombatView } from './combat'
-import { BEATS, COUNTER, ELEMENTS, QUICK, SIGNATURE, spellName } from './spells'
-import { flamePoints, spiralPoints } from './shapes'
+import { BEATS, canQuick, chargeInfo, COMBOS_ON, COMBO_SHAPE, COUNTER, QUICK, SIGNATURE, signsFor, spellName } from './spells'
+import { samplePath } from './shapePaths'
+import { spiralPoints } from './shapes'
 
 export type { Side } from './combat'
 
@@ -38,6 +39,7 @@ export interface Arena {
   drew(shape: string | null): void // a finished stroke, as recognized (null = not a spell shape)
   cleared(): void // a stroke too short to count
   push(): void // a push toward the camera
+  uncharge(): void // an open hand held while charged, nothing drawn: drop the charge
 }
 
 // ---- Practice: AI enemy --------------------------------------------------------------------
@@ -66,14 +68,16 @@ interface AiStyle {
   dodge: number // chance it abandons its unfinished spell when you're set to counter it (once per spell)
   healPunish: boolean // a second heal soon after the first: sometimes it ignores the heal and hits you hard instead
   drop: number // chance it abandons its own half-drawn spell to counter you (else it finishes, then counters)
+  utility: number // chance a cast is a Holy buff, an Unholy curse or a combo (when one fits)
+  smart: number // 0..1: how far it leans on Holy/Unholy tactics (Aegis vs your wind-ups, Shroud setups, armor play, blind guesses)
 }
 // Each level is faster and thinks quicker; hard and insane punish a silence, read your habits,
 // and sometimes drop their own half-drawn spell to counter you.
 export const AI: Record<Difficulty, AiStyle> = {
-  easy: { every: 2000, speed: 0.9, ramp: false, healBelow: 0.25, react: 0, reactMs: [1100, 1500], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.5, stun: 0.3, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0 },
-  medium: { every: 1200, speed: 0.7, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [750, 1050], circle: 0.45, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.85, stun: 0.4, read: 0.5, heal: 0.65, dodge: 0, healPunish: false, drop: 0.1 },
-  hard: { every: 800, speed: 0.6, ramp: true, healBelow: 0.4, react: 0.58, reactMs: [550, 850], circle: 0.5, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.9, stun: 0.5, read: 0.6, heal: 0.8, dodge: 0.2, healPunish: false, drop: 0.2 },
-  insane: { every: 600, speed: 0.45, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [450, 700], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.9, stun: 0.6, read: 1, heal: 0.9, dodge: 0.4, healPunish: true, drop: 0.4 },
+  easy: { every: 2500, speed: 1.13, ramp: false, healBelow: 0.25, react: 0, reactMs: [1375, 1875], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.38, stun: 0.23, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15 },
+  medium: { every: 1320, speed: 0.77, ramp: true, healBelow: 0.35, react: 0.32, reactMs: [825, 1155], circle: 0.41, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.77, stun: 0.36, read: 0.45, heal: 0.59, dodge: 0, healPunish: false, drop: 0.09, utility: 0.15, smart: 0.5 },
+  hard: { every: 880, speed: 0.66, ramp: true, healBelow: 0.4, react: 0.52, reactMs: [605, 935], circle: 0.45, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.81, stun: 0.45, read: 0.54, heal: 0.72, dodge: 0.18, healPunish: false, drop: 0.18, utility: 0.22, smart: 0.75 },
+  insane: { every: 660, speed: 0.5, ramp: true, healBelow: 0.4, react: 0.54, reactMs: [495, 770], circle: 0.54, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.81, stun: 0.54, read: 0.9, heal: 0.81, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.28, smart: 1 },
 }
 const ENEMY_JITTER = 0.2 // +/- share of the gap between casts
 const CHARGE_MS = 700
@@ -90,13 +94,22 @@ const DRAW_MS: Record<string, number> = {
   w: 1700,
   star: 1800,
   hourglass: 1800,
-  flame: 2200,
+  flame: 2500,
   cage: 2000,
   zigzag7: 2200,
   battlements: 2400,
   spiral: 2200,
   circle: 700,
   jab: 0,
+  aegis: 2000,
+  mirror: 1800,
+  scythe: 1800,
+  veil: 2000,
+  blade: 2400,
+  volcano: 2300,
+  cloud: 2400,
+  trefoil: 2100,
+  yinyang: 2300,
 }
 const ENEMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L']
 // What it attacks with (weights). Same rules as the player, so reading the shape tells you what's coming.
@@ -140,13 +153,13 @@ const SHAPE_CORNERS: Record<string, [number, number][]> = {
 /** The shape's path in drawing order, fitted into the 0..1 box (keeping its proportions). */
 function rawShape(shape: string): Pt01[] {
   if (shape === 'spiral') return spiralPoints()
-  if (shape === 'flame') return flamePoints()
   if (shape === 'circle') {
     const pts: Pt01[] = []
     for (let i = 0; i <= 48; i++) pts.push({ x: Math.cos(-Math.PI / 2 + (2 * Math.PI * i) / 48), y: Math.sin(-Math.PI / 2 + (2 * Math.PI * i) / 48) })
     return pts
   }
   const c = SHAPE_CORNERS[shape]
+  if (!c) return samplePath(shape) // Holy, Unholy and combo shapes: along their guide path
   const pts: Pt01[] = []
   for (let i = 1; i < c.length; i++)
     for (let k = 0; k < 16; k++) {
@@ -184,10 +197,18 @@ function spellOf(el: string, shape: string, speed: number, chargeMs = CHARGE_MS 
   const drawMs = DRAW_MS[shape] * speed
   // Placed like a player's drawing on a 16:9 camera frame: centered, kept square, 75% of the height.
   const points = shape === 'jab' ? [] : shapePoints(shape).map((p) => ({ x: 0.5 + (p.x - 0.5) * 0.75 * (9 / 16), y: 0.5 + (p.y - 0.5) * 0.75 }))
-  return { el, shape, name: spellName(el, shape), color: ELEMENTS[el].color, points, chargeMs, drawMs, readyMs: shape === 'jab' ? 0 : READY_MS * speed }
+  return { el, shape, name: spellName(el, shape), color: chargeInfo(el).color, points, chargeMs, drawMs, readyMs: shape === 'jab' ? 0 : READY_MS * speed }
 }
 
-type EnemyCast = ReturnType<typeof spellOf> & { start: number; ends: number; counter?: boolean; dodgeRolled?: boolean }
+type EnemyCast = ReturnType<typeof spellOf> & {
+  start: number
+  ends: number
+  counter?: boolean
+  dodgeRolled?: boolean
+  signs?: { at: number; el: string }[] // a combo's mix, signed one letter at a time while charging
+}
+/** Spells that hit directly (a Mirror would send them back). */
+const isDirect = (el: string, shape: string) => el !== 'H' && shape !== 'scythe' && shape !== 'veil' && shape !== COUNTER && shape !== QUICK
 
 export class PracticeArena implements Arena {
   private combat = new Combat()
@@ -197,7 +218,9 @@ export class PracticeArena implements Arena {
   private started = 0
   private style = AI.easy
   private lastHeal = -Infinity
-  private playerCharge: { el: string; since: number; rollAt: number } | null = null
+  private playerCharge: { el: string; since: number; rollAt: number; aegisRolled?: boolean; blindRolled?: boolean } | null = null
+  private followBig = false // its Shroud just landed: the next spell leans big (you can't see it coming)
+  private waitedArmor = 0 // when it last held back to let your armor drain (insane)
   private reactAt: number | null = null // when it will start a counter against your charge
   private reactTo = ''
   private spam = false // the planned counter is against a spammed element
@@ -234,6 +257,8 @@ export class PracticeArena implements Arena {
     this.baitCheck = null
     this.unanswered = 0
     this.castTimes = []
+    this.followBig = false
+    this.waitedArmor = 0
   }
 
   /** End the match early (no winner). */
@@ -257,6 +282,9 @@ export class PracticeArena implements Arena {
   cleared() {
     this.playerStrokeAt = null
     this.combat.strokeCancelled('player')
+  }
+  uncharge() {
+    this.combat.uncharge('player')
   }
   push() {
     const now = performance.now()
@@ -296,6 +324,18 @@ export class PracticeArena implements Arena {
       this.lastHeal = now
       return spellOf('H', hpShare < s.healBelow / 2 ? 'star' : 'hourglass', sp)
     }
+    const util = this.utilitySpell(v, sp)
+    if (util) return util
+    // Its Shroud is up: you can't see this one coming, so it goes big (not on easy).
+    if (this.followBig) {
+      this.followBig = false
+      if (v.shroud.enemy > 0 && s.smart > 0.3 && Math.random() < lerp(0.3, 0.9, s.smart)) {
+        const el = ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)]
+        return spellOf(el, SIGNATURE[el], sp)
+      }
+    }
+    // Your armor is up: quick light hits wear it down faster than waiting on a big spell.
+    if (v.shield.player > 0 && Math.random() < lerp(0.1, 0.6, s.smart)) return spellOf(ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)], 'line', sp)
     // You're repeating yourself and getting away with it: throw something that stuns you or knocks
     // your charge off (more likely vs light attacks, which are too quick to counter).
     const repeating = predict(this.moves) !== null || predict(this.history) !== null
@@ -311,10 +351,48 @@ export class PracticeArena implements Arena {
     return spellOf(el, shape === 'signature' ? SIGNATURE[el] : shape, sp)
   }
 
+  /** Holy buffs, Unholy curses and combos, when one fits the moment. */
+  private utilitySpell(v: CombatView, sp: number) {
+    const s = this.style
+    if (v.doom.enemy > 0) return spellOf(ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)], 'line', sp) // doomed: throw anything, fast
+    if (Math.random() >= s.utility) return null
+    const low = v.hp.player / v.maxHp.player < 0.4
+    const armored = v.shield.player > 0
+    const opts: { w: number; v: [string, string] }[] = [
+      // Execute: saved for when you're low and your armor is gone (armor would soak it).
+      { w: armored ? lerp(0.5, 0, s.smart) : low ? 4 : 0.5, v: ['U', 'blade'] },
+      // Doom: its 30 lands as a direct hit, which armor can't stop from being a threat: better vs armor.
+      { w: armored ? lerp(1, 4, s.smart) : 1, v: ['U', 'scythe'] },
+      { w: v.shroud.enemy > 0 ? 0 : 1, v: ['U', 'veil'] },
+      { w: v.shield.enemy > 0 ? 0 : 1, v: ['H', 'aegis'] },
+    ]
+    if (s !== AI.easy && COMBOS_ON)
+      for (const c of Object.keys(COMBO_SHAPE)) opts.push({ w: c === 'twilight' ? (v.shield.player > 0 || v.mirror.player > 0 ? 3 : 0.5) : 0.8, v: [c, COMBO_SHAPE[c]] })
+    const [el, shape] = pick(opts)
+    return spellOf(el, shape, sp)
+  }
+
   /** Medium/hard: sometimes it notices your charge and counters it (if you're still charged). */
   private react(now: number) {
     const s = this.style
     const pc = this.playerCharge
+    if (this.combat.view(now).shroud.player > 0) {
+      // Shrouded: it can't see what you're charging. Once per charge it guesses: a counterspell of a
+      // random element, or rushing its own spell out first.
+      if (pc && !pc.blindRolled) {
+        pc.blindRolled = true
+        const r = Math.random()
+        const e = this.enemy
+        const busy = !!e && (e.counter || now - e.start >= e.chargeMs)
+        if (!busy && r < lerp(0.05, 0.3, s.smart)) {
+          const el = ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)]
+          const base = spellOf(el, 'circle', this.speed(now))
+          this.enemy = { ...base, readyMs: COUNTER_READY_MS, start: now, ends: now + base.chargeMs + base.drawMs + COUNTER_READY_MS, counter: true }
+          this.combat.sign('enemy', el, now)
+        } else if (!e && r < lerp(0.2, 0.6, s.smart)) this.nextEnemyAt = Math.min(this.nextEnemyAt, now)
+      }
+      return
+    }
     if (pc && this.reactAt === null && now >= pc.rollAt) {
       pc.rollAt = s.reroll ? now + s.reroll : Infinity // still charging later (a long heavy): roll again
       const counterable = pc.el in BEATS || pc.el === 'H' // heals: any element's counterspell stops them
@@ -388,6 +466,7 @@ export class PracticeArena implements Arena {
       const circleLands = hold + DRAW_MS.circle * this.speed(now) * circleSpeed + COUNTER_READY_MS + 240
       if (now + circleLands > pc.since + pace) shape = 'jab'
     }
+    if (!canQuick(el)) shape = 'circle' // Holy has no quick interrupt
     const base = spellOf(el, shape, this.speed(now), hold)
     const sp = { ...base, drawMs: shape === 'circle' && !healing ? base.drawMs * circleSpeed : base.drawMs, readyMs: shape === 'jab' ? 0 : COUNTER_READY_MS }
     if (abandoned) this.combat.drew('enemy', null, now)
@@ -418,6 +497,7 @@ export class PracticeArena implements Arena {
   private dodge(now: number, v: CombatView) {
     const e = this.enemy
     if (!e || e.counter || e.dodgeRolled || !this.style.dodge || now >= e.start + e.chargeMs + e.drawMs) return
+    if (v.shroud.player > 0) return // Shrouded: it can't see your threat
     const beater = beaterOf(e.el)
     const r = v.ready.player
     // Only a committed threat counts: a counterspell readied, or charged with the beater AND drawing
@@ -474,11 +554,40 @@ export class PracticeArena implements Arena {
     }
   }
 
+  /** You're winding up something big (drawing a while, or a heavy/signature readied): once per charge it
+   *  may answer with Aegis, if it can finish before you'd throw (smarter levels judge that timing). */
+  private aegisCheck(now: number, v: CombatView) {
+    const s = this.style
+    const pc = this.playerCharge
+    if (!pc || pc.aegisRolled || v.shroud.player > 0 || v.shield.enemy > 0 || pc.el === 'H') return
+    const r = v.ready.player
+    const big = r ? r.shape !== 'line' && r.shape !== COUNTER : this.playerStrokeAt !== null && now - this.playerStrokeAt > 500
+    if (!big) return
+    pc.aegisRolled = true
+    const e = this.enemy
+    if (e && (e.counter || now - e.start >= e.chargeMs)) return // busy drawing its own spell
+    if (Math.random() >= lerp(0.1, 0.5, s.smart)) return
+    const sp = spellOf('H', 'aegis', this.speed(now))
+    const castMs = sp.chargeMs + sp.drawMs + sp.readyMs
+    // Smart: only if it lands before you'd throw (your pace, or about 1.2 s once readied).
+    const left = r ? 1200 : this.castTimes.length ? pc.since + Math.min(...this.castTimes) - now : 2500
+    if (Math.random() < s.smart && castMs > left) return
+    this.enemy = { ...sp, start: now, ends: now + castMs }
+    this.combat.sign('enemy', 'H', now)
+  }
+
+  /** The fight as the AI may read it. */
+  private seen(now: number) {
+    return this.combat.view(now)
+  }
+
   update(now: number): Snapshot {
     if (this.running) {
       this.combat.update(now)
       // Your charge, as the fight sees it: the AI may react to a new one.
-      const pel = this.combat.view(now).charge.player
+      // A combo reads as its newest mixed element (countering any one of them stops it).
+      const sv = this.seen(now)
+      const pel = sv.mix.player.length ? sv.mix.player[sv.mix.player.length - 1] : sv.charge.player === 'C' ? null : sv.charge.player
       if (!pel) this.playerCharge = null
       else if (this.playerCharge?.el !== pel) {
         this.playerCharge = { el: pel, since: now, rollAt: now }
@@ -496,7 +605,7 @@ export class PracticeArena implements Arena {
         if (this.style.capitalize && silenceLeft > this.lastPlayerSilence + 50) this.punish(now, silenceLeft)
         this.lastPlayerSilence = silenceLeft
         this.react(now)
-        this.dodge(now, this.combat.view(now))
+        this.dodge(now, this.seen(now))
         if (this.baitCheck !== null && now >= this.baitCheck) {
           this.baits++ // it dodged and you never threw a counter: you were baiting
           this.baitCheck = null
@@ -506,12 +615,32 @@ export class PracticeArena implements Arena {
           this.switchTo = null
         }
         const v = this.combat.view(now)
+        this.aegisCheck(now, v)
+        // Insane: your armor is up and draining; sometimes it holds its next cast a moment to let it run down.
+        if (!this.enemy && now >= this.nextEnemyAt && v.shield.player > 15 && this.style.smart >= 1 && now - this.waitedArmor > 4000 && Math.random() < 0.3) {
+          this.waitedArmor = now
+          this.nextEnemyAt = now + 1000
+        }
+        if (!this.enemy && v.doom.enemy > 0) this.nextEnemyAt = Math.min(this.nextEnemyAt, now) // doomed: hurry
         if (!this.enemy && now >= this.nextEnemyAt) {
           const sp = this.nextSpell(now, v)
-          this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs }
-          this.combat.sign('enemy', sp.el, now) // from now on it can be countered
+          const drawMs = sp.drawMs
+          const signs = signsFor(sp.el)
+          this.enemy = {
+            ...sp,
+            drawMs,
+            start: now,
+            ends: now + sp.chargeMs + drawMs + sp.readyMs,
+            signs: signs.slice(1).map((el, i) => ({ at: now + (sp.chargeMs * (i + 1)) / signs.length, el })),
+          }
+          this.combat.sign('enemy', signs[0], now) // from now on it can be countered
         }
-        if (this.enemy) this.combat.drawing('enemy', now) // casting keeps its charge alive
+        const e0 = this.enemy
+        while (e0?.signs?.length && now >= e0.signs[0].at) this.combat.sign('enemy', e0.signs.shift()!.el, now)
+        // Casting keeps its charge alive (a combo only starts drawing once its mix is in, which locks it).
+        if (e0 && !e0.signs?.length) this.combat.drawing('enemy', now)
+        // A Mirror is up on you: it holds a direct hit until the Mirror is gone (if it reads you at all).
+        if (e0 && now >= e0.ends && this.style.read > 0 && v.mirror.player > 0 && isDirect(e0.el, e0.shape)) e0.ends = now + 30
         // In a static pulse a throw would fizzle: hold the spell and throw in the next gap, like you'd have to.
         if (this.enemy && now >= this.enemy.ends && this.style.read > 0 && this.combat.staticAt('enemy', now) === 'on') this.enemy.ends = now + 30
         if (this.enemy && now >= this.enemy.ends) {
@@ -523,7 +652,10 @@ export class PracticeArena implements Arena {
           if (e.counter) this.nextEnemyAt = Math.min(this.nextEnemyAt, now + 250 + Math.random() * 250)
           // The same rules as yours: draw (unless it's a quick interrupt), then push.
           if (e.shape !== QUICK) this.combat.drew('enemy', e.shape, now)
-          this.combat.push('enemy', now)
+          if (this.combat.push('enemy', now) === 'ok' && e.shape === 'veil') {
+            this.followBig = true
+            this.nextEnemyAt = Math.min(this.nextEnemyAt, now + 300) // use the Shroud while it lasts
+          }
         }
       }
       if (this.combat.winner) {
@@ -553,6 +685,9 @@ export class DummyArena implements Arena {
   }
   cleared() {
     this.combat.strokeCancelled('player')
+  }
+  uncharge() {
+    this.combat.uncharge('player')
   }
   push() {
     this.combat.push('player', performance.now())

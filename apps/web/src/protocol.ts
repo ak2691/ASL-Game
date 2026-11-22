@@ -15,6 +15,7 @@ export type ClientMsg =
   | { t: 'drew'; shape: string | null } // a finished stroke, as recognized (null = not a spell shape)
   | { t: 'cleared' } // a stroke too short to count (just settling the hand)
   | { t: 'push' } // a push toward the camera
+  | { t: 'uncharge' } // an open hand held while charged (nothing drawn): drop the charge
 
 export type OppEvent =
   | { kind: 'charge'; el: string | null }
