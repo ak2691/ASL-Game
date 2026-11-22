@@ -10,7 +10,7 @@ import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { Combat, flipView, type Side } from '../apps/web/src/combat.ts'
+import { Combat, flipView, type CombatView, type Side } from '../apps/web/src/combat.ts'
 import type { ClientMsg, OppEvent, ServerMsg } from '../apps/web/src/protocol.ts'
 
 const PORT = Number(process.env.PORT ?? 8787)
@@ -67,8 +67,14 @@ function sendLobby(room: Room) {
 function sendState(room: Room) {
   const view = room.combat.view(room.pausedAt ?? Date.now())
   const paused = room.pausedAt !== null
-  send(room.seats[0]?.ws, { t: 'state', view, paused })
-  send(room.seats[1]?.ws, { t: 'state', view: flipView(view), paused })
+  send(room.seats[0]?.ws, { t: 'state', view: hideShrouded(view), paused })
+  send(room.seats[1]?.ws, { t: 'state', view: hideShrouded(flipView(view)), paused })
+}
+
+/** Shroud: while your opponent is Shrouded, you're never sent their charge, mix or readied spell. */
+function hideShrouded(v: CombatView): CombatView {
+  if (!(v.shroud.enemy > 0)) return v
+  return { ...v, charge: { ...v.charge, enemy: null }, mix: { ...v.mix, enemy: [] }, ready: { ...v.ready, enemy: null } }
 }
 
 function stopTimer(room: Room) {
@@ -190,6 +196,8 @@ function onHello(ws: WebSocket, token: string) {
 
 function relay(room: Room, from: Seat, ev: OppEvent) {
   if (room.phase !== 'fighting' || room.pausedAt !== null) return
+  // Shrouded: their charge, strokes and readied spell stay on the server (only the throw itself is shown).
+  if (ev.kind !== 'cast' && room.combat.view(Date.now()).shroud[sideOf(indexOf(room, from))] > 0) return
   send(otherSeat(room, from)?.ws, { t: 'opp', ev })
 }
 
