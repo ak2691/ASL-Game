@@ -67,7 +67,7 @@ const BASICS: { title: string; points: string[] }[] = [
     points: [
       'Sit about an arm’s length from the camera.',
       'Keep both hands inside the frame the whole time.',
-      'Your signing hand charges and throws. Your other hand only draws.',
+      'With two hands, one hand draws (your right, unless you change it in Settings) and the other signs the spell’s letter.',
       'Bright, even light helps. Avoid a window behind you.',
     ],
   },

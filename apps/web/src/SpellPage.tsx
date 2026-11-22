@@ -13,6 +13,7 @@ import { DummyArena, PracticeArena, shapePoints, type Arena, type Difficulty, ty
 import { BoltLayer, Impacts, SilenceLock, StatusFx, useShake } from './effects'
 import { play, useFightSfx } from './sfx'
 import { VolumeSlider } from './VolumeSlider'
+import { DRAW_HAND_KEY, TWO_HANDS_KEY, loadDrawHand, loadTwoHands } from './settings'
 import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
 import { Tutorial } from './Tutorial'
 
@@ -89,7 +90,7 @@ function thumbOut(lm: NormalizedLandmark[]) {
 }
 
 /** Pen-up: an open hand. Default: all five fingers up (a "5" is no letter, so it can't be mistaken
- *  for a sign). Easy pen-up (a setting, for players who can't make a full 5): any second finger up. */
+ *  for a sign). (`easy`, any second finger up, is no longer offered.) */
 function isOpen(lm: NormalizedLandmark[], easy: boolean) {
   const w = lm[0]
   const up = (tip: number) => dist(w, lm[tip]) > dist(w, lm[tip - 2]) * 1.15
@@ -100,24 +101,6 @@ function isOpen(lm: NormalizedLandmark[], easy: boolean) {
 // you're charged, holding an element letter (or C) is pen down, an open hand (all five up) is pen up and
 // finishes the drawing. Anything in between keeps the pen as it was. Then push to throw.
 const PEN_SWITCH_MS = 100 // the signing hand must hold a change (letter / open) this long to flip the pen
-const TWO_HANDS_KEY = 'spells-two-hands'
-const DRAW_HAND_KEY = 'spells-draw-hand'
-function loadDrawHand(signHand: Hand): Hand {
-  try {
-    const v = localStorage.getItem(DRAW_HAND_KEY)
-    if (v === 'left' || v === 'right') return v
-  } catch {
-    /* fall through */
-  }
-  return signHand === 'right' ? 'left' : 'right'
-}
-function loadTwoHands() {
-  try {
-    return localStorage.getItem(TWO_HANDS_KEY) !== '0'
-  } catch {
-    return true
-  }
-}
 type Wrist = { x: number; y: number } | null
 /** Which hand signs and which draws. The video isn't mirrored, so the player's right hand is on the
  *  left of the frame (smaller x). One hand in view: whichever hand was last nearest, else by side. */
@@ -134,14 +117,6 @@ function splitHands(hands: NormalizedLandmark[][], signHand: Hand, prev: { sign:
   const dd = near(prev.draw)
   const isSign = Math.min(ds, dd) < 0.25 ? ds <= dd : signLeftInFrame === h[0].x < 0.5
   return isSign ? { sign: h, draw: null } : { sign: null, draw: h }
-}
-const EASY_PEN_KEY = 'spells-easy-pen'
-function loadEasyPen() {
-  try {
-    return localStorage.getItem(EASY_PEN_KEY) === '1'
-  } catch {
-    return false
-  }
 }
 
 interface Cast {
@@ -162,19 +137,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [drawing, setDrawing] = useState(false)
   const [log, setLog] = useState<Cast[]>([])
   const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave'>(null)
-  const [easyPen, setEasyPen] = useState(loadEasyPen)
   const [camInfo, setCamInfo] = useState<CameraInfo | null>(null)
-  const easyPenRef = useRef(easyPen) // read by the camera loop
-  const toggleEasyPen = () => {
-    const on = !easyPenRef.current
-    easyPenRef.current = on
-    setEasyPen(on)
-    try {
-      localStorage.setItem(EASY_PEN_KEY, on ? '1' : '0')
-    } catch {
-      /* not saved: fine */
-    }
-  }
   const [twoHands, setTwoHands] = useState(loadTwoHands)
   const twoHandsRef = useRef(twoHands) // read by the camera loop
   const toggleTwoHands = () => {
@@ -188,7 +151,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     }
   }
   // Two hands: which hand draws (the other one signs). Defaults to the hand you didn't pick to sign with.
-  const [drawHand, setDrawHand] = useState<Hand>(() => loadDrawHand(hand))
+  const [drawHand, setDrawHand] = useState<Hand>(() => loadDrawHand())
   const drawHandRef = useRef(drawHand)
   const swapDrawHand = () => {
     const next: Hand = drawHandRef.current === 'right' ? 'left' : 'right'
@@ -642,9 +605,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           } else prevWrist = null
           // The speed limit applies only when the pen-up starts (that's when blur fakes it); once
           // started it holds through a fast move, so pushing right away doesn't cancel it.
-          if (!two && found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
+          if (!two && found && lm && !pointing && (isOpen(shapeFound!, false) || signingL || signingCharge) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
           else openSince = null
-          if (!two && found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge)) openFastSince ??= now
+          if (!two && found && lm && !pointing && (isOpen(shapeFound!, false) || signingL || signingCharge)) openFastSince ??= now
           else openFastSince = null
           const penUpStart = openSince ?? openFastSince
           const fastPenUp = openFastSince !== null && now - openFastSince >= FAST_PEN_UP_MS
@@ -917,19 +880,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             )}
             {mode !== 'tutorial' && <button onClick={() => setMenu('help')}>How to cast</button>}
             <button onClick={toggleTwoHands}>Two hands: {twoHands ? 'on' : 'off'}</button>
-            <small className="menu-hint">
-              {twoHands ? `Your ${drawHand} hand draws with its index tip. Your ${drawHand === 'right' ? 'left' : 'right'} hand signs.` : 'One hand signs and points to draw.'}
-            </small>
             {twoHands && <button onClick={swapDrawHand}>Draw with: {drawHand === 'right' ? 'Right hand' : 'Left hand'}</button>}
-            {twoHands && <small className="menu-hint">Hold your letter to draw. Open your hand to finish, then push.</small>}
-            {!twoHands && (
-              <>
-                <button onClick={toggleEasyPen}>Easy pen-up: {easyPen ? 'on' : 'off'}</button>
-                <small className="menu-hint">
-                  {easyPen ? 'Raising any second finger finishes a drawing.' : 'Open your whole hand to finish a drawing. Turn on if that’s hard.'}
-                </small>
-              </>
-            )}
             <button onClick={() => (inRoom || inPracticeMatch ? setMenu('leave') : goHome())}>Home</button>
             <VolumeSlider />
           </div>

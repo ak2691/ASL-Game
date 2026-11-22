@@ -473,4 +473,14 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tut-body > .row { margin-top: auto; width: 100%; justify-content: space-between; }
 @container (max-height: 560px) { html[data-theme] .tut-card { min-height: min(440px, calc(100cqh - 40px)); } }
 .tut-body > .row > button:last-child { min-width: 150px; }
-.hero-logo { width: clamp(84px, 17vh, 150px); height: auto; margin-bottom: -6px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+.hero-logo { height: clamp(120px, 24vh, 210px); width: auto; margin-bottom: -6px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+
+/* Home: icon buttons (How to cast, Spell info, Settings) in the top-right corner */
+.home { position: relative; }
+.home-corner { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; z-index: 3; }
+.corner-icons { display: flex; gap: 8px; }
+html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { width: 46px !important; min-width: 0; height: 46px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0; }
+.home .icon-btn.on { outline: 3px solid var(--main); }
+.settings-panel { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 220px; padding: 12px 14px; border-radius: 14px; background: var(--bg); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); color: var(--text); text-align: left; }
+.home .settings-panel button { width: auto; font-size: 0.95rem; padding: 8px; }
+.home .settings-panel .volume { margin: 0; }

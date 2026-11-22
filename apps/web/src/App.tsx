@@ -14,7 +14,7 @@ import { getOnlineFlag } from './online'
 import { GuidePage } from './CastGuide'
 import { InfoPage } from './InfoPage'
 import { PrivacyPage } from './PrivacyPage'
-import { VolumeSlider } from './VolumeSlider'
+import { HomeCorner } from './HomeCorner'
 import './App.css'
 
 // Target-letter scoring: we know which letter the player should sign next,
@@ -65,15 +65,13 @@ export default function App() {
   if (mode) return <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => setMode(null)} />
   return (
     <main className="home">
+      <HomeCorner onGuide={() => setMode('guide')} onInfo={() => setMode('info')} />
       <img className="hero-logo" src="/logo.svg" alt="" />
-      <h1 className="logo">ASL Spells</h1>
+      <h1 className="logo">ASL Wizard</h1>
       <button onClick={() => setMode('tutorial')}>Tutorial</button>
       <button onClick={() => setMode('dummy')}>Dummy</button>
       <button onClick={() => setMode('practice')}>Practice AI</button>
       <button onClick={() => setMode('online')}>Online</button>
-      <button onClick={() => setMode('guide')}>How to cast</button>
-      <button onClick={() => setMode('info')}>Spell Info</button>
-      <VolumeSlider />
       <p className="home-privacy">
         This game needs your camera. Your video stays on your device: it's never saved or shown to anyone.{' '}
         <a href="#privacy" onClick={(e) => (e.preventDefault(), setMode('privacy'))}>

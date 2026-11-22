@@ -86,11 +86,11 @@
 }
 @keyframes toon-bob { 50% { transform: rotate(-2deg) translateY(-6px); } }
 [data-theme='cartoon'] .home button { width: 260px; font-size: 24px; padding: 14px; }
-[data-theme='cartoon'] .home button:nth-of-type(1) { background: #ff9f1c; }
-[data-theme='cartoon'] .home button:nth-of-type(2) { background: #2ec4b6; }
-[data-theme='cartoon'] .home button:nth-of-type(3) { background: #ff5470; }
-[data-theme='cartoon'] .home button:nth-of-type(4) { background: #6c63ff; }
-[data-theme='cartoon'] .home button:nth-of-type(odd):hover { transform: translateY(-3px) rotate(2deg) scale(1.05); }
+[data-theme='cartoon'] .home > button:nth-of-type(1) { background: #ff9f1c; }
+[data-theme='cartoon'] .home > button:nth-of-type(2) { background: #2ec4b6; }
+[data-theme='cartoon'] .home > button:nth-of-type(3) { background: #ff5470; }
+[data-theme='cartoon'] .home > button:nth-of-type(4) { background: #6c63ff; }
+[data-theme='cartoon'] .home > button:nth-of-type(odd):hover { transform: translateY(-3px) rotate(2deg) scale(1.05); }
 
 /* Panels and menus: rounded card, thick outline, offset shadow; menu bounces in. */
 [data-theme='cartoon'] .menu-overlay { background: rgba(21, 19, 46, 0.7); }
@@ -179,6 +179,6 @@
 [data-theme='cartoon'] .info-card { border: 4px solid var(--ink); border-radius: 22px; box-shadow: 0 6px 0 var(--ink); }
 [data-theme='cartoon'] .info-card h2 { font-family: var(--title); font-weight: normal; font-size: 26px; }
 [data-theme='cartoon'] .info-top .logo { font-size: 44px; transform: rotate(-2deg); }
-[data-theme='cartoon'] .home button:nth-of-type(5) { background: #ffd23f; color: var(--ink); }
+[data-theme='cartoon'] .home > button:nth-of-type(5) { background: #ffd23f; color: var(--ink); }
 [data-theme='cartoon'] .enemy-ink { display: inline; stroke: var(--ink); stroke-width: 25; }
 [data-theme='cartoon'] .enemy-stroke { opacity: 1; }
