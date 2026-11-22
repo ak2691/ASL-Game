@@ -124,6 +124,7 @@ export function Tutorial({ notes, onHome }: { notes: Snapshot['notes']; onHome: 
             </figure>
           </div>
           {step.tip && <p className="tut-tip">{step.tip}</p>}
+          {i === 0 && <p className="tut-hint">Your camera video stays on your device. It's never saved or shown to anyone.</p>}
           <div className="row">
             <button className="small" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous step">
               {'<'}

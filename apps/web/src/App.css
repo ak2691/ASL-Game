@@ -166,6 +166,10 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 
 /* A thrown spell: its name flies from the caster's half to the target's (see effects.tsx). */
 .bolt-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+.result-banner { position: absolute; left: 50%; top: 28%; transform: translate(-50%, -50%); z-index: 6; pointer-events: none; padding: 14px 40px; border-radius: 14px; font-size: 48px; font-weight: 800; white-space: nowrap; background: color-mix(in srgb, var(--bg, #000) 80%, transparent); box-shadow: 0 6px 30px rgba(0, 0, 0, 0.35); animation: result-in 400ms ease-out; }
+.result-banner.won { color: var(--you); border: 2px solid var(--you); }
+.result-banner.lost { color: var(--foe); border: 2px solid var(--foe); }
+@keyframes result-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); } }
 .bolt { position: absolute; top: 46%; left: 0; font-weight: 800; white-space: nowrap; transform: translate(-50%, -50%); opacity: 0;
   text-shadow: 0 0 12px currentColor, 0 2px 6px #000; animation-duration: var(--fly); animation-fill-mode: forwards; animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6); }
 .bolt.tier-light { font-size: clamp(16px, 2vw, 26px); }
@@ -369,6 +373,8 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tut-dot.now { outline: 2px solid var(--text); outline-offset: 2px; }
 @container (max-width: 640px) { .tut-list { display: none; } }
 .menu-hint { color: var(--sub); font-size: 13px; text-align: center; margin-top: -4px; }
+.volume { display: flex; align-items: center; gap: 10px; justify-content: center; color: var(--sub); font-size: 14px; }
+.volume input { width: 140px; accent-color: var(--main); }
 
 /* Spell info page */
 .info-page { max-width: 860px; }
@@ -392,3 +398,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 @keyframes enemy-ready { to { opacity: 0.55; } }
 .duel .enemy-canvas.ready { animation: none; }
 .leave-title { font-size: 1.3rem; text-align: center; } .leave-text { margin: 0; color: var(--sub); text-align: center; }
+.home-privacy { max-width: 340px; margin: 18px 0 0; color: var(--sub); font-size: 14px; text-align: center; line-height: 1.5; }
+.home-privacy a { color: var(--main); }
+.home .volume { margin-top: 10px; }

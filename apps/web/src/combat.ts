@@ -30,11 +30,11 @@ export const PUNCH: Record<string, [number, number]> = {
 }
 export const BURN: [number, number] = [4, 11] // Fire: extra damage over ~1.5 s
 export const CHILL: [number, number] = [6, 15] // Ice: bonus on the next hit they take
-export const STATIC_PULSES: [number, number] = [1, 3] // Lightning: pulses of 0.5 s, 0.5 s gaps
+export const STATIC_PULSES: [number, number] = [1, 3] // Lightning: pulses of 0.5 s, 0.75 s gaps
 
 // Static pulse patterns: throws fizzle during "on".
-const PUNCH_STATIC = { on: 500, off: 500 }
-const THUNDERBOLT_STATIC = { on: 500, off: 300, count: 5 } // tighter rhythm
+const PUNCH_STATIC = { on: 500, off: 750 }
+const THUNDERBOLT_STATIC = { on: 500, off: 500, count: 5 } // tighter rhythm, more pulses
 
 export type Side = 'player' | 'enemy'
 export const other = (s: Side): Side => (s === 'player' ? 'enemy' : 'player')
@@ -344,7 +344,8 @@ export class Combat {
       if (el === 'F') this.burn(target, BURN[p], 3, color, now)
       if (el === 'W') this.changeHp(caster, Math.floor(dealt / 2), color, now)
       if (el === 'I') this.chill[target] = { bonus: CHILL[p], until: now + CHILL_MS }
-      if (el === 'L') this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
+      // Static doesn't chain: a hit while it's still running does damage but doesn't restart it.
+      if (el === 'L' && !this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
       return
     }
 
@@ -361,7 +362,7 @@ export class Combat {
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
         this.hit(target, 18, color, now)
-        this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
+        if (!this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
         break
       case 'battlements': // Earthquake: huge hit, knocks their charge off
         this.hit(target, 35, color, now)

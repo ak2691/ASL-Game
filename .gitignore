@@ -6,9 +6,13 @@ Typing Page Spec.md
 skills.md
 MVP Plan.md
 Future Plans.md
+AI Difficulty.md
 
 # Local Claude Code config (preview server launch settings)
 .claude/
 
 # Debug stroke logs (?debug -> Download strokes); tuning data, not source
 strokes-*.json
+
+# raw sound downloads (picks live in apps/web/public/sfx)
+sfx_source/

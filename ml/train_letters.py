@@ -181,7 +181,7 @@ class LetterMLP:
     when available. Keeps a scikit-learn-like interface (fit / predict / score / coefs_)."""
 
     # 60 epochs was too few: it was still improving at the limit (see skills.md).
-    def __init__(self, epochs=200, batch=1024, lr=1e-3, weight_decay=1e-4, patience=15, seed=0):
+    def __init__(self, epochs=200, batch=1024, lr=1e-3, weight_decay=1e-4, patience=15, seed=int(os.environ.get("LETTER_SEED", 0))):
         self.epochs, self.batch, self.lr, self.wd, self.patience, self.seed = epochs, batch, lr, weight_decay, patience, seed
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -221,6 +221,10 @@ class LetterMLP:
     def predict(self, X):
         with torch.no_grad():
             return self.net(torch.tensor(X, dtype=torch.float32, device=self.device)).argmax(1).cpu().numpy()
+
+    def predict_proba(self, X):
+        with torch.no_grad():
+            return self.net(torch.tensor(X, dtype=torch.float32, device=self.device)).softmax(1).cpu().numpy()
 
     def score(self, X, y):
         return float((self.predict(X) == np.asarray(y)).mean())

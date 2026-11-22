@@ -10,6 +10,8 @@ import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } fr
 import { BEATS, COUNTER, ELEMENTS, QUICK, FORMS, PUNCHES, SIGNATURE, TRAITS, isValidSpell, shapesFor, spellName } from './spells'
 import { DummyArena, PracticeArena, shapePoints, type Arena, type Difficulty, type Side, type Snapshot } from './battle'
 import { BoltLayer, Impacts, SilenceLock, StatusFx, useShake } from './effects'
+import { play, useFightSfx } from './sfx'
+import { VolumeSlider } from './VolumeSlider'
 import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
 import { Tutorial } from './Tutorial'
 
@@ -49,6 +51,9 @@ const LOST_GRACE_MS = 400
 // pen-up must be held this long, and only counts while the hand is moving slower than this.
 const PEN_UP_HOLD_MS = 100
 const PEN_UP_MAX_SPEED = 4 // palm-widths per second
+// Opening your hand while already moving fast (straight into a push) still ends the stroke, just a bit later
+// (blur can fake an open hand for a frame or two, so it has to last).
+const FAST_PEN_UP_MS = 180
 // Push to throw: a readied spell is thrown when the hand grows this much on screen within the window.
 const PUSH_GROWTH = 1.3
 const PUSH_WINDOW_MS = 300
@@ -57,7 +62,8 @@ const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignore
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const DROPOUT_MS = 150
-const RELEASE_MS = 100 // after a throw, the letter must be let go this long before it can charge again
+const RELEASE_MS = 100 // after a throw, letting go of the letter this long frees it to charge again
+const REHOLD_MS = 400 // ...or keep holding it this long after the throw (charges again without letting go)
 const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
 
 // Shape guide icons (40×40), and a suggested start point for each.
@@ -183,6 +189,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const oppRef = useRef<HTMLDivElement>(null)
   const sideRefs = useRef({ player: youRef, enemy: oppRef }).current
   useShake(fight.bolts, sideRefs)
+  useFightSfx(fight, 'player', mode === 'practice' || mode === 'online')
   const [lobby, setLobby] = useState<LobbyInfo | null>(null)
   const [clock, setClock] = useState(0)
   const charge = shownCharge(clock, fight.charge.player)
@@ -227,7 +234,22 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     onHome()
   }
   const [difficulty, setDifficulty] = useState<Difficulty>('easy')
-  const startPractice = () => practice.current.start(performance.now(), difficulty)
+  // Practice starts after a short 3-2-1 (the gong plays when the fight begins).
+  const [countdownEnds, setCountdownEnds] = useState<number | null>(null)
+  const startPractice = () => setCountdownEnds(performance.now() + 3000)
+  const lastTick = useRef(0)
+  const secsLeft = (ends: number | null | undefined) => (ends ? Math.max(0, Math.ceil((ends - clock) / 1000)) : 0)
+  const onlineEnds = mode === 'online' && lobby?.phase === 'countdown' ? lobby.countdownEnds : null
+  useEffect(() => {
+    const left = secsLeft(countdownEnds ?? onlineEnds)
+    if (left > 0 && left !== lastTick.current) play('countdown_tick', { vol: 0.6 })
+    lastTick.current = left
+    if (countdownEnds && clock >= countdownEnds) {
+      setCountdownEnds(null)
+      practice.current.start(performance.now(), difficulty)
+    }
+  }, [clock]) // eslint-disable-line react-hooks/exhaustive-deps
+  const inPracticeMatch = mode === 'practice' && fight.running
   useEffect(() => {
     if (mode === 'online') goOnline()
   }, [])
@@ -279,13 +301,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         let lastUi = 0
         let prevWrist: { x: number; y: number; t: number } | null = null
         let openSince: number | null = null
+        let openFastSince: number | null = null // open hand, ignoring the speed limit (a pen-up straight into a push)
         let sizes: { t: number; s: number }[] = [] // recent hand sizes on screen
         let wasSilenced = false
         let sentSign: { el: string; t: number } | null = null // last element sent, so it isn't resent every frame
         let lastCharge: string | null = null // to spot a new charge (see the push below)
         // After a throw your hand is often still in that letter's shape. It mustn't recharge you: the
         // letter has to be let go (another shape for a moment) before it can charge again.
-        let release: { el: string; since: number | null } | null = null
+        let release: { el: string; since: number | null; thrown: number } | null = null
         let knockedSeen = 0
 
         const finishStroke = (now: number) => {
@@ -294,8 +317,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           stroke = []
           palmSum = 0
           setDrawing(false)
-          if (pts.length < 8) return arena.current.cleared()
+          // Very few points is noise, unless it covered real distance (a fast line at 60 fps can be ~5 frames).
+          if (pts.length < 4) return arena.current.cleared()
           const palms = pathLength(pts) / palm
+          if (pts.length < 8 && palms < MIN_STROKE_PALMS) return arena.current.cleared()
           if (palms < NOISE_STROKE_PALMS) return arena.current.cleared() // just settling the hand: not a drawing
           if (palms < MIN_STROKE_PALMS) {
             // A real attempt that came out too short: a fizzle like any failed drawing (lockout, charge
@@ -402,6 +427,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           const pred = shapeLm ? classify(rec, shapeLm, hand) : null
           const signingL = pred !== null && pred.letter === 'L' && pred.confidence >= L_VETO_PROB
           const pointing = shapeLm && !silenced ? isPointing(shapeLm) && !signingL : false
+          // Ending a drawing by signing your charged letter again counts as a pen-up, like opening your hand.
+          const signingCharge = pred !== null && !!myCharge && pred.letter === myCharge && pred.confidence >= CHARGE_PROB
           let letter = ''
           if (lm && pred) {
             // Fizzle lockout: the hand goes dim and grey until you can throw again.
@@ -437,7 +464,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               if (release) {
                 if (el === release.el) release.since = null
                 else if ((release.since ??= now) && now - release.since >= RELEASE_MS) release = null
-                if (release && el === release.el) el = null // still holding the thrown letter
+                // Still holding the thrown letter: blocked for a moment (so the throw itself doesn't
+                // recharge you), then holding it on charges it again.
+                if (release && el === release.el && now - release.thrown >= REHOLD_MS) release = null
+                if (release && el === release.el) el = null
               }
               if (el !== holdLetter) {
                 holdLetter = el
@@ -455,6 +485,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           // Pen: the index fingertip, in pixels (so circles aren't squashed by the 16:9 frame).
           if (lm && pointing) {
             if (stroke.length === 0) setDrawing(true) // drawing with a spell readied drops it (the fight decides)
+            release = null // pointing to draw is letting go of the thrown letter (else signing it again right after stays blocked)
             stroke.push({ x: lm[8].x * W, y: lm[8].y * H })
             // For the opponent: the fingertip as a fraction of what YOU see (your camera cropped to fill
             // your window, mirrored), plus that view's shape. Their panel shows the same view filling it
@@ -478,11 +509,15 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           } else prevWrist = null
           // The speed limit applies only when the pen-up starts (that's when blur fakes it); once
           // started it holds through a fast move, so pushing right away doesn't cancel it.
-          if (found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
+          if (found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
           else openSince = null
-          const penUpStart = openSince
-          if (stroke.length && !pointing && ((openSince !== null && now - openSince >= PEN_UP_HOLD_MS) || now - lastPointT > LOST_GRACE_MS)) {
+          if (found && lm && !pointing && (isOpen(shapeFound!, easyPenRef.current) || signingL || signingCharge)) openFastSince ??= now
+          else openFastSince = null
+          const penUpStart = openSince ?? openFastSince
+          const fastPenUp = openFastSince !== null && now - openFastSince >= FAST_PEN_UP_MS
+          if (stroke.length && !pointing && ((openSince !== null && now - openSince >= PEN_UP_HOLD_MS) || fastPenUp || now - lastPointT > LOST_GRACE_MS)) {
             openSince = null
+            openFastSince = null
             finishStroke(now)
             // A push that began with the pen-up still counts: keep hand sizes from that moment on.
             sizes = sizes.filter((x) => penUpStart !== null && x.t >= penUpStart)
@@ -502,7 +537,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             const s = sizes[sizes.length - 1].s
             if (s / Math.min(...sizes.map((x) => x.s)) >= PUSH_GROWTH) {
               arena.current.push()
-              if (myCharge) release = { el: myCharge, since: null }
+              if (myCharge) release = { el: myCharge, since: null, thrown: now }
               predicted.current = null
               holdLetter = null
               sizes = []
@@ -601,7 +636,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       </div>
     </div>
   )
-  const result = fight.over ? (fight.over === 'player' ? 'You win!' : 'You lose.') : null
+  const result = fight.over ? (fight.over === 'player' ? 'You win!' : 'You lose') : null
+  // The result goes across the middle of the arena (it's about you, not the enemy's half).
+  const showResult = !!result && (mode === 'practice' ? !countdownEnds : mode === 'online' && !!lobby && (lobby.phase === 'over' || lobby.phase === 'lobby'))
 
   return (
     <main className="page duel-page">
@@ -682,7 +719,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           )}
           {mode === 'practice' && !fight.running && (
             <div className="stage-center">
-              {result && <b className="result">{result}</b>}
               <div className="row">
                 {(['easy', 'medium', 'hard', 'insane'] as const).map((d) => (
                   <button key={d} className={`small ${difficulty === d ? 'active' : ''}`} onClick={() => setDifficulty(d)}>
@@ -690,16 +726,16 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                   </button>
                 ))}
               </div>
-              <button onClick={startPractice}>{result ? 'Fight again' : 'Start battle'}</button>
+              {countdownEnds ? (
+                <b className="countdown">{secsLeft(countdownEnds) || 1}</b>
+              ) : (
+                <button onClick={startPractice}>{result ? 'Fight again' : 'Start battle'}</button>
+              )}
             </div>
           )}
           {mode === 'online' && !fight.running && (
             <div className="stage-center">
-              {result && lobby && (lobby.phase === 'over' || lobby.phase === 'lobby') ? (
-                <b className="result">{result}</b>
-              ) : (
-                <span className="sub-line">{lobby?.phase === 'countdown' ? 'Get ready…' : 'Waiting for the match to start'}</span>
-              )}
+              {!showResult && <span className="sub-line">{lobby?.phase === 'countdown' ? 'Get ready…' : 'Waiting for the match to start'}</span>}
             </div>
           )}
           <StatusFx side="enemy" view={fight} />
@@ -707,6 +743,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         </div>
 
         <BoltLayer bolts={fight.bolts} />
+        {showResult && <div className={`result-banner ${fight.over === 'player' ? 'won' : 'lost'}`}>{result}</div>}
         <p className="privacy-note">Your camera stays on your device. Online, your opponent only sees your drawings and element.</p>
       </section>
 
@@ -729,7 +766,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <small className="menu-hint">
               {easyPen ? 'Raising any second finger finishes a drawing.' : 'Open your whole hand to finish a drawing. Turn on if that’s hard.'}
             </small>
-            <button onClick={() => (inRoom ? setMenu('leave') : goHome())}>Home</button>
+            <button onClick={() => (inRoom || inPracticeMatch ? setMenu('leave') : goHome())}>Home</button>
+            <VolumeSlider />
           </div>
         </div>
       )}
@@ -738,7 +776,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <div className="menu-card pause-menu" onClick={(e) => e.stopPropagation()}>
             <b className="leave-title">Leave the match?</b>
             <p className="leave-text">
-              {lobby?.phase === 'fighting'
+              {inPracticeMatch
+                ? 'This will end the match.'
+                : lobby?.phase === 'fighting'
                 ? 'You’ll forfeit this fight and lose your spot in the room.'
                 : `You’ll leave room ${lobby?.code ?? ''}. Rejoin with the code if you change your mind.`}
             </p>
