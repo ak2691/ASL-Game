@@ -170,13 +170,15 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .result-banner.won { color: var(--you); border: 2px solid var(--you); }
 .result-banner.lost { color: var(--foe); border: 2px solid var(--foe); }
 @keyframes result-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); } }
-.bolt { position: absolute; top: 46%; left: 0; font-weight: 800; white-space: nowrap; transform: translate(-50%, -50%); opacity: 0;
-  text-shadow: 0 0 12px currentColor, 0 2px 6px #000; animation-duration: var(--fly); animation-fill-mode: forwards; animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6); }
-.bolt.tier-light { font-size: clamp(16px, 2vw, 26px); }
-.bolt.tier-heavy { font-size: clamp(22px, 3vw, 40px); text-shadow: 0 0 16px currentColor, -24px 0 18px currentColor, 0 2px 6px #000; }
-.bolt.tier-signature { font-size: clamp(30px, 4.4vw, 60px); text-shadow: 0 0 24px currentColor, -40px 0 30px currentColor, -80px 0 40px currentColor, 0 2px 8px #000; }
-.bolt.from-enemy.tier-heavy { text-shadow: 0 0 16px currentColor, 24px 0 18px currentColor, 0 2px 6px #000; }
-.bolt.from-enemy.tier-signature { text-shadow: 0 0 24px currentColor, 40px 0 30px currentColor, 80px 0 40px currentColor, 0 2px 8px #000; }
+.bolt { position: absolute; top: 46%; left: 0; transform: translate(-50%, -50%); opacity: 0; line-height: 0;
+  animation-duration: var(--fly); animation-fill-mode: forwards; animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6); }
+.bolt .projectile { display: block; width: var(--size); height: var(--size); overflow: visible; filter: drop-shadow(0 0 14px currentColor); }
+.bolt.tier-light { --size: clamp(130px, 27vmin, 260px); }
+.bolt.tier-heavy { --size: clamp(180px, 38vmin, 380px); }
+.bolt.tier-signature { --size: clamp(220px, 42vmin, 440px); }
+.bolt.from-enemy .projectile { transform: scaleX(-1); }
+.bolt .spin { transform-origin: 50px 50px; animation: proj-spin 500ms linear infinite; }
+@keyframes proj-spin { to { transform: rotate(360deg); } }
 .bolt.from-player { animation-name: fly-right; }
 .bolt.from-enemy { animation-name: fly-left; }
 @keyframes fly-right { 0% { left: 22%; opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; } 100% { left: 78%; opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
@@ -194,11 +196,11 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tier-heavy .impact-flash { --peak: 0.35; animation-duration: 800ms; }
 .tier-signature .impact-flash { --peak: 0.6; animation-duration: 1500ms; background: radial-gradient(circle at center, currentColor, transparent 95%); }
 @keyframes flash { 0% { opacity: var(--peak, 0.3); } 100% { opacity: 0; } }
-.impact-name { position: absolute; left: 50%; top: 46%; font-weight: 900; text-transform: uppercase; white-space: nowrap; opacity: 0;
+.impact-name { position: absolute; left: 50%; top: 72%; font-weight: 900; text-transform: uppercase; white-space: nowrap; opacity: 0;
   text-shadow: 0 0 18px currentColor, 0 3px 8px #000; transform: translate(-50%, -50%); animation: slam 900ms ease-out; }
-.tier-light .impact-name { font-size: clamp(16px, 5cqw, 30px); animation-duration: 550ms; }
-.tier-heavy .impact-name { font-size: clamp(22px, 7.5cqw, 60px); }
-.tier-signature .impact-name { font-size: clamp(26px, 9cqw, 110px); animation-duration: 1500ms; }
+.tier-light .impact-name { font-size: clamp(13px, 3.5cqw, 20px); animation-duration: 550ms; }
+.tier-heavy .impact-name { font-size: clamp(15px, 4.5cqw, 30px); }
+.tier-signature .impact-name { font-size: clamp(18px, 6cqw, 44px); animation-duration: 1500ms; }
 @keyframes slam { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.8); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); } }
 .impact.heal .impact-name { animation-name: heal-rise; }
 @keyframes heal-rise { 0% { opacity: 0; transform: translate(-50%, -20%); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -120%); } }
@@ -222,18 +224,11 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .impact .lflash { position: absolute; inset: 0; background: #fffbe0; opacity: 0; animation: lflash var(--t) steps(4); }
 @keyframes lflash { 0% { opacity: 0.75; } 40% { opacity: 0.1; } 60% { opacity: 0.55; } 100% { opacity: 0; } }
 .impact .crack { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; animation: fade-out var(--t) steps(3); }
-.crack polyline { fill: none; stroke: #fffbe0; stroke-width: 1.2; vector-effect: non-scaling-stroke; stroke-width: 4px; filter: drop-shadow(0 0 6px #ffe14d); }
+.crack polyline { fill: none; stroke: #fffbe0; vector-effect: non-scaling-stroke; stroke-width: 7px; filter: drop-shadow(0 0 8px #ffe14d) drop-shadow(0 0 18px #ffe14d); }
 .impact.fizzle .impact-name { font-size: clamp(18px, 6cqw, 40px); animation: fizzle 0.8s ease-out; }
 @keyframes fizzle { 0% { opacity: 1; filter: blur(0); } 100% { opacity: 0; filter: blur(6px); transform: translate(-50%, -50%) scale(1.3); } }
 
 /* Signature visuals (see signature() in effects.tsx). */
-.sig-meteor { position: absolute; inset: 0; animation: none; }
-.sig-meteor .ball { position: absolute; left: 50%; top: 46%; width: 22cqw; height: 22cqw; margin: -11cqw; border-radius: 50%; opacity: 0;
-  background: radial-gradient(circle at 38% 35%, #fff6c8, #ffb347 30%, #ff5a1f 60%, #9b2a0c);
-  box-shadow: 0 0 40px 12px #ff6a3d, 0 0 90px 30px rgba(255, 106, 61, 0.5); animation: meteor-fall 650ms cubic-bezier(0.35, 0, 0.85, 0.6) forwards; }
-.sig-meteor.from-left .ball { --sx: -60cqw; }
-.sig-meteor.from-right .ball { --sx: 60cqw; }
-@keyframes meteor-fall { 0% { opacity: 1; transform: translate(var(--sx), -70vh) scale(0.5); } 92% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(0, 0) scale(1.6); } }
 .sig-scorch { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 60%, rgba(40, 10, 0, 0.55), transparent 55%); opacity: 0; animation: fade-out 1800ms ease-in; }
 .sig-bar { position: absolute; top: 0; bottom: 0; left: var(--x); width: 1.6%; opacity: 0;
   background: linear-gradient(90deg, rgba(200, 240, 255, 0.3), rgba(255, 255, 255, 0.7), rgba(143, 216, 255, 0.35)); box-shadow: 0 0 10px rgba(143, 216, 255, 0.6);
@@ -242,7 +237,7 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .sig-dark { position: absolute; inset: 0; background: rgba(10, 10, 30, 0.6); opacity: 0; animation: dark 900ms ease-out; }
 @keyframes dark { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
 .sig-bolt { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; animation: lflash 700ms steps(5); }
-.sig-bolt polyline { fill: none; stroke: #fffbe0; stroke-width: 12px; vector-effect: non-scaling-stroke; stroke-linejoin: bevel; filter: drop-shadow(0 0 14px #ffe14d) drop-shadow(0 0 30px #ffe14d); }
+.sig-bolt polyline { fill: none; stroke: #fffbe0; stroke-width: 26px; vector-effect: non-scaling-stroke; stroke-linejoin: bevel; filter: drop-shadow(0 0 14px #ffe14d) drop-shadow(0 0 30px #ffe14d); }
 .sig-crack { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; animation: fade-out 1600ms ease-in; }
 .sig-crack polyline { fill: none; stroke: #2a1a0c; stroke-width: 6px; vector-effect: non-scaling-stroke; stroke-dasharray: 200; stroke-dashoffset: 200; filter: drop-shadow(0 0 3px #b58a4c); animation: crack-grow 400ms ease-out forwards; animation-delay: calc(var(--d) + var(--d2, 0ms)) !important; }
 @keyframes crack-grow { to { stroke-dashoffset: 0; } }
@@ -286,6 +281,8 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
   .bolt { left: 50% !important; }
   .bolt.from-player { animation-name: fly-down; }
   .bolt.from-enemy { animation-name: fly-up; }
+  .bolt.from-player .projectile { transform: rotate(90deg); }
+  .bolt.from-enemy .projectile { transform: rotate(-90deg); }
   .privacy-note { padding: 0 64px; }
 }
 @keyframes fly-down { 0% { top: 22%; opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; } 100% { top: 78%; opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
@@ -413,18 +410,11 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 @keyframes sheen { 0% { opacity: 1; transform: translateX(-60%); } 100% { opacity: 1; transform: translateX(60%); } }
 .fx-purify { position: absolute; left: 50%; top: 46%; width: 30px; height: 30px; margin: -15px; border-radius: 50%; border: 3px solid #fff;
   box-shadow: 0 0 14px #fff; opacity: 0; animation: ripple 900ms ease-out; --end: 26; }
-.fx-scythe { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; animation: fade-out 700ms ease-in; }
-.fx-scythe path { fill: none; stroke: #e7c8ff; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 6px #a05cd6);
-  animation: swing 420ms ease-out forwards; animation-delay: var(--d); vector-effect: non-scaling-stroke; }
-@keyframes swing { to { stroke-dashoffset: 0; } }
 .fx-eclipse { position: absolute; left: 50%; top: 40%; width: 34cqw; height: 34cqw; margin: -17cqw; border-radius: 50%; background: #fff3c4;
   box-shadow: 0 0 40px #fff3c4; overflow: hidden; opacity: 0; animation: eclipse-hold 1600ms ease-in-out; }
 .fx-eclipse i { position: absolute; inset: 0; border-radius: 50%; background: #120a1c; animation: eclipse-slide 1600ms ease-in-out; animation-delay: var(--d); }
 @keyframes eclipse-hold { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes eclipse-slide { 0% { transform: translateX(110%); } 55% { transform: translateX(0); } 100% { transform: translateX(0); } }
-.fx-blade { position: absolute; left: 50%; top: 0; width: 0; height: 0; margin-left: -12cqw; border-left: 12cqw solid transparent; border-right: 12cqw solid transparent;
-  border-top: 16cqw solid #d9c2f0; filter: drop-shadow(0 0 10px #a05cd6); opacity: 0; animation: blade-drop 700ms cubic-bezier(0.6, 0, 1, 1); }
-@keyframes blade-drop { 0% { opacity: 1; transform: translateY(-110%); } 70% { opacity: 1; transform: translateY(150%); } 100% { opacity: 0; transform: translateY(160%); } }
 .fx-lava { position: absolute; inset: 0; background: linear-gradient(to top, rgba(255, 90, 20, 0.85), rgba(255, 160, 40, 0.4) 30%, transparent 55%); opacity: 0; animation: lava-rise 1800ms ease-out; }
 @keyframes lava-rise { 0% { opacity: 0; transform: translateY(40%); } 25% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; } }
 .fx-twilight { position: absolute; left: 50%; top: 46%; width: 60cqw; height: 60cqw; margin: -30cqw; border-radius: 50%;
@@ -491,3 +481,56 @@ html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { 
 
 /* Tutorial: which hand does each box */
 .tut-hand { font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text, #ddd); }
+
+/* Practice ladder: a wizard tower, Pebble at the door, Lich at the spire. */
+.tower-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; --tower-roof: #6b4fa8; }
+.tower {
+  width: 270px; max-height: min(48vh, 420px); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; will-change: scroll-position; contain: content;
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 0;
+  background: repeating-linear-gradient(0deg, #4a4560 0 22px, #3d3852 22px 24px);
+  border: 3px solid #1d1b2e; border-top: none; border-radius: 0 0 6px 6px;
+}
+.tower-wrap .spire { width: 280px; height: 44px; margin-bottom: -6px; display: block; }
+.tower .floor {
+  display: flex; align-items: center; gap: 8px; padding: 4px 8px; flex: none;
+  background: #2b2840; border: 2px solid #1d1b2e; border-radius: 22px 22px 6px 6px;
+  box-shadow: none; text-align: left; color: var(--text);
+}
+.tower .floor.wizard { background: #332a4d; }
+.tower .floor:hover { border-color: #ffd24d; }
+.tower .floor.active { background: #ffd24d; color: #1d1b2e; border-color: #1d1b2e; }
+.tower .rung { width: 16px; font-size: 12px; opacity: 0.6; text-align: center; }
+.tower .portrait { width: 46px; height: 46px; flex: none; }
+.tower .floor-name { flex: 1; font-weight: 700; }
+.tower .els { display: flex; gap: 2px; }
+.tower .els i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid #1d1b2e; }
+.tower-wrap > .sub-line { margin-top: 6px; }
+.tower .els i.all { width: 30px; border-radius: 4px; }
+.tower .tower-door { height: 14px; width: 40px; margin: 0 auto; flex: none; background: #1d1b2e; border-radius: 20px 20px 0 0; }
+
+/* Thunderbolt: a storm cloud gathers over the target during the flight time, crackling, then the strike. */
+.sig-cloud { position: absolute; left: -10%; right: -10%; top: -8%; height: 34%; opacity: 0; animation: cloud-gather var(--t) ease-in; animation-fill-mode: none !important;
+  background: radial-gradient(circle at 12% 52%, #1b1828 0 18%, transparent 19%), radial-gradient(circle at 32% 46%, #221e33 0 24%, transparent 25%),
+    radial-gradient(circle at 55% 54%, #1b1828 0 22%, transparent 23%), radial-gradient(circle at 78% 46%, #221e33 0 24%, transparent 25%),
+    radial-gradient(circle at 94% 52%, #1b1828 0 16%, transparent 17%), linear-gradient(#0f0d18 0 40%, transparent 41%);
+  box-shadow: 0 0 0 200vmax rgba(5, 5, 20, 0.45); }
+.sig-cloud i { position: absolute; bottom: 10%; left: var(--x); width: 4px; height: 28px; background: #ffe14d; box-shadow: 0 0 10px #ffe14d; opacity: 0; transform: rotate(20deg); animation: spark 160ms steps(2) 3; }
+@keyframes cloud-gather { 0% { opacity: 0; transform: translateY(-40%); } 60% { opacity: 1; transform: translateY(0); } 100% { opacity: 1; } }
+@keyframes spark { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+.sig-bolt.thin polyline { stroke-width: 10px; }
+.sig-bolt polyline.fork { stroke-width: 8px; }
+.sig-whiteout { position: absolute; inset: 0; background: #fff; opacity: 0; animation: whiteout 600ms ease-out; }
+@keyframes whiteout { 0% { opacity: 0.95; } 15% { opacity: 0.2; } 30% { opacity: 0.8; } 100% { opacity: 0; } }
+
+/* Earthquake: a crack runs along the bottom from the caster's half to the target's during the flight. */
+.quake-run { position: absolute; left: 22%; width: 56%; top: var(--row); height: 7%; margin-top: -3.5%; overflow: visible; pointer-events: none; }
+.quake-run { clip-path: inset(-50% 100% -50% 0); animation: quake-run var(--fly) linear forwards, fade-out 500ms ease-in var(--fly) forwards; }
+.quake-run polyline { fill: none; stroke: #140b04; stroke-width: 13px; vector-effect: non-scaling-stroke; stroke-linejoin: bevel; }
+.quake-run polyline.glow { stroke: #ffc070; stroke-width: 28px; opacity: 0.7; }
+.quake-run.from-enemy { transform: scaleX(-1); }
+@keyframes quake-run { to { clip-path: inset(-50% 0 -50% 0); } }
+@media (max-width: 800px) { .quake-run { left: calc(var(--row) - 28vh); top: 50%; width: 56vh; margin: -2.5vh 0 0 0; height: 5vh; transform: rotate(90deg); } .quake-run.from-enemy { transform: rotate(-90deg); } }
+
+/* The one call to action on a screen (Start battle): green "go", apart from the blue menu buttons. */
+html[data-theme] button.cta, button.cta { background: var(--you); color: var(--ink, #111); font-size: 1.15em; padding-left: 30px; padding-right: 30px; }
+html[data-theme] button.cta:hover, button.cta:hover { background: color-mix(in srgb, var(--you) 80%, #fff); }

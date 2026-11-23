@@ -20,7 +20,7 @@ kinds = {
  "flame 3 spikes": lambda: g.flame(n=3), "flame 5 spikes": lambda: g.flame(n=5), "flame 2 spikes": lambda: g.flame(n=2), "crown only": lambda: g.flame(bowl=False), "flame round": lambda: g.flame(round_tips=True),
  "battle 2 humps": lambda: g.battlements(n=2), "battle 4 humps": lambda: g.battlements(n=4), "battle slant": lambda: g.battlements(slant=0.4),
  "battle round": lambda: g.battlements(round_tops=True), "unfinished": g.unfinished, "almost done": g.almost, "circle+X": g.circle_x, "sideways": g.sideways,
- "M": lambda: g.w(flip=True), "zig 6/8": lambda: g.zigzag(n=int(g.r.choice([6, 8]))),
+ "M": lambda: g.w(flip=True), "W": lambda: g.w(), "H half leg": lambda: g.h(half=True), "H one leg": lambda: g.h(legs=1), "zig 6/8": lambda: g.zigzag(n=int(g.r.choice([6, 8]))),
  "shield no line": lambda: g.aegis(line=False), "vertical 8": lambda: g.mirror(vertical=True), "half 8": lambda: g.mirror(loops=0.55),
  "easy scythe": lambda: g.hook(), "doom stage 3": lambda: g.scythe(stage=3), "doom stage 2": lambda: g.scythe(stage=2), "wave": lambda: g.veil(flat=True), "2 loops": lambda: g.veil(loops=2), "cane": lambda: g.hook(blade=0.15),
  "J": lambda: g.hook(upside=True), "box+post": lambda: g.blade(tri=False), "box+blade": lambda: g.blade(post=False),

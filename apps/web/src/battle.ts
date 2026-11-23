@@ -28,6 +28,7 @@ export interface OppCast {
 export interface Snapshot extends CombatView {
   enemyCast: OppCast | null
   running: boolean
+  hint?: string | null // practice intro bots: the element that counters what it's charging
 }
 
 export interface Arena {
@@ -46,7 +47,7 @@ export interface Arena {
 // It casts like a player, slowed down so you can read it: charge (element shown), draw (shape
 // traces itself), ready, throw. Difficulty sets its speed, when it heals, and whether it
 // reacts to your charge with a counter.
-export type Difficulty = 'easy' | 'medium' | 'hard' | 'insane'
+export type Difficulty = 'pebble' | 'ember' | 'frost' | 'cleric' | 'hexer' | 'tide' | 'zealot' | 'warden' | 'adept' | 'magus' | 'archmage' | 'lich'
 
 interface AiStyle {
   every: number // ms between casts
@@ -70,15 +71,49 @@ interface AiStyle {
   drop: number // chance it abandons its own half-drawn spell to counter you (else it finishes, then counters)
   utility: number // chance a cast is a Holy buff, an Unholy curse or a combo (when one fits)
   smart: number // 0..1: how far it leans on Holy/Unholy tactics (Aegis vs your wind-ups, Shroud setups, armor play, blind guesses)
+  // Intro bots (the ladder's first rungs) limit what it knows:
+  els?: string[] // elements it attacks with (default all 5)
+  moves?: Record<string, number> // attack weights over line / h / signature (default ENEMY_MOVES)
+  order?: 'alternate' | 'fresh' // alternate: cycles its elements; fresh: random, never the same twice in a row
+  magic?: string[] // Holy/Unholy spells it may cast (default all); heals come from healBelow
+  hintMs?: number // shows the counter for its charge after this long (undefined = never)
 }
-// Each level is faster and thinks quicker; hard and insane punish a silence, read your habits,
-// and sometimes drop their own half-drawn spell to counter you.
+const ALL_MAGIC = ['aegis', 'scythe', 'veil', 'blade']
+const UNHOLY_MAGIC = ['scythe', 'veil', 'blade']
+// Intro bots: slow, simple scripts that never read you. Each rung adds one new thing.
+const BOT = { ramp: false, healBelow: 0, react: 0, reactMs: [1500, 2000] as [number, number], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0, stun: 0, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0, smart: 0, magic: [] as string[] }
+const LIGHT_HEAVY = { line: 50, h: 50 }
+// Adept and up: each level is faster and thinks quicker; Magus and up punish a silence, read your
+// habits, and sometimes drop their own half-drawn spell to counter you.
 export const AI: Record<Difficulty, AiStyle> = {
-  easy: { every: 2500, speed: 1.13, ramp: false, healBelow: 0.25, react: 0, reactMs: [1375, 1875], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.38, stun: 0.23, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15 },
-  medium: { every: 1320, speed: 0.77, ramp: true, healBelow: 0.35, react: 0.32, reactMs: [825, 1155], circle: 0.41, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.77, stun: 0.36, read: 0.45, heal: 0.59, dodge: 0, healPunish: false, drop: 0.09, utility: 0.15, smart: 0.5 },
-  hard: { every: 880, speed: 0.66, ramp: true, healBelow: 0.4, react: 0.52, reactMs: [605, 935], circle: 0.45, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.81, stun: 0.45, read: 0.54, heal: 0.72, dodge: 0.18, healPunish: false, drop: 0.18, utility: 0.22, smart: 0.75 },
-  insane: { every: 660, speed: 0.5, ramp: true, healBelow: 0.4, react: 0.54, reactMs: [495, 770], circle: 0.54, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.81, stun: 0.54, read: 0.9, heal: 0.81, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.28, smart: 1 },
+  pebble: { ...BOT, every: 4000, speed: 1.4, els: ['E', 'W'], moves: { h: 1 }, order: 'alternate', hintMs: 0 },
+  ember: { ...BOT, every: 3500, speed: 1.3, els: ['F', 'L'], moves: LIGHT_HEAVY, order: 'fresh', hintMs: 0 },
+  frost: { ...BOT, every: 3200, speed: 1.25, els: ['I', 'F'], moves: LIGHT_HEAVY, react: 0.15, hintMs: 0 },
+  cleric: { ...BOT, every: 3200, speed: 1.25, els: ['W'], moves: LIGHT_HEAVY, healBelow: 0.7, magic: ['aegis'], utility: 0.15, smart: 0.3, hintMs: 0 },
+  hexer: { ...BOT, every: 3000, speed: 1.2, els: ['E'], moves: LIGHT_HEAVY, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.15, reactMs: [1400, 1900], hintMs: 0 },
+  tide: { ...BOT, every: 2800, speed: 1.15, els: ['W', 'I', 'L'], healBelow: 0.3, react: 0.25, reactMs: [1300, 1800], circle: 0.3, spamCounter: 0.3, hintMs: 900 },
+  zealot: { ...BOT, every: 2600, speed: 1.1, els: ['F'], moves: LIGHT_HEAVY, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.25, reactMs: [1300, 1800], circle: 0.3, hintMs: 900 },
+  warden: { ...BOT, every: 2600, speed: 1.1, healBelow: 0.25, spamCounter: 0.3, stun: 0.15, magic: ALL_MAGIC, utility: 0.03, smart: 0.15 },
+  adept: { every: 2200, speed: 0.99, ramp: false, healBelow: 0.25, react: 0, reactMs: [1210, 1650], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.45, stun: 0.27, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15 },
+  magus: { every: 1320, speed: 0.77, ramp: true, healBelow: 0.35, react: 0.32, reactMs: [825, 1155], circle: 0.41, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.77, stun: 0.36, read: 0.45, heal: 0.59, dodge: 0, healPunish: false, drop: 0.09, utility: 0.15, smart: 0.5 },
+  archmage: { every: 880, speed: 0.66, ramp: true, healBelow: 0.4, react: 0.52, reactMs: [605, 935], circle: 0.45, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.81, stun: 0.45, read: 0.54, heal: 0.72, dodge: 0.18, healPunish: false, drop: 0.18, utility: 0.22, smart: 0.75 },
+  lich: { every: 660, speed: 0.5, ramp: true, healBelow: 0.4, react: 0.54, reactMs: [495, 770], circle: 0.54, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.81, stun: 0.54, read: 0.9, heal: 0.81, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.28, smart: 1 },
 }
+/** The practice ladder, in order. */
+export const LADDER: { id: Difficulty; name: string }[] = [
+  { id: 'pebble', name: 'Pebble' },
+  { id: 'ember', name: 'Ember' },
+  { id: 'frost', name: 'Frost' },
+  { id: 'cleric', name: 'Cleric' },
+  { id: 'hexer', name: 'Hexer' },
+  { id: 'tide', name: 'Tide' },
+  { id: 'zealot', name: 'Zealot' },
+  { id: 'warden', name: 'Warden' },
+  { id: 'adept', name: 'Adept' },
+  { id: 'magus', name: 'Magus' },
+  { id: 'archmage', name: 'Archmage' },
+  { id: 'lich', name: 'Lich' },
+]
 const ENEMY_JITTER = 0.2 // +/- share of the gap between casts
 const CHARGE_MS = 700
 const READY_MS = 500
@@ -91,7 +126,7 @@ const PUNISH_SLACK_MS = 300
 // How long the AI takes to draw each shape: longer shapes take longer, so they're easier to counter.
 const DRAW_MS: Record<string, number> = {
   line: 600,
-  w: 1700,
+  h: 1800,
   star: 1800,
   hourglass: 1800,
   flame: 2500,
@@ -115,12 +150,12 @@ const ENEMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L']
 // What it attacks with (weights). Same rules as the player, so reading the shape tells you what's coming.
 const ENEMY_MOVES: { shape: string; w: number }[] = [
   { shape: 'line', w: 40 },
-  { shape: 'w', w: 30 },
+  { shape: 'h', w: 30 },
   { shape: 'signature', w: 14 },
 ]
 /** The element that beats `el` (BEATS maps winner to loser). */
 // What it throws to break up a stream of light attacks: things that stop or stall you.
-const ANTI_LIGHT: [string, string][] = [['I', 'cage'], ['E', 'battlements'], ['L', 'zigzag7'], ['L', 'line'], ['L', 'w']]
+const ANTI_LIGHT: [string, string][] = [['I', 'cage'], ['E', 'battlements'], ['L', 'zigzag7'], ['L', 'line'], ['L', 'h']]
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const kindOf = (shape: string) => (shape === 'line' || shape === QUICK ? 'L' : 'H') // light or heavy
 
@@ -139,7 +174,7 @@ const beaterOf = (el: string) => Object.keys(BEATS).find((k) => BEATS[k] === el)
 /** Corner points (any box; fitted to 0..1 later) for the straight-line shapes, in drawing order. */
 const SHAPE_CORNERS: Record<string, [number, number][]> = {
   line: [[0.15, 0.85], [0.85, 0.15]],
-  w: [[0.08, 0.2], [0.29, 0.82], [0.5, 0.35], [0.71, 0.82], [0.92, 0.2]],
+  h: [[0.2, 0.12], [0.2, 0.88], [0.2, 0.5], [0.8, 0.5], [0.8, 0.12], [0.8, 0.88]],
   hourglass: [[0.2, 0.12], [0.8, 0.12], [0.2, 0.88], [0.8, 0.88], [0.2, 0.12]],
   star: Array.from({ length: 6 }, (_, k): [number, number] => {
     const a = -Math.PI / 2 + (k * 4 * Math.PI) / 5
@@ -216,7 +251,13 @@ export class PracticeArena implements Arena {
   private enemy: EnemyCast | null = null
   private nextEnemyAt = 0
   private started = 0
-  private style = AI.easy
+  private style = AI.adept
+  private els = ENEMY_ELEMENTS
+  private own = [...ENEMY_ELEMENTS, 'H', 'U'] // elements it can counter with
+  private magic = ALL_MAGIC
+  private elIdx = 0
+  private lastEl = ''
+  private knockedSeen = 0
   private lastHeal = -Infinity
   private playerCharge: { el: string; since: number; rollAt: number; aegisRolled?: boolean; blindRolled?: boolean } | null = null
   private followBig = false // its Shroud just landed: the next spell leans big (you can't see it coming)
@@ -236,9 +277,15 @@ export class PracticeArena implements Arena {
   private history: string[] = [] // your recent charges, newest last
   private lastPlayerSilence = 0 // your silence left, last update (a jump = you were just silenced)
 
-  start(now: number, difficulty: Difficulty = 'easy') {
+  start(now: number, difficulty: Difficulty = 'pebble') {
     this.combat = new Combat()
     this.style = AI[difficulty]
+    this.els = this.style.els ?? ENEMY_ELEMENTS
+    this.magic = this.style.magic ?? ALL_MAGIC
+    this.own = [...this.els, ...(this.magic.includes('aegis') || this.style.healBelow > 0 ? ['H'] : []), ...(this.magic.some((m) => UNHOLY_MAGIC.includes(m)) ? ['U'] : [])]
+    this.elIdx = 0
+    this.lastEl = ''
+    this.knockedSeen = 0
     this.running = true
     this.enemy = null
     this.started = now
@@ -320,7 +367,7 @@ export class PracticeArena implements Arena {
     const s = this.style
     const sp = this.speed(now)
     const hpShare = v.hp.enemy / v.maxHp.enemy
-    if (hpShare < s.healBelow && now - this.lastHeal > 6000 && Math.random() < (s === AI.easy ? 0.5 : 0.85)) {
+    if (hpShare < s.healBelow && now - this.lastHeal > 6000 && Math.random() < (s.capitalize ? 0.85 : 0.5)) {
       this.lastHeal = now
       return spellOf('H', hpShare < s.healBelow / 2 ? 'star' : 'hourglass', sp)
     }
@@ -330,31 +377,60 @@ export class PracticeArena implements Arena {
     if (this.followBig) {
       this.followBig = false
       if (v.shroud.enemy > 0 && s.smart > 0.3 && Math.random() < lerp(0.3, 0.9, s.smart)) {
-        const el = ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)]
+        const el = this.anyEl()
         return spellOf(el, SIGNATURE[el], sp)
       }
     }
     // Your armor is up: quick light hits wear it down faster than waiting on a big spell.
-    if (v.shield.player > 0 && Math.random() < lerp(0.1, 0.6, s.smart)) return spellOf(ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)], 'line', sp)
+    if (v.shield.player > 0 && (!s.moves || s.moves.line) && Math.random() < lerp(0.1, 0.6, s.smart)) return spellOf(this.anyEl(), 'line', sp)
     // You're repeating yourself and getting away with it: throw something that stuns you or knocks
     // your charge off (more likely vs light attacks, which are too quick to counter).
     const repeating = predict(this.moves) !== null || predict(this.history) !== null
     const stun = s.stun * (predict(this.moves) === 'L' ? 1.3 : 1)
     if (repeating && this.unanswered >= 2 && Math.random() < stun && !(v.hp.player / v.maxHp.player < 0.2)) {
-      const [el, shape] = ANTI_LIGHT[Math.floor(Math.random() * ANTI_LIGHT.length)]
-      return spellOf(el, shape, sp)
+      const stoppers = ANTI_LIGHT.filter(([el]) => this.els.includes(el))
+      if (stoppers.length) {
+        const [el, shape] = stoppers[Math.floor(Math.random() * stoppers.length)]
+        return spellOf(el, shape, sp)
+      }
     }
-    const el = ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)]
-    let shape = pick(ENEMY_MOVES.map((m) => ({ w: m.w, v: m.shape })))
+    const el = this.nextEl()
+    const moves = s.moves ? Object.entries(s.moves).map(([v, w]) => ({ w, v })) : ENEMY_MOVES.map((m) => ({ w: m.w, v: m.shape }))
+    let shape = pick(moves)
     if (s.capitalize && v.silenced.player > 1200) shape = 'signature' // you can't counter it now
     else if (s.capitalize && v.hp.player / v.maxHp.player < 0.2) shape = 'line' // finish fast
     return spellOf(el, shape === 'signature' ? SIGNATURE[el] : shape, sp)
   }
 
+  /** Any of its attack elements. */
+  private anyEl() {
+    return this.els[Math.floor(Math.random() * this.els.length)]
+  }
+  /** Its next attack element: in turn (alternate), never twice in a row (fresh), or any. */
+  private nextEl() {
+    const o = this.style.order
+    let el: string
+    if (o === 'alternate') el = this.els[this.elIdx++ % this.els.length]
+    else if (o === 'fresh' && this.els.length > 1) {
+      const rest = this.els.filter((x) => x !== this.lastEl)
+      el = rest[Math.floor(Math.random() * rest.length)]
+    } else el = this.anyEl()
+    this.lastEl = el
+    return el
+  }
+
+  /** Intro bots: once it's been charging a while, the element that counters it. */
+  private hint(now: number) {
+    const e = this.enemy
+    const ms = this.style.hintMs
+    if (ms === undefined || !e || e.counter || !(e.el in BEATS) || now - e.start < ms) return null
+    return beaterOf(e.el)
+  }
+
   /** Holy buffs, Unholy curses and combos, when one fits the moment. */
   private utilitySpell(v: CombatView, sp: number) {
     const s = this.style
-    if (v.doom.enemy > 0) return spellOf(ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)], 'line', sp) // doomed: throw anything, fast
+    if (v.doom.enemy > 0) return spellOf(this.anyEl(), 'line', sp) // doomed: throw anything, fast
     if (Math.random() >= s.utility) return null
     const low = v.hp.player / v.maxHp.player < 0.4
     const armored = v.shield.player > 0
@@ -366,9 +442,11 @@ export class PracticeArena implements Arena {
       { w: v.shroud.enemy > 0 ? 0 : 1, v: ['U', 'veil'] },
       { w: v.shield.enemy > 0 ? 0 : 1, v: ['H', 'aegis'] },
     ]
-    if (s !== AI.easy && COMBOS_ON)
+    if (s.capitalize && COMBOS_ON)
       for (const c of Object.keys(COMBO_SHAPE)) opts.push({ w: c === 'twilight' ? (v.shield.player > 0 || v.mirror.player > 0 ? 3 : 0.5) : 0.8, v: [c, COMBO_SHAPE[c]] })
-    const [el, shape] = pick(opts)
+    const allowed = opts.filter((o) => this.magic.includes(o.v[1]) || o.v[0] in COMBO_SHAPE)
+    if (!allowed.some((o) => o.w > 0)) return null
+    const [el, shape] = pick(allowed)
     return spellOf(el, shape, sp)
   }
 
@@ -379,13 +457,13 @@ export class PracticeArena implements Arena {
     if (this.combat.view(now).shroud.player > 0) {
       // Shrouded: it can't see what you're charging. Once per charge it guesses: a counterspell of a
       // random element, or rushing its own spell out first.
-      if (pc && !pc.blindRolled) {
+      if (pc && !pc.blindRolled && (s.react > 0 || s.capitalize)) {
         pc.blindRolled = true
         const r = Math.random()
         const e = this.enemy
         const busy = !!e && (e.counter || now - e.start >= e.chargeMs)
         if (!busy && r < lerp(0.05, 0.3, s.smart)) {
-          const el = ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)]
+          const el = this.anyEl()
           const base = spellOf(el, 'circle', this.speed(now))
           this.enemy = { ...base, readyMs: COUNTER_READY_MS, start: now, ends: now + base.chargeMs + base.drawMs + COUNTER_READY_MS, counter: true }
           this.combat.sign('enemy', el, now)
@@ -395,7 +473,7 @@ export class PracticeArena implements Arena {
     }
     if (pc && this.reactAt === null && now >= pc.rollAt) {
       pc.rollAt = s.reroll ? now + s.reroll : Infinity // still charging later (a long heavy): roll again
-      const counterable = pc.el in BEATS || pc.el === 'H' // heals: any element's counterspell stops them
+      const counterable = pc.el === 'H' || (pc.el in BEATS && this.own.includes(beaterOf(pc.el))) // heals: any element's counterspell stops them
       // Spamming: the same element 3+ times in a row (counting this one) and it's ready for it.
       const h = this.history
       const spam = s.spamCounter > 0 && h.length >= 3 && h.slice(-3).every((x) => x === pc.el)
@@ -447,7 +525,7 @@ export class PracticeArena implements Arena {
     const mistake = Math.random() < s.miss
     const circle = this.guess === 'H' ? lerp(s.circle, 0.95, s.read) : this.guess === 'L' ? 0.1 : this.spam && s.read ? 0.85 : s.circle
     let shape = healing || Math.random() < circle ? 'circle' : 'jab'
-    let el = healing ? ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)] : beaterOf(this.reactTo)
+    let el = healing ? this.anyEl() : beaterOf(this.reactTo)
     if (mistake && healing) shape = 'jab' // a quick interrupt doesn't stop a heal
     else if (mistake) {
       const wrong = ENEMY_ELEMENTS.filter((x) => x !== el)
@@ -455,7 +533,7 @@ export class PracticeArena implements Arena {
     }
     // Too slow to circle before you throw (it knows your pace)? Then a quick interrupt instead.
     const hold = Math.max(150, COUNTER_HOLD_MS * this.speed(now))
-    // Vs heavies it wants the circle (a 2 s silence leaves room for a big punish), and each heavy you
+    // Vs heavies it wants the circle (a 2.5 s silence leaves room for a big punish), and each heavy you
     // throw in a row makes it draw the circle faster: 12% per heavy, down to 55% of normal.
     let streak = 0
     for (let i = this.moves.length - 1; i >= 0 && this.moves[i] === 'H'; i--) streak++
@@ -466,7 +544,7 @@ export class PracticeArena implements Arena {
       const circleLands = hold + DRAW_MS.circle * this.speed(now) * circleSpeed + COUNTER_READY_MS + 240
       if (now + circleLands > pc.since + pace) shape = 'jab'
     }
-    if (!canQuick(el)) shape = 'circle' // Holy has no quick interrupt
+    if (!canQuick(el)) shape = 'circle' // Holy and Unholy have no quick interrupt
     const base = spellOf(el, shape, this.speed(now), hold)
     const sp = { ...base, drawMs: shape === 'circle' && !healing ? base.drawMs * circleSpeed : base.drawMs, readyMs: shape === 'jab' ? 0 : COUNTER_READY_MS }
     if (abandoned) this.combat.drew('enemy', null, now)
@@ -481,8 +559,8 @@ export class PracticeArena implements Arena {
     const e = this.enemy
     if (e && (e.counter || now - e.start >= e.chargeMs)) return false
     const [el, shape] = Math.random() < 0.6 ? ['L', 'zigzag7'] : (() => {
-      const el = ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)]
-      return [el, Math.random() < 0.5 ? SIGNATURE[el] : 'w']
+      const el = this.anyEl()
+      return [el, Math.random() < 0.5 ? SIGNATURE[el] : 'h']
     })()
     const sp = spellOf(el, shape, this.speed(now))
     this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs }
@@ -512,7 +590,8 @@ export class PracticeArena implements Arena {
     this.baitCheck = now + 2500
     this.enemy = null
     if (now - e.start >= e.chargeMs) this.combat.drew('enemy', null, now) // mid-stroke: it fizzles
-    const others = ENEMY_ELEMENTS.filter((x) => x !== e.el)
+    const others = this.els.filter((x) => x !== e.el)
+    if (!others.length) return
     // Signing takes the same 150 ms hold as yours.
     this.switchTo = { el: others[Math.floor(Math.random() * others.length)], at: now + SIGN_HOLD_MS }
     this.nextEnemyAt = now + FIZZLE_LOCK_MS + Math.random() * 400 // re-cast once the fizzle lock is over
@@ -523,10 +602,10 @@ export class PracticeArena implements Arena {
   private punish(now: number, silenceLeft: number) {
     const e = this.enemy
     if (e && (e.counter || now - e.start >= e.chargeMs)) return // a counter, or already drawing: let it finish
-    const el = ENEMY_ELEMENTS[Math.floor(Math.random() * ENEMY_ELEMENTS.length)]
+    const el = this.anyEl()
     const window = silenceLeft + PUNISH_SLACK_MS
     const sp = this.speed(now)
-    for (const shape of [SIGNATURE[el], 'w', 'line']) {
+    for (const shape of [SIGNATURE[el], 'h', 'line']) {
       const s = { ...spellOf(el, shape, sp), readyMs: 100 } // no waiting around: throw as soon as it's drawn
       // Nothing fits (a short interrupt silence): still hit back at once with a light attack.
       if (s.chargeMs + s.drawMs + s.readyMs > window && shape !== 'line') continue
@@ -559,7 +638,7 @@ export class PracticeArena implements Arena {
   private aegisCheck(now: number, v: CombatView) {
     const s = this.style
     const pc = this.playerCharge
-    if (!pc || pc.aegisRolled || v.shroud.player > 0 || v.shield.enemy > 0 || pc.el === 'H') return
+    if (!this.magic.includes('aegis') || !pc || pc.aegisRolled || v.shroud.player > 0 || v.shield.enemy > 0 || pc.el === 'H') return
     const r = v.ready.player
     const big = r ? r.shape !== 'line' && r.shape !== COUNTER : this.playerStrokeAt !== null && now - this.playerStrokeAt > 500
     if (!big) return
@@ -592,6 +671,15 @@ export class PracticeArena implements Arena {
       else if (this.playerCharge?.el !== pel) {
         this.playerCharge = { el: pel, since: now, rollAt: now }
         this.history = [...this.history.slice(-4), pel]
+      }
+      // Knocked down by your Earthquake: its cast stops at once, like yours would.
+      const knocked = this.combat.view(now).knocked.enemy
+      if (knocked !== this.knockedSeen) {
+        this.knockedSeen = knocked
+        if (this.enemy) this.nextEnemyAt = Math.max(this.nextEnemyAt, now + 1000)
+        this.enemy = null
+        this.reactAt = null
+        this.switchTo = null
       }
       // Silenced (your counter landed): whatever it was casting is gone.
       if (this.combat.isSilenced('enemy', now)) {
@@ -663,7 +751,7 @@ export class PracticeArena implements Arena {
         this.enemy = null
       }
     }
-    return { ...this.combat.view(now), enemyCast: this.enemyView(now), running: this.running }
+    return { ...this.combat.view(now), enemyCast: this.enemyView(now), running: this.running, hint: this.running ? this.hint(now) : null }
   }
 }
 

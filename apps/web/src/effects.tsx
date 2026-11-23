@@ -1,5 +1,5 @@
-// Spell impact visuals: the name flies across, then the target's half gets an element effect.
-// Strength sets the size: light (line) < heavy (W, counter, heal) < signature.
+// Spell impact visuals: an element projectile flies across, then the target's half gets an element effect.
+// Strength sets the size: light (line) < heavy (H, counter, heal) < signature.
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
 import { AEGIS_HP, MIRROR_MS, SHROUD_MS, type Bolt, type CombatView, type Side } from './combat'
 
@@ -21,16 +21,237 @@ function rng(seed: number) {
 
 type Vars = CSSProperties & Record<`--${string}`, string | number>
 
-/** The flying names, over both halves. */
+/** The flying spells, over both halves: an element projectile from your half to theirs. */
 export function BoltLayer({ bolts }: { bolts: Bolt[] }) {
   return (
     <div className="bolt-layer">
       {bolts.map((b) => (
-        <div key={b.id} className={`bolt from-${b.from} ${b.kind} tier-${b.tier}`} style={{ color: b.color, '--fly': `${b.fly}ms` } as Vars}>
-          {b.name}
-        </div>
+        b.shape === 'battlements' && b.kind === 'hit' ? (
+          // Earthquake: a crack races along the ground from your half to theirs.
+          <div key={b.id}>
+            {[21, 43, 65, 87].map((top, n) => (
+              <svg key={n} className={`quake-run from-${b.from}`} viewBox="0 0 100 10" preserveAspectRatio="none" style={{ '--fly': `${b.fly}ms`, '--row': `${top}%`, scale: `1 ${n % 2 ? -1 : 1}` } as Vars}>
+                <polyline className="glow" points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
+                <polyline points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
+              </svg>
+            ))}
+          </div>
+        ) : (
+          <div key={b.id} className={`bolt from-${b.from} ${b.kind} tier-${b.tier}`} style={{ color: b.color, '--fly': `${b.fly}ms` } as Vars}>
+            <Projectile b={b} />
+          </div>
+        )
       ))}
     </div>
+  )
+}
+
+const MIX: Record<string, string> = { magma: 'F', storm: 'L', blizzard: 'I', twilight: 'U' }
+
+/** What flies: drawn facing right (flipped for the enemy). Bigger for heavies and signatures.
+ *  Glowing-energy look (reference: spell VFX in Hades / Magicka): no outlines, a white-hot core fading
+ *  out through the element's color, and a soft blurred trail. Edges fade, so it hides less of their drawing. */
+function Projectile({ b }: { b: Bolt }) {
+  const el = MIX[b.el] ?? b.el
+  const sig = b.tier === 'signature'
+  const id = `p${b.id}`
+  const blur = `url(#${id}b)`
+  /** Defs every projectile can use: a blur for trails/glows, a core gradient and a trail gradient. */
+  const defs = (c: string, mid: string) => (
+    <defs>
+      <filter id={`${id}b`} x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="4" />
+      </filter>
+      <radialGradient id={`${id}c`}>
+        <stop offset="0" stopColor="#fff" />
+        <stop offset="0.35" stopColor={mid} />
+        <stop offset="0.75" stopColor={c} />
+        <stop offset="1" stopColor={c} stopOpacity="0" />
+      </radialGradient>
+      <linearGradient id={`${id}t`} x1="0" x2="1">
+        <stop offset="0" stopColor={c} stopOpacity="0" />
+        <stop offset="1" stopColor={mid} stopOpacity="0.95" />
+      </linearGradient>
+    </defs>
+  )
+  const core = `url(#${id}c)`
+  const trail = `url(#${id}t)`
+  let art: ReactElement
+  if (b.kind === 'counter')
+    // A counterspell: a spinning ring of light in the element that beats theirs.
+    art = (
+      <>
+        {defs(b.color, '#fff')}
+        <g className="spin">
+          <circle cx="50" cy="50" r="30" fill="none" stroke={b.color} strokeWidth="14" filter={blur} />
+          <circle cx="50" cy="50" r="30" fill="none" stroke="#fff" strokeWidth="4" strokeDasharray="30 12" />
+        </g>
+        <circle cx="50" cy="50" r="16" fill={core} />
+      </>
+    )
+  else if (el === 'F')
+    art = sig ? (
+      // Meteor: a dark rock with glowing lava cracks inside a huge fire trail.
+      <>
+        {defs('#ff3d1f', '#ffb13d')}
+        <path d="M0 50 Q30 14 70 22 L70 78 Q30 86 0 50 Z" fill={trail} filter={blur} />
+        <circle cx="72" cy="50" r="30" fill={core} filter={blur} />
+        <path d="M54 32 L72 22 L90 32 L94 54 L82 72 L60 74 L50 56 Z" fill="#4a2e1e" />
+        <path d="M72 22 L90 32 L94 54 L76 50 Z" fill="#3a2418" />
+        <path d="M94 54 L82 72 L60 74 L76 50 Z" fill="#2a180f" />
+        <path d="M54 32 L72 22 L76 50 L50 56 Z" fill="#6a4228" />
+        <ellipse cx="64" cy="42" rx="5" ry="4" fill="#24140c" />
+        <ellipse cx="82" cy="58" rx="4" ry="3" fill="#24140c" />
+        <ellipse cx="70" cy="64" rx="3" ry="2.4" fill="#24140c" />
+        <circle cx="84" cy="38" r="1.6" fill="#24140c" />
+        <circle cx="58" cy="54" r="1.4" fill="#24140c" />
+        <path d="M54 32 L72 22 L90 32 L94 54 L82 72 L60 74 L50 56 Z" fill="none" stroke="#ff8a2a" strokeWidth="4" strokeLinejoin="round" filter={blur} />
+      </>
+    ) : (
+      // Fireball: a white-hot core in an orange flame, trailing fire.
+      <>
+        {defs('#ff4a1f', '#ffc23d')}
+        <path d="M0 50 Q30 22 64 30 L64 70 Q30 78 0 50 Z" fill={trail} filter={blur} />
+        <path d="M14 50 Q36 36 60 40 L60 60 Q36 64 14 50 Z" fill="#ffe08a" opacity="0.7" filter={blur} />
+        <circle cx="66" cy="50" r="32" fill={core} />
+      </>
+    )
+  else if (el === 'I' && sig)
+    // Frozen Prison: a cage of glowing ice bars.
+    art = (
+      <>
+        {defs('#5fc8ff', '#dff6ff')}
+        <rect x="14" y="10" width="72" height="80" rx="8" fill="#8fd8ff" opacity="0.25" filter={blur} />
+        {[26, 42, 58, 74].map((x) => (
+          <g key={x}>
+            <rect x={x - 5} y="12" width="10" height="76" rx="4" fill="#8fd8ff" filter={blur} />
+            <rect x={x - 2} y="12" width="4" height="76" rx="2" fill="#fff" />
+          </g>
+        ))}
+        <rect x="10" y="8" width="80" height="8" rx="4" fill="#e9f8ff" />
+        <rect x="10" y="84" width="80" height="8" rx="4" fill="#e9f8ff" />
+      </>
+    )
+  else if (el === 'I')
+    // Ice shard: a bright crystal with a frosty glow and sparkles in its wake.
+    art = (
+      <>
+        {defs('#5fc8ff', '#dff6ff')}
+        <path d="M0 50 Q30 36 60 40 L60 60 Q30 64 0 50 Z" fill={trail} filter={blur} />
+        <path d="M14 50 L56 24 L98 50 L56 76 Z" fill="#8fd8ff" filter={blur} />
+        <path d="M18 50 L56 28 L94 50 L56 72 Z" fill="#cdeeff" />
+        <path d="M30 50 L56 36 L82 50 L56 64 Z" fill="#fff" />
+        {[[22, 30], [30, 70], [10, 42]].map(([x, y]) => (
+          <path key={x} d={`M${x} ${y - 5} L${x + 1.5} ${y - 1.5} L${x + 5} ${y} L${x + 1.5} ${y + 1.5} L${x} ${y + 5} L${x - 1.5} ${y + 1.5} L${x - 5} ${y} L${x - 1.5} ${y - 1.5} Z`} fill="#fff" />
+        ))}
+      </>
+    )
+  else if (el === 'W')
+    art = sig ? (
+      // Tidal Wave: a glowing curl of water, bright at the crest, foam spraying off.
+      <>
+        <defs>
+          <filter id={`${id}b`} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" />
+          </filter>
+          <linearGradient id={`${id}w`} x1="0" y1="1" x2="0.4" y2="0">
+            <stop offset="0" stopColor="#1f5fd0" stopOpacity="0.2" />
+            <stop offset="0.6" stopColor="#3d8bff" />
+            <stop offset="1" stopColor="#bfe0ff" />
+          </linearGradient>
+        </defs>
+        <path d="M2 98 L2 70 Q10 40 34 26 Q62 8 84 20 Q98 30 90 46 Q84 34 70 36 Q56 40 60 56 Q66 72 98 74 L98 98 Z" fill="#3d8bff" filter={blur} />
+        <path d="M2 98 L2 70 Q10 40 34 26 Q62 8 84 20 Q98 30 90 46 Q84 34 70 36 Q56 40 60 56 Q66 72 98 74 L98 98 Z" fill={`url(#${id}w)`} />
+        <path d="M30 28 Q60 8 84 20 Q98 30 90 46" fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" />
+        {[[94, 14, 4], [86, 8, 3], [98, 26, 2.5]].map(([x, y, r]) => (
+          <circle key={x} cx={x} cy={y} r={r} fill="#fff" />
+        ))}
+      </>
+    ) : (
+      // Water orb: a shining bubble of water with a ripple ring and droplets.
+      <>
+        {defs('#2f7bff', '#9fd0ff')}
+        <path d="M0 50 Q30 30 60 36 L60 64 Q30 70 0 50 Z" fill={trail} filter={blur} />
+        <circle cx="64" cy="50" r="34" fill="#3d8bff" opacity="0.6" filter={blur} />
+        <circle cx="64" cy="50" r="28" fill={core} />
+        <circle cx="64" cy="50" r="30" fill="none" stroke="#cfe6ff" strokeWidth="2.5" opacity="0.8" />
+        <ellipse cx="72" cy="38" rx="9" ry="5" fill="#fff" transform="rotate(-20 72 38)" />
+        <circle cx="20" cy="40" r="4" fill="#bfe0ff" />
+        <circle cx="30" cy="62" r="5" fill="#bfe0ff" />
+      </>
+    )
+  else if (el === 'E' && sig) return null // Earthquake doesn't fly: their half just shakes
+  else if (el === 'E')
+    // Boulder: a solid rock with an amber energy glow and a dust trail.
+    art = (
+      <>
+        {defs('#b58a4c', '#ffd28a')}
+        <path d="M0 50 Q30 32 56 36 L56 64 Q30 68 0 50 Z" fill={trail} opacity="0.7" filter={blur} />
+        <path d="M26 30 L58 16 L92 34 L94 66 L64 84 L30 72 Z" fill="#ffb84d" opacity="0.8" filter={blur} />
+        <path d="M30 32 L58 20 L88 36 L90 64 L64 80 L34 70 Z" fill="#a07840" />
+        <path d="M58 20 L88 36 L90 64 L66 52 Z" fill="#8a6634" />
+        <path d="M90 64 L64 80 L34 70 L66 52 Z" fill="#6e5128" />
+        <path d="M30 32 L58 20 L66 52 L34 70 Z" fill="#c69a5a" />
+        <ellipse cx="48" cy="40" rx="5" ry="4" fill="#8a6634" />
+        <ellipse cx="76" cy="44" rx="4" ry="3" fill="#6e5128" />
+        <ellipse cx="62" cy="68" rx="4" ry="3" fill="#57401f" />
+        <circle cx="42" cy="56" r="1.8" fill="#8a6634" />
+        <circle cx="80" cy="60" r="1.6" fill="#57401f" />
+        <circle cx="56" cy="30" r="1.4" fill="#e2bd80" />
+      </>
+    )
+  else if (el === 'L' && sig) return null // Thunderbolt doesn't fly: a storm forms over them and strikes
+  else if (el === 'L')
+    // Lightning: a white-hot zigzag bolt in a crackling yellow glow.
+    art = (
+      <>
+        {defs('#ffd23f', '#fff6a8')}
+        <circle cx="62" cy="50" r="38" fill={core} opacity="0.6" />
+        <path d="M2 54 L34 36 L40 52 L70 32 L66 50 L98 42 L64 68 L60 54 L34 70 L36 58 Z" fill="#ffe14d" filter={blur} />
+        <path d="M6 54 L34 40 L40 54 L68 36 L64 51 L92 45 L62 64 L58 52 L36 66 L37 57 Z" fill="#fffbe0" />
+        <path d="M40 54 L44 70 M68 36 L72 22 M20 48 L16 38" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
+      </>
+    )
+  else if (b.shape === 'blade')
+    // Execute: a steel guillotine blade (wood back, sharp edge first) wrapped in a violet glow.
+    art = (
+      <>
+        {defs('#a05cd6', '#e6c2ff')}
+        <path d="M0 50 Q20 30 40 34 L40 66 Q20 70 0 50 Z" fill={trail} filter={blur} />
+        <rect x="24" y="16" width="70" height="68" rx="4" fill="#a05cd6" opacity="0.7" filter={blur} />
+        <rect x="26" y="18" width="14" height="64" rx="2" fill="#6b4a32" />
+        <rect x="40" y="22" width="50" height="56" fill="#cfc8e0" />
+        <path d="M40 22 H90 V44 H40 Z" fill="#ece8f6" />
+        <path d="M86 24 V76" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+      </>
+    )
+  else if (el === 'U')
+    // Doom: a pale skull in a ghostly violet fire.
+    art = (
+      <>
+        {defs('#8a3fd6', '#e6c2ff')}
+        <path d="M0 50 Q26 24 50 30 L50 70 Q26 76 0 50 Z" fill={trail} filter={blur} />
+        <circle cx="64" cy="48" r="38" fill={core} opacity="0.55" filter={blur} />
+        <path d="M64 16 Q90 16 92 42 Q93 55 83 59 L82 72 Q74 80 64 80 Q54 80 46 72 L45 59 Q35 55 36 42 Q38 16 64 16 Z" fill="#f2eefc" />
+        <ellipse cx="54" cy="44" rx="7.5" ry="8.5" fill="#3a1f5a" />
+        <ellipse cx="74" cy="44" rx="7.5" ry="8.5" fill="#3a1f5a" />
+        <circle cx="54" cy="45" r="3.5" fill="#d9a6ff" />
+        <circle cx="74" cy="45" r="3.5" fill="#d9a6ff" />
+        <path d="M61 59 L64 52 L67 59 Z" fill="#3a1f5a" />
+        <path d="M52 69 h24 M57 65 v8 M62 65 v8 M67 65 v8 M72 65 v8" stroke="#3a1f5a" strokeWidth="2.5" />
+      </>
+    )
+  else
+    art = (
+      <>
+        {defs(b.color, '#fff')}
+        <circle cx="60" cy="50" r="26" fill={core} />
+      </>
+    )
+  return (
+    <svg className="projectile" viewBox="0 0 100 100" aria-hidden="true">
+      {art}
+    </svg>
   )
 }
 
@@ -119,8 +340,8 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
     for (let i = 0; i < n; i++)
       add('p rock', { '--x': `${(r() - 0.5) * 90}%`, '--s': `${8 + r() * (b.tier === 'signature' ? 26 : 14)}px`, '--rot': `${r() * 360}deg`, '--d': d(r() * 200), '--t': `${500 + r() * 400}ms` })
   if (els.includes('L')) {
-    const bolts = b.tier === 'light' ? 1 : b.tier === 'heavy' ? 2 : 4
-    add('lflash', { '--d': d(), '--t': b.tier === 'signature' ? '500ms' : '260ms' })
+    const bolts = b.tier === 'light' ? 3 : b.tier === 'heavy' ? 5 : 0
+    add('lflash', { '--d': d(), '--t': b.tier === 'heavy' ? '420ms' : '300ms' })
     for (let k = 0; k < bolts; k++) {
       let x = 20 + r() * 60
       const pts = [`${x},0`]
@@ -221,7 +442,7 @@ export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
           {Array.from({ length: 10 }, (_, i) => (
             <i key={i} style={{ '--x': `${r() * 160}px`, '--rot': `${r() * 400 - 200}deg`, '--s': `${6 + r() * 10}px`, '--d': `${r() * 120}ms` } as Vars} />
           ))}
-          <span>Charge lost</span>
+          <span>Knocked down!</span>
         </div>
       )}
     </div>
@@ -233,30 +454,40 @@ export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
 function signature(b: Bolt, r: () => number, parts: ReactElement[]) {
   const k = () => parts.length
   const fromLeft = b.from === 'player' // the caster's side, as the target sees it
-  if (b.el === 'F') {
-    // Meteor: a burning ball drops from the top corner, lands as the name does.
-    parts.push(
-      <div key={k()} className={`sig-meteor ${fromLeft ? 'from-left' : 'from-right'}`} style={{ '--d': '0ms' } as Vars}>
-        <div className="ball" />
-      </div>,
-    )
-    parts.push(<div key={k()} className="sig-scorch" />)
-  }
+  if (b.el === 'F') parts.push(<div key={k()} className="sig-scorch" />) // Meteor: the rock itself flies over
   if (b.el === 'I')
     // Frozen Prison: ice bars slam down over the half and hold for the silence, then shatter.
     // Four thin bars, kept toward the edges so the middle (where they draw) stays clear.
     [6, 22, 76, 92].forEach((x, i) => parts.push(<div key={k()} className="sig-bar" style={{ '--x': `${x}%`, '--d2': `${i * 40}ms` } as Vars} />))
   if (b.el === 'L') {
-    // Thunderbolt: the sky darkens, then one huge bolt splits the half.
-    parts.push(<div key={k()} className="sig-dark" style={{ '--d': '200ms' } as Vars} />)
-    let x = 50
-    const pts = [`${x},-2`]
-    for (let y = 8; y <= 100; y += 8) pts.push(`${(x = Math.max(15, Math.min(85, x + (r() - 0.5) * 30)))},${y}`)
+    // Thunderbolt: no projectile. A storm cloud gathers over them while it would fly, then one huge
+    // bolt strikes and their whole half flashes white.
     parts.push(
-      <svg key={k()} className="sig-bolt" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <polyline points={pts.join(' ')} />
-      </svg>,
+      <div key={k()} className="sig-cloud" style={{ '--d': '0ms', '--t': `${b.fly}ms` } as Vars}>
+        {Array.from({ length: 8 }, (_, i) => (
+          <i key={i} style={{ '--x': `${8 + r() * 84}%`, '--d': `${r() * b.fly * 0.8}ms` } as Vars} />
+        ))}
+      </div>,
     )
+    parts.push(<div key={k()} className="sig-dark" />)
+    for (let n = 0; n < 3; n++) {
+      let x = 30 + r() * 40
+      const pts = [`${x},-2`]
+      const forks: string[] = []
+      for (let y = 7; y <= 100; y += 7) {
+        pts.push(`${(x = Math.max(10, Math.min(90, x + (r() - 0.5) * 26)))},${y}`)
+        if (n === 0 && r() < 0.3) forks.push(`${x},${y} ${x + (r() - 0.5) * 30},${y + 10 + r() * 10}`)
+      }
+      parts.push(
+        <svg key={k()} className={`sig-bolt ${n ? 'thin' : ''}`} viewBox="0 0 100 100" preserveAspectRatio="none">
+          <polyline points={pts.join(' ')} />
+          {forks.map((f, i) => (
+            <polyline key={i} className="fork" points={f} />
+          ))}
+        </svg>,
+      )
+    }
+    parts.push(<div key={k()} className="sig-whiteout" />)
   }
   if (b.el === 'E')
     // Earthquake: cracks run up from the ground.
@@ -271,9 +502,9 @@ function signature(b: Bolt, r: () => number, parts: ReactElement[]) {
       )
     }
   if (b.el === 'W')
-    // Tidal Wave: a wall of water sweeps across from the caster's side.
+    // Tidal Wave: the wave that flew over crashes through the half.
     parts.push(
-      <div key={k()} className={`sig-wave ${fromLeft ? 'from-left' : 'from-right'}`} style={{ '--d': '150ms' } as Vars}>
+      <div key={k()} className={`sig-wave ${fromLeft ? 'from-left' : 'from-right'}`}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none">
           <path d="M0,100 L0,30 Q10,10 20,28 T40,26 T60,24 T80,28 T100,22 L100,100 Z" />
         </svg>
@@ -292,18 +523,8 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
     case 'mirror': // a glassy sheen sweeps across
       parts.push(<div key={k()} className="fx-mirror" style={{ '--d': d() } as Vars} />)
       break
-    case 'scythe': // a curved blade swings through
-      parts.push(
-        <svg key={k()} className="fx-scythe" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ '--d': d() } as Vars}>
-          <path d="M8 18 Q60 -10 92 70" pathLength={1} />
-        </svg>,
-      )
-      break
     case 'veil': // dark fog rolls over the caster
       parts.push(<div key={k()} className="fx-shroud" style={{ '--d': d() } as Vars} />)
-      break
-    case 'blade': // a blade drops from the top
-      parts.push(<div key={k()} className="fx-blade" style={{ '--d': d() } as Vars} />)
       break
     case 'volcano': // lava wells up from below
       parts.push(<div key={k()} className="fx-lava" style={{ '--d': d() } as Vars} />)

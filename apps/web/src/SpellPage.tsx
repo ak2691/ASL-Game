@@ -9,6 +9,7 @@ import { LandmarkSmoother } from './smoothing'
 import { CastGuide } from './CastGuide'
 import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
 import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, spellName } from './spells'
+import { Tower } from './Ladder'
 import { DummyArena, PracticeArena, shapePoints, type Arena, type Difficulty, type Side, type Snapshot } from './battle'
 import { BoltLayer, Impacts, SilenceLock, StatusFx, useShake } from './effects'
 import { play, useFightSfx } from './sfx'
@@ -62,7 +63,7 @@ const FAST_PEN_UP_MS = 180
 // Push to throw: a readied spell is thrown when the hand grows this much on screen within the window.
 const PUSH_GROWTH = 1.3
 const PUSH_WINDOW_MS = 300
-const MIN_STROKE_PALMS = 1.2 // shorter strokes fizzle (too short to be a shape)
+const MIN_STROKE_PALMS = 0.8 // shorter strokes fizzle (too short to be a shape). Was 1.2: lines (one segment) had to be far bigger than a W
 const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignored (no fizzle)
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
@@ -238,7 +239,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     leaveOnline()
     onHome()
   }
-  const [difficulty, setDifficulty] = useState<Difficulty>('easy')
+  const [difficulty, setDifficulty] = useState<Difficulty>('pebble')
   // Practice starts after a short 3-2-1 (the gong plays when the fight begins).
   const [countdownEnds, setCountdownEnds] = useState<number | null>(null)
   const startPractice = () => setCountdownEnds(performance.now() + 3000)
@@ -837,17 +838,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           )}
           {mode === 'practice' && !fight.running && (
             <div className="stage-center">
-              <div className="row">
-                {(['easy', 'medium', 'hard', 'insane'] as const).map((d) => (
-                  <button key={d} className={`small ${difficulty === d ? 'active' : ''}`} onClick={() => setDifficulty(d)}>
-                    {d[0].toUpperCase() + d.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <Tower value={difficulty} onPick={setDifficulty} />
               {countdownEnds ? (
                 <b className="countdown">{secsLeft(countdownEnds) || 1}</b>
               ) : (
-                <button onClick={startPractice}>{result ? 'Fight again' : 'Start battle'}</button>
+                <button className="cta" onClick={startPractice}>{result ? 'Fight again' : 'Start battle'}</button>
               )}
             </div>
           )}
@@ -982,6 +977,11 @@ function OppStatus({ fight }: { fight: Snapshot }) {
         {chargeLabel(el, fight.mix.enemy)}
       </span>
       <span className="sub-line">{silenced ? 'Silenced!' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
+      {fight.hint && !silenced && (
+        <span className="sub-line" style={{ color: ELEMENTS[fight.hint].color }}>
+          Counter with {ELEMENTS[fight.hint].name}
+        </span>
+      )}
     </div>
   )
 }

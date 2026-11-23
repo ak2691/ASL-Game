@@ -18,7 +18,7 @@ const SIGNATURES = [
   { el: 'I', name: 'Frozen Prison', draw: 'Square + both diagonals', dmg: '10', effect: `Silences them for ${s(PRISON_SILENCE_MS)}, whatever their element, and chills them: their next hit within ${s(CHILL_MS)} does +${PRISON_CHILL * 100}%.` },
   { el: 'W', name: 'Tidal Wave', draw: 'Spiral', dmg: '22', effect: 'You heal 20.' },
   { el: 'E', name: 'Earthquake', draw: '3 towers', dmg: '35', effect: 'Knocks off their charge and readied spell.' },
-  { el: 'L', name: 'Thunderbolt', draw: '7 zigzag lines', dmg: '18', effect: 'Five fast static pulses where their throws fizzle.' },
+  { el: 'L', name: 'Thunderbolt', draw: '7 zigzag lines', dmg: '18', effect: 'Three fast static pulses where their throws fizzle.' },
 ]
 
 const UNHOLY = [
@@ -49,7 +49,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
 
       <section className="info-card">
         <h2>Attacks</h2>
-        <p className="info-note">Light = a line. Heavy = a W. Same drawings for every element.</p>
+        <p className="info-note">Light = a line. Heavy = an H. Same drawings for every element.</p>
         <table className="info-table">
           <thead>
             <tr>
@@ -138,7 +138,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
             ))}
           </tbody>
         </table>
-        <p className="info-note">Holy and Unholy counter each other. Holy has only the counterspell, no interrupt.</p>
+        <p className="info-note">Holy and Unholy counter each other. Neither has an interrupt, only the counterspell.</p>
       </section>
 
       <section className="info-card" hidden={!COMBOS_ON}>
@@ -197,7 +197,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
           <li><b>Static:</b> throws during a pulse fizzle. Wait for the gap.</li>
           <li><b>Chilled:</b> the next hit you take does extra damage.</li>
           <li><b>Burning:</b> extra damage ticks every 0.5 s.</li>
-          <li><b>Knocked off:</b> your charge is gone. Sign your element again.</li>
+          <li><b>Knocked down:</b> your charge is gone. Sign your element again.</li>
           <li><b>Armor (Aegis):</b> direct hits are soaked first. It drains over time.</li>
           <li><b>Doomed:</b> a countdown. Land any cast before it ends.</li>
           <li><b>Shrouded:</b> your opponent can't see your charge or drawing.</li>

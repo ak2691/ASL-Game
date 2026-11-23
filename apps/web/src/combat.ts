@@ -4,9 +4,9 @@ import { COMBO, COMBOS_ON, COMBO_CHARGES, COUNTER, ELEMENTS, FORMS, MIXABLE, PUN
 
 export { isValidSpell }
 
-export const MAX_HP = 300
+export const MAX_HP = 250
 const TICK_MS = 500
-export const COUNTER_SILENCE_MS = 2000 // a landed counterspell
+export const COUNTER_SILENCE_MS = 2500 // a landed counterspell
 export const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
 export const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
 export const CHILL_MS = 4000
@@ -17,7 +17,7 @@ export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be rec
 export const MIRROR_MS = 4000 // Mirror: the next direct-damage spell within this time flies back
 export const DOOM_MS = 2500 // Doom: land a cast within this time...
 export const DOOM_DMG = 30 // ...or take this
-export const SHROUD_MS = 5000 // Shroud: they can't see your charge or your drawing
+export const SHROUD_MS = 4000 // Shroud: they can't see your charge or your drawing
 export const EXECUTE: [number, number, number] = [15, 0.3, 60] // Execute: base + share of their missing HP, capped
 // (a readied Execute hit by a counterspell backfires: the caster takes half of what it would do to them)
 export const BLIZZARD_SILENCE_MS = 800
@@ -41,11 +41,11 @@ export const PUNCH: Record<string, [number, number]> = {
 export const BURN: [number, number] = [4, 11] // Fire: extra damage over ~1.5 s
 export const CHILL: [number, number] = [0.25, 0.4] // Ice (light, heavy): the next hit they take does this much more
 export const BLIZZARD_CHILL = 0.4
-export const STATIC_PULSES: [number, number] = [1, 3] // Lightning: pulses of 0.5 s, 0.75 s gaps
+export const STATIC_PULSES: [number, number] = [1, 2] // Lightning: pulses of 0.5 s, 0.75 s gaps
 
 // Static pulse patterns: throws fizzle during "on".
 const PUNCH_STATIC = { on: 500, off: 750 }
-const THUNDERBOLT_STATIC = { on: 500, off: 500, count: 5 } // tighter rhythm, more pulses
+const THUNDERBOLT_STATIC = { on: 500, off: 500, count: 3 } // tighter rhythm, more pulses
 
 export type Side = 'player' | 'enemy'
 export const other = (s: Side): Side => (s === 'player' ? 'enemy' : 'player')
@@ -535,8 +535,8 @@ export class Combat {
         this.charge[target] = null
         this.ready[target] = null
         this.knocked[target]++
-        this.note(target, 'Knocked off!', 'Earthquake: re-sign your element', color, false, now)
-        this.float(target, 'Knocked off!', color, now)
+        this.note(target, 'Knocked down!', 'Earthquake: re-sign your element', color, false, now)
+        this.float(target, 'Knocked down!', color, now)
         break
       case 'spiral': // Tidal Wave: big hit, big heal
         this.hit(target, 22, color, now)

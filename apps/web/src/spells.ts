@@ -28,11 +28,11 @@ export const beats = (a: string, b: string) => BEATS[a] === b
 export const COUNTER = 'circle'
 /** The quick interrupt: charge the matching element and push, no drawing. Weaker, faster. */
 export const QUICK = 'jab'
-/** Holy only has the full counterspell, no quick interrupt. */
-export const canQuick = (el: string) => el in BEATS && el !== 'H'
+/** Holy and Unholy only have the full counterspell, no quick interrupt (all their spells are signature-level). */
+export const canQuick = (el: string) => el in BEATS && el !== 'H' && el !== 'U'
 
-/** Shared attacks (same drawing for every element): light (a line) and heavy (a W). */
-export const PUNCHES = ['line', 'w']
+/** Shared attacks (same drawing for every element): light (a line) and heavy (an H). */
+export const PUNCHES = ['line', 'h']
 /** Each element's signature move: a unique, harder drawing. */
 export const SIGNATURE: Record<string, string> = { F: 'flame', I: 'cage', L: 'zigzag7', E: 'battlements', W: 'spiral' }
 /** Holy: heals plus buffs. Unholy: curses. All signature-level drawings (no lines or Ws). */
@@ -73,7 +73,7 @@ export const STRICT_SHAPES = new Set([...Object.values(SIGNATURE), 'aegis', 'mir
 /** Short labels for the guide. */
 export const FORMS: Record<string, string> = {
   line: 'Light attack',
-  w: 'Heavy attack',
+  h: 'Heavy attack',
   star: 'Heal',
   hourglass: 'Regen',
   flame: 'Meteor',
@@ -104,11 +104,11 @@ export const isValidSpell = (el: unknown, shape: unknown): boolean => {
 }
 
 const NAMES: Record<string, Record<string, string>> = {
-  F: { line: 'Fire', w: 'Heavy Fire', flame: 'Meteor' },
-  I: { line: 'Ice', w: 'Heavy Ice', cage: 'Frozen Prison' },
-  W: { line: 'Water', w: 'Heavy Water', spiral: 'Tidal Wave' },
-  E: { line: 'Earth', w: 'Heavy Earth', battlements: 'Earthquake' },
-  L: { line: 'Lightning', w: 'Heavy Lightning', zigzag7: 'Thunderbolt' },
+  F: { line: 'Fire', h: 'Heavy Fire', flame: 'Meteor' },
+  I: { line: 'Ice', h: 'Heavy Ice', cage: 'Frozen Prison' },
+  W: { line: 'Water', h: 'Heavy Water', spiral: 'Tidal Wave' },
+  E: { line: 'Earth', h: 'Heavy Earth', battlements: 'Earthquake' },
+  L: { line: 'Lightning', h: 'Heavy Lightning', zigzag7: 'Thunderbolt' },
   H: { star: 'Heal', hourglass: 'Regenerate', aegis: 'Aegis', mirror: 'Mirror' },
   U: { scythe: 'Doom', veil: 'Shroud', blade: 'Execute' },
 }

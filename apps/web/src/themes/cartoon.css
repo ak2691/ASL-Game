@@ -28,7 +28,7 @@
 [data-theme='cartoon'] *::after { filter: none !important; }
 
 /* Display text: chunky font, dark outline drawn behind the fill, offset shadow. */
-[data-theme='cartoon'] :is(.logo, h1, .result, .tut-title, .room-code, .countdown, .cast, .impact-name, .bolt, .st-silence b, .st-knock span, .tut-push) {
+[data-theme='cartoon'] :is(.logo, h1, .result, .tut-title, .room-code, .countdown, .cast, .impact-name, .st-silence b, .st-knock span, .tut-push) {
   font-family: var(--title);
   font-weight: normal;
   letter-spacing: 0.02em;

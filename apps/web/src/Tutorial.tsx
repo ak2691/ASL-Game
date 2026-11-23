@@ -19,7 +19,7 @@ const TIPS: Record<string, string> = {
   'F flame': 'Signatures are harder to draw but hit much harder.',
   'I line': 'Wrong shape or no charge means a fizzle. Wait it out and try again.',
   'W spiral': 'Start in the middle and spiral out.',
-  'E battlements': 'Earthquake knocks off your opponent’s charge.',
+  'E battlements': 'Earthquake knocks your opponent down and their charge is lost.',
   'L line': 'Lightning static makes their throws fizzle.',
   'H star': 'Heal yourself.',
   'H hourglass': 'Regen heals a little at a time.',
@@ -39,7 +39,7 @@ const TIPS: Record<string, string> = {
 /** How to draw each shape: count and orientation. */
 const HINTS: Record<string, string> = {
   line: 'Any direction',
-  w: '4 lines. Keep it upright (an M won’t count)',
+  h: 'One stroke: down, back up to the middle, across, then the other side',
   flame: 'A circle, then four spikes along its top',
   cage: 'A square, then both diagonals, in one stroke',
   zigzag7: '7 lines',
@@ -74,7 +74,7 @@ const BASICS: { title: string; points: string[] }[] = [
 ]
 
 const STEPS: Step[] = [
-  ...['F', 'I', 'W', 'E', 'L'].flatMap((el) => ['line', 'w', SIGNATURE[el]].map((shape) => ({ el, shape }))),
+  ...['F', 'I', 'W', 'E', 'L'].flatMap((el) => ['line', 'h', SIGNATURE[el]].map((shape) => ({ el, shape }))),
   { el: 'H', shape: 'star' },
   { el: 'H', shape: 'hourglass' },
   { el: 'H', shape: 'aegis' },
@@ -214,7 +214,7 @@ export function Tutorial({ notes, onHome, drawHand, twoHands }: { notes: Snapsho
 const GROUPS = [
   { label: 'Fire', els: ['F'] },
   { label: 'Ice', els: ['I'] },
-  { label: 'Water', els: ['W'], shapes: ['line', 'w', 'spiral'] },
+  { label: 'Water', els: ['W'], shapes: ['line', 'h', 'spiral'] },
   { label: 'Earth', els: ['E'] },
   { label: 'Lightning', els: ['L'] },
   { label: 'Holy', els: ['H'] },

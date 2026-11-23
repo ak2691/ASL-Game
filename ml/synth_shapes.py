@@ -28,7 +28,7 @@ features() must match apps/web/src/shapes.ts.
 
 import numpy as np
 
-CLASSES = ["none", "w", "circle", "star", "hourglass", "flame", "cage", "zigzag7", "battlements", "spiral",
+CLASSES = ["none", "h", "circle", "star", "hourglass", "flame", "cage", "zigzag7", "battlements", "spiral",
            "aegis", "mirror", "scythe", "veil", "blade", "volcano", "cloud", "trefoil", "yinyang"]
 RES = 128  # resample for the raster / sequence
 SEQ = 32  # points kept for the sequence part
@@ -197,6 +197,20 @@ class Gen:
         if flip:
             p = p * [1, -1]
         return self.finish(p)
+
+    def h(self, legs=2, half=False):
+        """One-stroke H (the heavy attack): one leg, back up/down to the bar, across, the other leg.
+        The retrace is drawn a little off the first pass, like a real hand. legs=1 / half=True = near-misses."""
+        r = self.r
+        wd, bar = self.u(0.55, 1.1), self.u(0.35, 0.65)
+        off = lambda: self.u(-0.06, 0.06)  # noqa: E731  retrace drift
+        TL, BL, TR, BR = [0, 0], [0, 1], [wd, 0], [wd, 1]
+        left = [TL, BL, [off(), bar]] if r.random() < 0.5 else [BL, TL, [off(), bar]]
+        right = [[wd + off(), bar], TR, BR] if r.random() < 0.5 else [[wd + off(), bar], BR, TR]
+        if half:
+            right = right[:2]  # the second leg only goes one way
+        vs = left + (right if legs == 2 else [[wd, bar]])
+        return self.finish(self.sharp(vs, 0.03), rot=10, flip_ok_x=True)
 
     def loop(self, turns, r0=None, aspect=None):
         T = turns
@@ -503,7 +517,7 @@ class Gen:
 
     def none_new(self):
         """Near-misses for the Holy/Unholy/combo shapes."""
-        c = int(self.r.integers(19))
+        c = int(self.r.integers(21))
         return [
             lambda: self.aegis(line=False),                      # shield, no middle line
             lambda: self.mirror(vertical=True),                  # a vertical 8
@@ -524,6 +538,8 @@ class Gen:
             lambda: self.trefoil(k=int(self.r.choice([2, 5]))),  # 4 or 5 petals
             lambda: self.yinyang(inner="line"),                  # circle + straight line
             lambda: self.loop(self.u(1.6, 2.0)),                 # double circle
+            lambda: self.h(half=True),                           # H with the last leg half done
+            lambda: self.h(legs=1),                              # one leg + bar: no second leg
         ][c]()
 
     # ---------------------------------------------------------- near-misses
@@ -538,7 +554,7 @@ class Gen:
                             lambda: self.battlements(round_tops=True)][c - 22]()
         if c >= 17: return [self.unfinished, self.almost, self.almost, self.circle_x, self.sideways][c - 17]()
         if c == 0: return self.scribble()
-        if c == 1: return self.w(flip=True)  # M
+        if c == 1: return self.w(flip=self.r.random() < 0.5)  # old W heavy / M: not a spell now
         if c == 2: return self.loop(self.u(1.25, 1.8))  # spiral with too few turns
         if c == 3: return self.loop(self.u(4.6, 6))  # too many turns
         if c == 4: return self.flame(n=int(r.choice([1, 2, 3, 3, 5, 5, 6])))
@@ -608,13 +624,13 @@ class Gen:
     def sideways(self):
         self.raw = True
         try:
-            p = self.r.choice([self.zigzag, self.w, self.battlements, self.flame])()
+            p = self.r.choice([self.zigzag, self.w, self.battlements, self.flame, self.h])()
         finally:
             self.raw = False
         return self.finish(p[:, ::-1] * [1, self.r.choice([-1, 1])], rot=10)
 
     def make(self, cls):
-        return {"w": self.w, "circle": self.circle, "star": self.star, "hourglass": self.hourglass,
+        return {"h": self.h, "circle": self.circle, "star": self.star, "hourglass": self.hourglass,
                 "flame": self.flame, "cage": self.cage, "zigzag7": self.zigzag, "battlements": self.battlements,
                 "spiral": self.spiral, "none": self.none, "aegis": self.aegis, "mirror": self.mirror,
                 "scythe": self.scythe, "veil": self.veil, "blade": self.blade, "volcano": self.volcano,

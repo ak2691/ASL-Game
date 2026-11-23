@@ -22,6 +22,7 @@ const SEQ = 32
 const GRID = 16
 const TURN_N = 64
 const CORNER_K = 4
+const DOOM_CURVE = 90 // degrees the scythe blade must turn smoothly (see bladeCurve)
 const TIP_H = 0.12 // how far the stroke must turn back (fraction of size) for a tip to count
 
 export async function loadShapeModel(): Promise<ShapeModel> {
@@ -189,6 +190,44 @@ export function spikeCount(points: Pt[]) {
   return n
 }
 
+/** Doom's blade must really curve (a few straight lines with corners used to pass). Splits the stroke at
+ *  sharp corners and returns the most net turning (degrees) any long-enough smooth run makes. The
+ *  blade's curves turn 110°+ over a good share of the stroke; straight lines with corners turn ~0 between
+ *  corners, and a rounded corner is too short to count. */
+export function bladeCurve(points: Pt[]) {
+  const N = 64
+  const raw = resample(points, N)
+  // Light smoothing so hand jitter doesn't read as corners.
+  const q = raw.map((v, i) => {
+    const a = raw[Math.max(0, i - 1)], b = raw[Math.min(N - 1, i + 1)]
+    return { x: (a.x + 2 * v.x + b.x) / 4, y: (a.y + 2 * v.y + b.y) / 4 }
+  })
+  const turns: number[] = []
+  for (let i = 1; i < N - 1; i++) {
+    const a1 = Math.atan2(q[i].y - q[i - 1].y, q[i].x - q[i - 1].x)
+    const a2 = Math.atan2(q[i + 1].y - q[i].y, q[i + 1].x - q[i].x)
+    let d = ((a2 - a1) * 180) / Math.PI
+    while (d > 180) d -= 360
+    while (d < -180) d += 360
+    turns.push(d)
+  }
+  let best = 0
+  let run = 0
+  let len = 0
+  const minLen = N * 0.15
+  for (const t of turns) {
+    if (Math.abs(t) >= 28) {
+      run = 0
+      len = 0
+      continue
+    }
+    run += t
+    len++
+    if (len >= minLen) best = Math.max(best, Math.abs(run))
+  }
+  return best
+}
+
 /** 3x3 linear solve (Cramer's rule); null if singular. */
 function solve3(m: number[][], r: number[]): [number, number, number] | null {
   const det = (a: number[][]) =>
@@ -211,6 +250,8 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
     if (spikeCount(points) === 4) return { name: 'flame', score: Math.max(0.7, flame), top }
     if (top[0].name === 'flame') return { name: 'none', score: top[0].prob, top }
   }
+  // Doom: the blade has to curve. Straight lines with corners are never a scythe.
+  if (top[0].name === 'scythe' && bladeCurve(points) < DOOM_CURVE) return { name: 'none', score: top[0].prob, top }
   return { name: top[0].name, score: top[0].prob, top }
 }
 

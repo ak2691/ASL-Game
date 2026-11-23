@@ -30,7 +30,7 @@ const VEIL = veilPath()
 
 export const SHAPE_PATHS: Record<string, string> = {
   line: 'M6 34 L34 6',
-  w: 'M4 8 L12 32 L20 14 L28 32 L36 8',
+  h: 'M9 5 L9 35 L9 20 L31 20 L31 5 L31 35',
   hourglass: 'M8 6 L32 6 L8 34 L32 34 Z',
   star: 'M20 4 L29.4 32.9 L4.8 15.1 L35.2 15.1 L10.6 32.9 Z',
   flame: 'M8.7 21.9 A12 12 0 1 0 31.3 21.9 A12 12 0 0 0 8.7 21.9 L11 6 L15 14.5 L18.5 4 L22 14 L25.5 4 L29 14.5 L32 6 L31.3 21.9',
@@ -55,7 +55,7 @@ export const SHAPE_PATHS: Record<string, string> = {
 
 export const SHAPE_STARTS: Record<string, [number, number]> = {
   line: [6, 34],
-  w: [4, 8],
+  h: [9, 5],
   hourglass: [8, 6],
   star: [20, 4],
   flame: [8.7, 21.9],
