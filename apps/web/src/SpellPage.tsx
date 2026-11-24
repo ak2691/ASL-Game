@@ -1230,7 +1230,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
         <BoltLayer bolts={fight.bolts} />
         {showResult && <div className={`result-banner ${fight.over === 'player' ? 'won' : 'lost'}`}>{result}</div>}
-        <p className="privacy-note">Your camera stays on your device. Online, your opponent only sees your drawings and element.</p>
+        {mode !== 'tutorial' && <p className="privacy-note">Your camera stays on your device. Online, your opponent only sees your drawings and element.</p>}
       </section>
       {menu === 'main' && (
         <div className="menu-overlay" onClick={() => setMenu(null)}>
