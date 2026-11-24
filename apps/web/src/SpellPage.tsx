@@ -8,16 +8,16 @@ import { getTracker, type Handed } from './trackers'
 import { LandmarkSmoother } from './smoothing'
 import { CastGuide } from './CastGuide'
 import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
-import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName } from './spells'
+import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
 import { Tower } from './Ladder'
-import { DummyArena, PracticeArena, beaterOf, shapePoints, spellOf, type Arena, type Difficulty, type Snapshot } from './battle'
+import { DummyArena, PracticeArena, beaterOf, dummyTimes, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
 import { BoltLayer, Impacts, ParryRings, StatusFx, setLocalBoltClock, useShake } from './effects'
 import { PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
 import { VolumeSlider } from './VolumeSlider'
-import { DRAW_HAND_KEY, TWO_HANDS_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, loadTwoHands, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids } from './settings'
+import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids } from './settings'
 import { PushSlider } from './PushSlider'
 import { DummySpells } from './DummySpells'
 import { GEAR, Icon } from './HomeCorner'
@@ -55,19 +55,9 @@ function downloadStrokes() {
 const CHARGE_PROB = 0.75 // letter model confidence needed to charge an element...
 const CHARGE_MS = 50 // ...held this long (two fight ticks)
 const UNCHARGE_MS = 150 // an open hand held this long while charged (nothing drawn) drops the charge: kept longer so a passing open hand doesn't
-// A stroke ends right away only on a deliberate pen-up (a second finger raised). Losing the
-// hand or a blurry index (fast moves) keeps the stroke open this long; the gap is bridged.
-const LOST_GRACE_MS = 400
-// Two hands: a hand lost on a fast move never ends the drawing; when it's back, the line joins up from
+// A hand lost on a fast move never ends the drawing; when it's back, the line joins up from
 // where it was last seen. Only a hand gone this long (out of frame, put down) ends it.
 const TWO_LOST_MS = 3000
-// Fast moves blur the fingers together and can fake a raised finger for a frame or two. So the
-// pen-up must be held this long, and only counts while the hand is moving slower than this.
-const PEN_UP_HOLD_MS = 100
-const PEN_UP_MAX_SPEED = 4 // palm-widths per second
-// Opening your hand while already moving fast (straight into a push) still ends the stroke, just a bit later
-// (blur can fake an open hand for a frame or two, so it has to last).
-const FAST_PEN_UP_MS = 180
 // Push to throw: a readied spell is thrown when the hand grows this much on screen within the window.
 const PUSH_WINDOW_MS = 300
 const PUSH_EVEN = 0.6 // a push grows the palm's width and length each by at least this share of the push size
@@ -99,23 +89,18 @@ const MIN_STROKE_PALMS = 0.8 // shorter strokes fizzle (too short to be a shape)
 const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignored (no fizzle)
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
+const PARRY_FLASH_MS = 800 // "Reflected" / "Destroyed" stays on your hand this long
+const MESSAGE_MS = 1500 // a failed-cast message (fizzle, missed parry) shows this long, or while its lock lasts
+const CIRCLE_SCORE = 0.5 // the counterspell circle is the most forgiving: it's drawn under pressure
+const CIRCLE_FALLBACK = 0.3 // a closed loop that would otherwise fizzle counts as a circle at this much
 const DROPOUT_MS = 150
 const RELEASE_MS = 100 // after a throw, letting go of the letter this long frees it to charge again
-const REHOLD_MS = 400 // ...or keep holding it this long after the throw (charges again without letting go)
+const REHOLD_MS = 100 // ...or keep holding it this long after the throw (charges again without letting go). Was 400; a whiffed interrupt now carries the spam cost
 const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
 
 const THUMB_OUT = 0.75 // thumb tip this far from the middle knuckle (palm sizes) = out
-const L_VETO_PROB = 0.6 // the letter model this sure it sees L = signing Lightning, not drawing
 
 const dist = (a: NormalizedLandmark, b: NormalizedLandmark) => Math.hypot(a.x - b.x, a.y - b.y)
-
-/** Pen down = pointing: index straight, the other three fingers curled, thumb tucked (not L). */
-function isPointing(lm: NormalizedLandmark[]) {
-  const w = lm[0]
-  const straight = dist(w, lm[8]) > dist(w, lm[6]) * 1.15
-  const curled = [12, 16, 20].every((tip) => dist(w, lm[tip]) < dist(w, lm[tip - 2]) * 1.05)
-  return straight && curled && !thumbOut(lm)
-}
 
 /** Thumb noticeably out to the side (as in L): not drawing. Tip-to-middle-knuckle, in palm sizes. */
 function thumbOut(lm: NormalizedLandmark[]) {
@@ -213,18 +198,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [log, setLog] = useState<Cast[]>([])
   const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave' | 'dummy'>(null)
   const [camInfo, setCamInfo] = useState<CameraInfo | null>(null)
-  const [twoHands, setTwoHands] = useState(loadTwoHands)
-  const twoHandsRef = useRef(twoHands) // read by the camera loop
-  const toggleTwoHands = () => {
-    const on = !twoHandsRef.current
-    twoHandsRef.current = on
-    setTwoHands(on)
-    try {
-      localStorage.setItem(TWO_HANDS_KEY, on ? '1' : '0')
-    } catch {
-      /* not saved: fine */
-    }
-  }
   // Two hands: which hand draws (the other one signs). Defaults to the hand you didn't pick to sign with.
   const [drawHand, setDrawHand] = useState<Hand>(() => loadDrawHand())
   const drawHandRef = useRef(drawHand)
@@ -249,35 +222,37 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // The fight: practice (AI enemy) or online (server). Polled on its own timer, separate from the camera loop.
   const dummy = useRef(new DummyArena())
   const [dummyAttacks, setDummyAttacksState] = useState(false)
-  const [dummyPool, setDummyPoolState] = useState(() => (dummy.current.pool = loadDummyPool()))
+  // The tutorial has its own plain dummy: defaults only, never the training dummy's saved settings.
+  const tut = mode === 'tutorial'
+  const [dummyPool, setDummyPoolState] = useState(() => (dummy.current.pool = tut ? ALL_DUMMY_SPELLS : loadDummyPool()))
   // A second enemy: the dummy fight becomes you against two dummies, each with its own spells.
   const team = useState(() => new TeamArena())[0]
   const [twoFoes, setTwoFoesState] = useState(() => mode === 'dummy' && loadDummyTwo())
   const aimOnRef = useRef(false) // two foes to aim between (read by the camera loop)
-  const [dummyPool2, setDummyPool2State] = useState(() => loadDummyPool(DUMMY_POOL2_KEY))
+  const [dummyPool2, setDummyPool2State] = useState(() => (tut ? ALL_DUMMY_SPELLS : loadDummyPool(DUMMY_POOL2_KEY)))
   team.pools = { enemy: dummyPool, enemy2: dummyPool2 }
   // Dummy pace (both dummies): cast time as a % of the default, and the time between casts.
-  const [pace, setPaceState] = useState(loadDummyPace)
+  const [pace, setPaceState] = useState(() => (tut ? { castPct: 100, gapMs: GAP_MS.def, parryPct: 0 } : loadDummyPace()))
   dummy.current.castPct = team.castPct = pace.castPct
   dummy.current.gapMs = team.gapMs = pace.gapMs
   dummy.current.parryPct = team.parryPct = pace.parryPct
   const setPace = (p: Pace) => {
-    saveDummyPace(p)
+    if (!tut) saveDummyPace(p)
     setPaceState(p)
   }
   // Dummy aids: the counter hint and the parry timing rings (the tutorial always shows the rings).
-  const [aids, setAidsState] = useState(loadDummyAids)
+  const [aids, setAidsState] = useState(() => (tut ? { hint: false, parryTimer: true } : loadDummyAids()))
   const setAids = (a: DummyAids) => {
-    saveDummyAids(a)
+    if (!tut) saveDummyAids(a)
     setAidsState(a)
   }
   const setDummyPool = (pool: string[], second = false) => {
     if (second) {
-      saveDummyPool(pool, DUMMY_POOL2_KEY)
+      if (!tut) saveDummyPool(pool, DUMMY_POOL2_KEY)
       setDummyPool2State(pool)
     } else {
       dummy.current.pool = pool
-      saveDummyPool(pool)
+      if (!tut) saveDummyPool(pool)
       setDummyPoolState(pool)
     }
   }
@@ -287,7 +262,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     setDummyAttacksState(on)
   }
   const practice = useRef(new PracticeArena())
-  practice.current.playerTwoHands = twoHands // it only parries when you can parry back
   const online = useRef<OnlineArena | null>(null)
   const [aimZone, setAimZone] = useState<Zone>('left')
   const arena = useRef<Arena>(mode === 'practice' ? practice.current : twoFoes ? team : dummy.current)
@@ -319,6 +293,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   const readyName = fight.ready.player && spellName(fight.ready.player.el, fight.ready.player.shape)
   const seenNotes = useRef(new Set<number>())
+  const parryFlash = useRef<{ text: string; t: number } | null>(null) // your last landed parry, shown on your hand
+  const lockLabel = useRef('Interrupted') // why you're locked out (shown on your hand)
   // Shake the half a spell lands on (see effects.tsx).
   const youRef = useRef<HTMLDivElement>(null)
   const oppRef = useRef<HTMLDivElement>(null)
@@ -353,6 +329,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       // Your cast log: what the fight says your casting did.
       const fresh = snap.notes.filter((n) => n.side === 'player' && !seenNotes.current.has(n.id))
       seenNotes.current = new Set(snap.notes.map((n) => n.id))
+      const pr = fresh.find((n) => n.name === 'Reflected!' || n.name === 'Destroyed!')
+      if (pr) parryFlash.current = { text: pr.name.slice(0, -1), t }
+      const lk = fresh.find((n) => n.name === 'Interrupted!' || n.name === 'Whiffed!')
+      if (lk) lockLabel.current = lk.name.slice(0, -1)
       if (fresh.length) setLog((l) => [...fresh.reverse().map((n) => ({ name: n.name, detail: n.detail, color: n.color, ok: n.ok, t: t })), ...l].slice(0, 8))
       setLobby(online.current ? { ...online.current.info } : null)
       setClock(t)
@@ -411,7 +391,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // hurt on your team).
   const zoneTarget = (z: Zone, el: string | null, shape: string): Fid | null => {
     if (!el || shape === 'veil') return null
-    if (el === 'H' && shape !== COUNTER) return null // heals and buffs: on you
+    if (el === 'A' && shape !== COUNTER) return null // heals and buffs: on you
     return z === 'left' ? 'enemy' : 'enemy2'
   }
   // ?debug: cast a spell without the camera (for testing online play with two tabs).
@@ -431,7 +411,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
     async function start() {
       try {
-        const [rec, tracker, tracker2, shapeModel] = await Promise.all([loadRecognizer(), getTracker(1), getTracker(2), loadShapeModel()])
+        const [rec, tracker2, shapeModel] = await Promise.all([loadRecognizer(), getTracker(2), loadShapeModel()])
         if (stopped) return
         // Front camera, 60 fps where it offers it (see camera.ts).
         const cam = await openCamera()
@@ -461,9 +441,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         let lastPointT = 0
         let fade: { pts: Pt[]; color: string; t: number } | null = null
         let lastUi = 0
-        let prevWrist: { x: number; y: number; t: number } | null = null
-        let openSince: number | null = null
-        let openFastSince: number | null = null // open hand, ignoring the speed limit (a pen-up straight into a push)
         let sizes: PalmSample[] = [] // recent palm measurements (push detection)
         let wasSilenced = false
         let sentSign: { el: string; t: number } | null = null // last element sent, so it isn't resent every frame
@@ -471,7 +448,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         // After a throw your hand is often still in that letter's shape. It mustn't recharge you: the
         // letter has to be let go (another shape for a moment) before it can charge again.
         let release: { el: string; since: number | null; thrown: number } | null = null
-        let penUpU = false // a stroke just ended: a U hand is the pen-up, not Unholy, until the hand changes
         let penUpOpen = false // a stroke just ended with an open hand: it doesn't drop the charge until the hand changes
         let openHoldSince: number | null = null // open hand held while charged (drops the charge after CHARGE_MS)
         let sentUncharge = 0
@@ -511,9 +487,16 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             return
           }
           const m = recognizeShape(shapeModel, pts)
-          const need = STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
-          const shape = m.score >= need && m.name !== 'none' ? m.name : null
+          const need = m.name === COUNTER ? CIRCLE_SCORE : STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
+          let shape = m.score >= need && m.name !== 'none' ? m.name : null
           const el = fightRef.current.charge.player
+          // A wobbly circle: if what was read wouldn't cast (no spell for this charge) but the drawing is a
+          // closed loop that leans circle, it's the counterspell. Never overrides a spell that would cast.
+          const counterReady = !!el && (el in BEATS || fightRef.current.mix.player.length === 2)
+          if (counterReady && !(shape && isValidSpell(el, shape))) {
+            const circleProb = m.top.find((t) => t.name === COUNTER)?.prob ?? 0
+            if (circleProb >= CIRCLE_FALLBACK && closedLoop(pts)) shape = COUNTER
+          }
           if (DEBUG) {
             const ft = shapeFeatures(pts)
             const o = ft.length - 8 // summary inputs: turns, …, corners (see shapes.ts)
@@ -545,19 +528,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           if (video.currentTime === lastVideoTime) return
           lastVideoTime = video.currentTime
           const now = performance.now()
-          const two = twoHandsRef.current
-          // Two hands: the signing hand is whichever one doesn't draw (the letter model reads it as that hand).
-          const signHand: Hand = two ? (drawHandRef.current === 'right' ? 'left' : 'right') : hand
-          let found: NormalizedLandmark[] | null
-          let drawFound: NormalizedLandmark[] | null = null
-          if (two) {
-            const all = await tracker2.detectAll(video, now)
-            const split = splitHands(all.image, all.handed, signHand, roles)
-            found = split.sign
-            drawFound = split.draw
-            if (found) roles.sign = { x: found[0].x, y: found[0].y }
-            if (drawFound) roles.draw = { x: drawFound[0].x, y: drawFound[0].y }
-          } else found = await tracker.detect(video, now)
+          // The signing hand is whichever one doesn't draw (the letter model reads it as that hand).
+          const signHand: Hand = drawHandRef.current === 'right' ? 'left' : 'right'
+          const all = await tracker2.detectAll(video, now)
+          const split = splitHands(all.image, all.handed, signHand, roles)
+          const found = split.sign
+          const drawFound = split.draw
+          if (found) roles.sign = { x: found[0].x, y: found[0].y }
+          if (drawFound) roles.draw = { x: drawFound[0].x, y: drawFound[0].y }
           if (stopped) return
           let dLm: NormalizedLandmark[] | null = null
           if (drawFound) {
@@ -590,7 +568,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           // Hand shape is read in true proportions, the same on any camera shape (see trueShape()).
           // Drawing on screen and stroke points keep the real frame.
           const shapeLm = lm && trueShape(lm, W, H)
-          const shapeFound = found && trueShape(found, W, H)
           const view = fightRef.current
           const myCharge = shownCharge(now, view.charge.player)
           // A new charge: forget earlier hand movement, so raising your hand to sign isn't read as a
@@ -637,13 +614,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           // The letter model runs every frame: a confident L (index up, thumb out) is Lightning
           // being signed, never drawing, even if the geometry check alone would call it pointing.
           const pred = shapeLm ? classify(rec, shapeLm, signHand) : null
-          const signingL = pred !== null && pred.letter === 'L' && pred.confidence >= L_VETO_PROB
           // Mixing a combo (fewer than 2 elements in): pointing between letters (W to L) isn't drawing.
           const mixing = myCharge === COMBO && view.mix.player.length < 2
-          // Two hands: the signing hand holding an element letter (or C) = pen down, open hand = pen up.
+          // The signing hand holding an element letter (or C) = pen down, open hand = pen up.
           // Only while charged with nothing readied, and both hands in view.
-          const signingCharge = pred !== null && !!myCharge && pred.letter === myCharge && pred.confidence >= CHARGE_PROB
-          if (two) {
+          {
             const can = !!myCharge && !myReady && !silenced && !mixing
             const holdingType = pred !== null && pred.confidence >= CHARGE_PROB && (!!ELEMENTS[pred.letter] || (pred.letter === COMBO && COMBOS_ON))
             const signOpen = !!shapeLm && isOpen(shapeLm, false)
@@ -658,11 +633,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               penFlipSince = null
             }
           }
-          const pointing = silenced || mixing ? false : two ? penDown : !!shapeLm && isPointing(shapeLm) && !signingL
+          const pointing = silenced || mixing ? false : penDown
           // The pen, in pixels: the index tip.
-          const penHand = two ? dLm : lm
+          const penHand = dLm
           const pen: Pt | null = penHand ? { x: penHand[8].x * W, y: penHand[8].y * H } : null
-          if (two && dLm && pen) {
+          if (dLm && pen) {
             drawer.drawConnectors(dLm, HandLandmarker.HAND_CONNECTIONS, { color: 'rgba(255,255,255,0.5)', lineWidth: 2 })
             // Pen cursor: hollow while hovering, filled while drawing.
             ctx.beginPath()
@@ -676,11 +651,15 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           if (lm && pred) {
             // Fizzle lockout: the hand goes dim and grey until you can throw again.
             const staggered = (view.staggered?.player ?? 0) > 0
-            const dim = view.fizzled.player > 0 || staggered
+            const locked = (view.locked?.player ?? 0) > 0 // interrupted or whiffed
+            const dim = view.fizzled.player > 0 || staggered || locked
             if (dim) ctx.globalAlpha = 0.3
             drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: dim ? '#888' : myCharge ? chargeInfo(myCharge).color : '#e2b714', lineWidth: 3 })
             ctx.globalAlpha = 1
-            if (dim) {
+            // A parry just landed: "Reflected" or "Destroyed" on the hand, where you're looking.
+            const pf = parryFlash.current
+            const flash = !dim && pf && now - pf.t < PARRY_FLASH_MS ? pf.text : null
+            if (dim || flash) {
               // "Fizzled" over the palm. The canvas is mirrored on screen, so flip the text back.
               const cx = ((lm[0].x + lm[9].x) / 2) * W
               const cy = ((lm[0].y + lm[9].y) / 2) * H
@@ -690,16 +669,16 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               ctx.font = `bold ${Math.round(0.04 * W)}px sans-serif`
               ctx.textAlign = 'center'
               ctx.textBaseline = 'middle'
-              ctx.fillStyle = '#ccc'
+              ctx.fillStyle = flash ? '#7fd8ff' : '#ccc'
               ctx.shadowColor = '#000'
               ctx.shadowBlur = 8
-              ctx.fillText(staggered ? 'Staggered' : 'Fizzled', 0, 0)
+              ctx.fillText(flash ?? (locked ? lockLabel.current : staggered ? 'Staggered' : 'Fizzled'), 0, 0)
               ctx.restore()
             }
             // Not while drawing, silenced or with a spell readied (the fight would refuse it anyway).
             // An open hand ("none") held CHARGE_MS while charged, nothing drawn: drop the charge. Not the
             // open hand that just ended a stroke (that one has to change shape first).
-            const canSwitch = two ? !committed : !pointing && stroke.length === 0
+            const canSwitch = !committed
             const openHand = canSwitch && !!shapeLm && isOpen(shapeLm, false)
             if (!openHand) penUpOpen = false
             if (openHand && myCharge && !myReady && !penUpOpen && !silenced && view.running) {
@@ -712,16 +691,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                 holdLetter = null
               }
             } else openHoldSince = null
-            if (canSwitch && !silenced && !myReady) {
+            if (canSwitch && !silenced && !myReady && !((view.locked?.player ?? 0) > 0)) {
               // Not drawing: read the handshape as a letter, to charge an element.
               letter = pred.confidence >= CHARGE_PROB ? directionLetter(pred.letter, shapeLm) : ''
               if (letter && !passesGate(letter, shapeLm)) letter = '' // e.g. an open palm read as F
-              if (letter !== 'U') penUpU = false
-              else if (penUpU) letter = ''
               // An open "5" is no letter. Until the letter model has a "none" class it still picks its
               // closest letter (C, H, ...), so a full open hand never charges.
               if (letter && shapeLm && isOpen(shapeLm, false)) letter = ''
-              let el = ELEMENTS[letter] || (letter === COMBO && COMBOS_ON) ? letter : null
+              let el = elementOfSign(letter)
               if (release) {
                 if (el === release.el) release.since = null
                 else if ((release.since ??= now) && now - release.since >= RELEASE_MS) release = null
@@ -772,41 +749,20 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             pencilSpeed = 0 // pen up: the pencil goes quiet
             pencil('me', 0)
           }
-          // Hand speed (palm-widths per second), from the smoothed wrist.
-          let speed = 0
-          if (lm) {
-            const hw = shapeLm![0] // same proportions as the palm size below
-            const palm = dist(hw, shapeLm![9]) || 1
-            if (prevWrist) speed = Math.hypot(hw.x - prevWrist.x, hw.y - prevWrist.y) / palm / (Math.max(now - prevWrist.t, 1) / 1000)
-            prevWrist = { x: hw.x, y: hw.y, t: now }
-          } else prevWrist = null
-          // The speed limit applies only when the pen-up starts (that's when blur fakes it); once
-          // started it holds through a fast move, so pushing right away doesn't cancel it.
-          if (!two && found && lm && !pointing && (isOpen(shapeFound!, false) || signingL || signingCharge) && (openSince !== null || speed < PEN_UP_MAX_SPEED)) openSince ??= now
-          else openSince = null
-          if (!two && found && lm && !pointing && (isOpen(shapeFound!, false) || signingL || signingCharge)) openFastSince ??= now
-          else openFastSince = null
-          const penUpStart = openSince ?? openFastSince
-          const fastPenUp = openFastSince !== null && now - openFastSince >= FAST_PEN_UP_MS
-          // Two hands: charge gone (open palm, knocked off, silenced) = the drawing is dropped, no fizzle.
-          if (two && stroke.length && !myCharge) {
+          // Charge gone (open palm, knocked off, silenced) = the drawing is dropped, no fizzle.
+          if (stroke.length && !myCharge) {
             stroke = []
             palmSum = 0
             setDrawing(false)
             arena.current.cleared()
           }
-          // Two hands: the signing hand opened (pen up), or the drawing hand has been gone TWO_LOST_MS.
-          const twoEnd = two && (!pointing || now - lastPointT > TWO_LOST_MS)
-          if (stroke.length && (twoEnd || (!two && !pointing && ((openSince !== null && now - openSince >= PEN_UP_HOLD_MS) || fastPenUp || now - lastPointT > LOST_GRACE_MS)))) {
-            openSince = null
-            openFastSince = null
+          // The signing hand opened (pen up), or the drawing hand has been gone TWO_LOST_MS.
+          if (stroke.length && (!pointing || now - lastPointT > TWO_LOST_MS)) {
             finishStroke(now)
-            // The hand that ended the stroke mustn't read as a letter (one hand) or drop the charge until it
-            // changes. Two hands: unless it was only a dot, then the open hand drops the charge as usual.
-            penUpU = !two
-            penUpOpen = !two || committed
-            // A push that began with the pen-up still counts: keep hand sizes from that moment on.
-            sizes = sizes.filter((x) => penUpStart !== null && x.t >= penUpStart)
+            // The open hand that ended the stroke doesn't drop the charge until it changes, unless the stroke
+            // was only a dot.
+            penUpOpen = committed
+            sizes = []
           }
           // Recent hand sizes (for push detection), recorded every frame.
           if (lm && found) {
@@ -816,7 +772,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
           // Parry: track both hands (fresh detections only) and note when each crosses the push growth.
           let parried = false
-          if (two) {
+          {
             const size = (h: NormalizedLandmark[]) => palmSample(h, W, H, now).s
             const pushed = (buf: PalmSample[], h: NormalizedLandmark[] | null) => {
               if (!h) return false
@@ -893,7 +849,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           // progress, so drawing never throws by accident. The fight decides what it throws, if anything.
           // Two hands: holding the letter already puts the pen down, so a push still counts while the line is
           // only a dot (the dot is thrown away). That's the quick interrupt: sign, then push before you draw.
-          if (!parried && (myReady || (myCharge && canQuick(myCharge))) && sizes.length > 1 && (two ? !committed : stroke.length === 0 && !pointing)) {
+          if (!parried && (myReady || (myCharge && canQuick(myCharge))) && sizes.length > 1 && !committed) {
             if (isPush(sizes)) {
               dropDot()
               if (aimOnRef.current) {
@@ -1030,7 +986,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const targetFor = (el: string, shape: string): Fid | null => {
     if (!online2) return team.targetFor(el, shape)
     const alive = (id: Fid) => fight.hp[id] > 0
-    if (el === 'H' && shape !== COUNTER) {
+    if (el === 'A' && shape !== COUNTER) {
       const share = (id: Fid) => (fight.maxHp[id] === Infinity ? 1 : fight.hp[id] / fight.maxHp[id])
       return ['player', ...allies].filter(alive).sort((a, b) => share(a) - share(b))[0] ?? 'player'
     }
@@ -1046,6 +1002,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       <div key={id} className={`team-card ally ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
         {fighterHead(id, nameOf(id))}
         <OppStatus fight={fight} id={id} cast={cast} />
+        {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
         <StatusFx side={id} view={fight} />
         <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />
         {out && <b className="out-tag">Out</b>}
@@ -1070,6 +1027,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
             {mode === 'dummy' && id === foes[foes.length - 1] && dummyBar}
           </div>
+          {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
         </div>
         <StatusFx side={id} view={fight} />
         <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />
@@ -1083,7 +1041,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     const t = zoneTarget(z, myR.el, myR.shape)
     return t ? nameOf(t) : nameOf(myTarget ?? 'player')
   }
-  const signLeft = (twoHands ? (drawHand === 'right' ? 'left' : 'right') : hand) === 'left'
+  const signLeft = drawHand === 'right'
   const dummyBar = (
     <div className="dummy-bar">
       <button className={`small ${dummyAttacks ? 'btn-stop' : 'btn-go'}`} onClick={() => setDummyAttacks(!dummyAttacks)} disabled={!dummyPool.length && !(twoFoes && dummyPool2.length) && !dummyAttacks}>
@@ -1138,7 +1096,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           </button>
           {camInfo && <span>camera {camInfo.width}×{camInfo.height} @ {camInfo.fps} fps</span>}
           debug cast:
-          {['F', 'I', 'L', 'E', 'W', 'H', 'U', ...(COMBOS_ON ? Object.keys(COMBO_SHAPE) : [])].map((el) =>
+          {['F', 'I', 'L', 'E', 'W', 'A', 'U', ...(COMBOS_ON ? Object.keys(COMBO_SHAPE) : [])].map((el) =>
             [...shapesFor(el), ...(el in BEATS ? [COUNTER] : []), ...(canQuick(el) ? [QUICK] : [])].map((shape) => (
               <button key={el + shape} className="small" onClick={() => debugCast(el, shape)}>
                 {el} {shape}
@@ -1159,6 +1117,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <div className="status-strip">
               <span className="charge" style={{ color: charge ? chargeInfo(charge).color : undefined }}>
                 {chargeLabel(charge, fight.mix.player)}
+                {chargePower(charge, fight.mix.player, fight.wear?.player) !== null && <small className="charge-power"> {chargePower(charge, fight.mix.player, fight.wear?.player)}%</small>}
               </span>
               <span className="sub-line">
                 {fight.running && fight.silenced.player > 0
@@ -1176,8 +1135,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               )}
             </div>
           </div>
+          {fight.wear && <WearRail wear={fight.wear.player} />}
           {status && <p className="status side-status">{status}</p>}
-          {latest && !latest.ok && (
+          {latest && !latest.ok && (clock - latest.t < MESSAGE_MS || fight.fizzled.player > 0 || (fight.staggered?.player ?? 0) > 0) && (
             <div className="cast stage-overlay" key={latest.t} style={{ color: latest.color }}>
               {latest.name}
               <span>{latest.detail}</span>
@@ -1185,7 +1145,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           )}
           <StatusFx side="player" view={fight} />
           <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />
-          {twoHands && (mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
+          {(mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
           {isTeam && foes.length >= 2 && myR && fight.running && (
             <div className="aim-zones" style={{ '--aim': chargeInfo(myR.el).color, gridTemplateColumns: signLeft ? '1fr 2fr' : '2fr 1fr' } as React.CSSProperties}>
@@ -1201,14 +1161,15 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         <div className="duel-side opp" ref={oppRef}>
           {isTeam && <div className="team-foes">{foes.map(foeCard)}</div>}
           {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
+          {!isTeam && mode !== 'tutorial' && fight.wear?.enemy && <WearRail wear={fight.wear.enemy} side="right" />}
           {!isTeam && <div className="side-hud">
             {fighterHead('enemy')}
             <div className="hud-row">
-              {((mode !== 'dummy' && mode !== 'tutorial') || (mode === 'dummy' && aids.hint)) && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
+              {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
               {mode === 'dummy' && dummyBar}
             </div>
           </div>}
-          {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} twoHands={twoHands} onTry={tutorialTry} />}
+          {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
           {mode === 'practice' && !fight.running && (
             <div className="stage-center">
               <Tower value={difficulty} onPick={setDifficulty} />
@@ -1247,8 +1208,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               </button>
             )}
             {mode !== 'tutorial' && <button onClick={() => setMenu('help')}>How to cast</button>}
-            <button onClick={toggleTwoHands}>Two hands: {twoHands ? 'on' : 'off'}</button>
-            {twoHands && <button onClick={swapDrawHand}>Draw with: {drawHand === 'right' ? 'Right hand' : 'Left hand'}</button>}
+            <button onClick={swapDrawHand}>Draw with: {drawHand === 'right' ? 'Right hand' : 'Left hand'}</button>
             <PushSlider />
             <button onClick={() => (inRoom || inPracticeMatch ? setMenu('leave') : goHome())}>Home</button>
             <VolumeSlider />
@@ -1345,6 +1305,62 @@ function chargeLabel(el: string | null, mix: string[]) {
   return mixed ? `${chargeInfo(el).name} charged (${mixed})` : `${chargeInfo(el).name} charged`
 }
 
+/** The stroke ends near where it started (within a quarter of its size): a closed loop. */
+function closedLoop(pts: Pt[]) {
+  const xs = pts.map((p) => p.x)
+  const ys = pts.map((p) => p.y)
+  const size = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) || 1
+  const a = pts[0]
+  const b = pts[pts.length - 1]
+  return Math.hypot(a.x - b.x, a.y - b.y) <= size / 4
+}
+
+/** Your charge's power when worn (an element, or a combo: the average of its two), else null. */
+function chargePower(el: string | null, mix: string[], wear: Record<string, number> | undefined) {
+  if (!el || !wear) return null
+  const els = el in COMBO_MIX ? COMBO_MIX[el] : el === COMBO ? mix : ELEMENTS[el] ? [el] : []
+  if (!els.length) return null
+  const p = Math.floor(els.reduce((t, e) => t + (wear[e] ?? 100), 0) / els.length)
+  return p < 100 ? p : null
+}
+
+const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
+/** Wear rail: every element down the edge of your half, its bar = its power now (full when fresh).
+ *  Each shows its % too, to judge whether a full-power throw is worth waiting for. */
+function WearRail({ wear, side = 'left' }: { wear: Record<string, number>; side?: 'left' | 'right' }) {
+  return (
+    <div className={`wear-rail ${side}`} aria-label="Element power">
+      {WEAR_ORDER.map((e) => {
+        const p = wear[e] ?? 100
+        return (
+          <span key={e} className={`wear-pip ${p < 100 ? 'worn' : ''}`} style={{ color: ELEMENTS[e].color }} title={`${ELEMENTS[e].name} ${p}%`}>
+            <b>{e}</b>
+            <span className="wear-track">
+              <i style={{ height: `${p}%` }} />
+            </span>
+            <em>{p}%</em>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Wear on a small 2v2 card: only the worn elements, as "I 62%" chips (a full rail won't fit). */
+function WearChips({ wear }: { wear: Record<string, number> }) {
+  const worn = WEAR_ORDER.filter((e) => (wear[e] ?? 100) < 100)
+  if (!worn.length) return null
+  return (
+    <div className="wear-chips" aria-label="Worn elements">
+      {worn.map((e) => (
+        <span key={e} style={{ color: ELEMENTS[e].color }}>
+          <b>{e}</b> {wear[e]}%
+        </span>
+      ))}
+    </div>
+  )
+}
+
 /** What the opponent is doing, as text (same style as your own charge line). */
 function OppStatus({ fight, id = 'enemy', cast, hint: showHint }: { fight: Snapshot; id?: Fid; cast?: Snapshot['enemyCast']; hint?: boolean }) {
   const c = cast === undefined ? fight.enemyCast : cast
@@ -1352,7 +1368,10 @@ function OppStatus({ fight, id = 'enemy', cast, hint: showHint }: { fight: Snaps
   // The fight's view shows a combo's mix as it grows.
   const el = fight.charge[id] ?? (c && c.el !== '?' ? c.el : null)
   // Training dummy aid: the element that counters what it's charging (attacks only).
-  const hint = showHint && c && c.el in BEATS ? beaterOf(c.el) : null
+  // The dummy's hint (a setting), or an intro bot's (practice: after the bot's own delay).
+  // An element: the one that beats it. A locked combo: C + the two that beat its mix.
+  const dummyHint = !showHint ? null : el && el in COMBO_MIX ? mixCounter(COMBO_MIX[el].map(beaterOf)) : c && c.el in BEATS ? beaterOf(c.el) : null
+  const hint = dummyHint ?? (id === 'enemy' ? fight.hint ?? null : null)
   if (fight.shroud[id] > 0 && !silenced)
     // Shroud: you can't see what they're charging or drawing.
     return (
@@ -1370,8 +1389,8 @@ function OppStatus({ fight, id = 'enemy', cast, hint: showHint }: { fight: Snaps
       </span>
       <span className="sub-line">{silenced ? 'Silenced!' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
       {hint && !silenced && (
-        <span className="sub-line" style={{ color: ELEMENTS[hint].color }}>
-          Counter with {ELEMENTS[hint].name}
+        <span className="sub-line" style={{ color: chargeInfo(hint).color }}>
+          {isMixCounter(hint) ? `Counter with C, ${ELEMENTS[hint[1]].name}, ${ELEMENTS[hint[2]].name}` : `Counter with ${ELEMENTS[hint].name}`}
         </span>
       )}
     </div>
@@ -1539,10 +1558,12 @@ type Pace = DummyPace
 function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void; pools: [string[], string[]]; setPool: (pool: string[], second: boolean) => void; pace: Pace; setPace: (p: Pace) => void; aids: DummyAids; setAids: (a: DummyAids) => void; onDone: () => void }) {
   const { twoFoes, setTwoFoes, pools, setPool, pace, setPace, aids, setAids, onDone } = props
   // What the cast time % means: the default times (charge + draw + ready) for a light, heavy and signature spell.
-  const secs = (shape: string) => {
-    const sp = spellOf('F', shape, pace.castPct / 100)
-    return ((sp.chargeMs + sp.drawMs + sp.readyMs) / 1000).toFixed(1)
+  const total = (el: string, shape: string) => {
+    const sp = dummyTimes(el, shape, pace.castPct / 100)
+    return (sp.chargeMs + sp.drawMs + sp.readyMs) / 1000
   }
+  const secs = (shape: string) => total('F', shape).toFixed(1)
+  const comboSecs = Object.entries(COMBO_SHAPE).map(([c, sh]) => total(c, sh))
   const [which, setWhich] = useState(0)
   const second = twoFoes && which === 1
   return (
@@ -1554,7 +1575,7 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
           <b>{pace.castPct}%</b>
         </label>
         <span className="pace-hint">
-          Light {secs('line')} s, heavy {secs('h')} s, signature {secs('flame')} s
+          Light {secs('line')} s, heavy {secs('h')} s, signature {secs('flame')} s, combo {Math.min(...comboSecs).toFixed(1)} to {Math.max(...comboSecs).toFixed(1)} s
           {pace.castPct === 100 ? ' (default)' : ''}
         </span>
         <label className="pace-row">

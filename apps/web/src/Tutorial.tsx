@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
-import { DOOM_MS, GLACIER_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
+import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 
 interface Step {
@@ -13,7 +13,7 @@ interface Step {
   tip?: string
 }
 
-const secs = (ms: number) => `${ms / 1000} seconds`
+const secs = (ms: number) => `${ms / 1000} second${ms === 1000 ? "" : "s"}`
 const pct = (f: number) => `${Math.round(f * 100)}%`
 
 // Numbers come from combat.ts so the tips never go stale.
@@ -41,11 +41,11 @@ const TIPS: Record<string, string> = {
   'thermal thermo': 'Hits, burns and chills them at once.',
   'plasma plasma': `Stuns them for ${secs(PLASMA.stun)} and burns.`,
   'sunfire sun': 'A long burn that heals you.',
-  'grave tomb': `For ${secs(GRAVE.ms)} they cannot heal or use Holy spells. A Holy counterspell still works.`,
-  'W circle': 'Counterspell: use the element that beats theirs. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.',
-  'W jab': 'Interrupt: sign and push, no drawing. Faster but weaker. It only stops a plain element charge, not a heal or a combo.',
-  'H circle': 'Holy beats Unholy. A counterspell of any element also stops a heal charge or a regen still ticking.',
-  'U circle': 'Unholy beats Holy. Holy and Unholy can only be countered with the circle, never an interrupt.',
+  'grave tomb': `For ${secs(GRAVE.ms)} they cannot heal or use Angelic spells. An Angelic counterspell still works.`,
+  'W circle': `Counterspell: stuns them until your next hit lands (${secs(COUNTER_SILENCE_MS)} at most). Use the element that beats theirs. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.`,
+  'W jab': `Interrupt: sign and push, no drawing. It only stops a plain element charge, not a heal or a combo. A hit locks them out for ${secs(INTERRUPT_LOCK_MS)}; a miss locks you out for ${secs(WHIFF_MS)}.`,
+  'A circle': 'Angelic beats Unholy. A counterspell of any element also stops a heal charge or a regen still ticking.',
+  'U circle': 'Unholy beats Angelic. Angelic and Unholy can only be countered with the circle, never an interrupt.',
   'CIW circle': 'To counter a combo, sign C and the two elements that beat it, then circle. Ice and Water beat Magma. Fire and Ice also smash an Advancing Glacier on its way.',
 }
 
@@ -92,15 +92,23 @@ const BASICS: { title: string; points: string[] }[] = [
 ]
 
 /** Read-only cards after the spells: things you can't practise on the dummy. */
-const END: { title: string; points: string[]; try: 'parry' | 'two' }[] = [
+const END: { title: string; points: string[]; try?: 'parry' | 'two' }[] = [
+  {
+    title: 'Wear',
+    points: [
+      `Every throw wears its element: ${pct(WEAR_STEP)} less damage per stack, down to ${pct(WEAR_FLOOR)}. A light counts half.`,
+      `A stack fades every ${secs(WEAR_DECAY_MS)}. Rotate elements to stay at full power.`,
+      "The bars down the edge of your half show each element's power. Your opponent's are on their side: their freshest element is what they'll want to throw.",
+    ],
+  },
   {
     title: 'Parry',
     try: 'parry',
     points: [
-      'Push both hands toward the camera just before a spell hits you: the last 0.1 s.',
-      'It flies back at the caster at full power. Parried again: 75%, then 50%. A fourth parry just ends it.',
-      'Too early, too late, or nothing coming: staggered for 1 s (no throws, no parries).',
-      'Parrying drops your own charge and readied spell. Counterspells and the Advancing Glacier can\'t be parried.',
+      `Push both hands toward the camera just before a spell hits you: the last ${PARRY_WINDOWS.light / 1000} s for a light, ${PARRY_WINDOWS.heavy / 1000} s for a heavy, ${PARRY_WINDOWS.signature / 1000} s for a signature.`,
+      'It flies back at the caster at 50%. Parried again: 35%. A third parry just ends it.',
+      `Too early, too late, or nothing coming: staggered for ${secs(PARRY_MISS_MS)} (no throws, no parries). A good parry still costs ${secs(PARRY_HIT_MS)} before you can throw.`,
+      "Parrying drops your own charge and readied spell. Counterspells and the Advancing Glacier can't be parried.",
     ],
   },
   {
@@ -117,16 +125,16 @@ const END: { title: string; points: string[]; try: 'parry' | 'two' }[] = [
 
 const STEPS: Step[] = [
   ...['F', 'I', 'W', 'E', 'L'].flatMap((el) => ['line', 'h', SIGNATURE[el]].map((shape) => ({ el, shape }))),
-  { el: 'H', shape: 'star' },
-  { el: 'H', shape: 'hourglass' },
-  { el: 'H', shape: 'aegis' },
+  { el: 'A', shape: 'star' },
+  { el: 'A', shape: 'hourglass' },
+  { el: 'A', shape: 'aegis' },
   { el: 'U', shape: 'scythe' },
   { el: 'U', shape: 'veil' },
   { el: 'U', shape: 'blade' },
   ...(COMBOS_ON ? Object.entries(COMBO_SHAPE).map(([el, shape]) => ({ el, shape })) : []),
   { el: 'W', shape: COUNTER },
   { el: 'W', shape: QUICK },
-  { el: 'H', shape: COUNTER },
+  { el: 'A', shape: COUNTER },
   { el: 'U', shape: COUNTER },
   ...(COMBOS_ON ? [{ el: 'CIW', shape: COUNTER }] : []),
 ].map((s) => ({ ...s, tip: TIPS[`${s.el} ${s.shape}`] }))
@@ -142,7 +150,7 @@ const press = (fn: () => void) => ({
 })
 const LAST = STEPS.length + END.length // the "You're ready" card
 
-export function Tutorial({ notes, onHome, drawHand, twoHands, onTry }: { notes: Snapshot['notes']; onHome: () => void; drawHand: Hand; twoHands: boolean; onTry: (kind: 'parry' | 'two' | null) => void }) {
+export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['notes']; onHome: () => void; drawHand: Hand; onTry: (kind: 'parry' | 'two' | null) => void }) {
   const [i, setI] = useState(-BASICS.length)
   const [trying, setTrying] = useState<'parry' | 'two' | null>(null)
   const tryIt = (kind: 'parry' | 'two' | null) => {
@@ -237,9 +245,11 @@ export function Tutorial({ notes, onHome, drawHand, twoHands, onTry }: { notes: 
                 <li key={p}>{p}</li>
               ))}
             </ul>
-            <button className="tut-try" {...press(() => tryIt(b.try))}>
-              Try it
-            </button>
+            {b.try && (
+              <button className="tut-try" {...press(() => tryIt(b.try!))}>
+                Try it
+              </button>
+            )}
             <div className="row">
               <button className="small" {...press(() => go(-1))} aria-label="Previous step">
                 {'<'}
@@ -279,9 +289,9 @@ export function Tutorial({ notes, onHome, drawHand, twoHands, onTry }: { notes: 
           </span>
         </div>
         <div className="tut-body">
-          <div className="tut-demo" style={{ flexDirection: twoHands && drawHand === 'left' ? 'row-reverse' : 'row' }}>
+          <div className="tut-demo" style={{ flexDirection: drawHand === 'left' ? 'row-reverse' : 'row' }}>
             <figure>
-              <b className="tut-hand">{twoHands ? (drawHand === 'right' ? 'Left hand' : 'Right hand') : 'Sign'}</b>
+              <b className="tut-hand">{drawHand === 'right' ? 'Left hand' : 'Right hand'}</b>
               <div className={`tut-signs ${signs.length > 1 ? 'multi' : ''}`}>
                 {signs.map((l) => (
                   <img key={l} src={`/asl/${l}.svg`} alt={`ASL letter ${l}`} />
@@ -290,7 +300,7 @@ export function Tutorial({ notes, onHome, drawHand, twoHands, onTry }: { notes: 
               <figcaption>Sign {signs.join(', then ')}</figcaption>
             </figure>
             <figure>
-              <b className="tut-hand">{twoHands ? (drawHand === 'right' ? 'Right hand' : 'Left hand') : 'Then draw'}</b>
+              <b className="tut-hand">{drawHand === 'right' ? 'Right hand' : 'Left hand'}</b>
               {step.shape === QUICK ? (
                 <div className="tut-push">Push!</div>
               ) : (

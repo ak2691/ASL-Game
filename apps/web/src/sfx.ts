@@ -8,8 +8,8 @@ const NAMES = [
   'counter_cast', 'counter_hit', 'counter_miss', 'interrupt', 'hurt', 'heavy_layer', 'heartbeat', 'win', 'lose',
   'burn_tick', 'chill_tick', 'mend_tick', 'static_tick', 'regen_tick',
   ...['F', 'I', 'W', 'E', 'L'].flatMap((e) => [`${e}_cast`, `${e}_travel`, `${e}_impact`]),
-  'H_impact', 'F_impact2',
-  'charge_F', 'charge_I', 'charge_W', 'charge_E', 'charge_L', 'charge_H',
+  'A_impact', 'F_impact2',
+  'charge_F', 'charge_I', 'charge_W', 'charge_E', 'charge_L', 'charge_A',
   'E_impact2', 'sig_F', 'sig_I', 'sig_L', 'sig_E', 'sig_W',
 ] as const
 export type Sfx = (typeof NAMES)[number]
@@ -75,14 +75,21 @@ export function play(name: Sfx, opts: { vol?: number; pitch?: number; delay?: nu
 }
 
 /** A burst of filtered noise: `type`/`freq` shape it, it fades out over `ms`. */
+let noiseBuf: AudioBuffer | null = null
+/** Impacts still ringing (end times). Capped so a volley can't flood the audio thread and drop out. */
+const impactEnds: number[] = []
+const MAX_IMPACTS = 6
+
 function noiseHit(opts: { type: BiquadFilterType; freq: number; q?: number; ms: number; vol: number; t: number }) {
   if (!ctx || !master) return
-  const len = Math.ceil((ctx.sampleRate * opts.ms) / 1000)
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  // One shared 2 s noise buffer, played from a random offset: no per-hit allocation.
+  if (!noiseBuf) {
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
+    const d = noiseBuf.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+  }
   const src = ctx.createBufferSource()
-  src.buffer = buf
+  src.buffer = noiseBuf
   const f = ctx.createBiquadFilter()
   f.type = opts.type
   f.frequency.value = opts.freq
@@ -91,7 +98,8 @@ function noiseHit(opts: { type: BiquadFilterType; freq: number; q?: number; ms: 
   g.gain.setValueAtTime(opts.vol, opts.t)
   g.gain.exponentialRampToValueAtTime(0.0001, opts.t + opts.ms / 1000)
   src.connect(f).connect(g).connect(master)
-  src.start(opts.t)
+  src.start(opts.t, Math.random() * (2 - opts.ms / 1000))
+  src.stop(opts.t + opts.ms / 1000)
 }
 
 /** A hard hit made in code, in layers: a bright crack (the moment of contact, heard on any speaker), a
@@ -100,6 +108,9 @@ export function impact(size: number, delay = 0) {
   if (!ctx || !master || volume === 0) return
   const t = ctx.currentTime + delay / 1000
   const s = Math.max(0, Math.min(1, size))
+  for (let i = impactEnds.length - 1; i >= 0; i--) if (impactEnds[i] <= ctx.currentTime) impactEnds.splice(i, 1)
+  if (impactEnds.length >= MAX_IMPACTS) return // already loud: one more hit adds nothing audible
+  impactEnds.push(t + (450 + 650 * s) / 1000)
   noiseHit({ type: 'bandpass', freq: 2600, q: 0.7, ms: 45 + 25 * s, vol: 0.9, t }) // crack
   thump({ from: 260, to: 110, ms: 160 + 120 * s, vol: 0.6, delay }) // body
   thump({ from: 120 - 25 * s, to: 38 - 6 * s, ms: 320 + 380 * s, vol: 1, delay }) // sub
@@ -242,24 +253,30 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
           continue // result plays when it lands
         }
         const [base, low] = SOUND_OF[b.el] ?? [b.el.slice(-1), 1]
-        const el = base as 'F' | 'I' | 'W' | 'E' | 'L' | 'H'
+        const el = base as 'F' | 'I' | 'W' | 'E' | 'L' | 'A'
         const big = b.tier === 'signature'
-        const heavy = b.tier === 'heavy'
-        if (el === 'H') {
-          play('H_impact', { vol: 0.8 })
+        if (el === 'A') {
+          play('A_impact', { vol: 0.8 })
           continue
         }
         play(`${el}_cast`, { vol: 0.7, pitch: low })
         play(`${el}_travel`, { vol: 0.5, pitch: (big ? 0.85 : 1) * low })
         if (big && el === 'F') play('sig_F', { vol: 0.8 }) // the meteor whistles on the way down
-        const at = { delay: b.fly }
+      }
+      // It lands: the impact plays now (not scheduled at the throw, so a parried or shattered spell stays silent).
+      if (b.kind === 'hit' && b.landed && !landed.current.has(b.id)) {
+        landed.current.add(b.id)
+        const [base, low] = SOUND_OF[b.el] ?? [b.el.slice(-1), 1]
+        const el = base as 'F' | 'I' | 'W' | 'E' | 'L'
+        const big = b.tier === 'signature'
+        const heavy = b.tier === 'heavy'
         const pitch = (heavy ? 0.85 : big ? 0.8 : 1) * low
-        play(`${el}_impact`, { ...at, vol: 1, pitch })
-        if (el === 'E') play('E_impact2', { ...at, vol: big ? 1 : 0.6 })
-        if (el === 'F') play('F_impact2', { ...at, vol: 0.8 })
-        if (heavy || big) play('heavy_layer', { ...at, vol: big ? 0.9 : 0.6 })
-        if (big && el !== 'F') play(`sig_${el}` as Sfx, { ...at, vol: 0.9 })
-        if (b.from !== me) play('hurt', { ...at, vol: 0.5 })
+        play(`${el}_impact`, { vol: 1, pitch })
+        if (el === 'E') play('E_impact2', { vol: big ? 1 : 0.6 })
+        if (el === 'F') play('F_impact2', { vol: 0.8 })
+        if (heavy || big) play('heavy_layer', { vol: big ? 0.9 : 0.6 })
+        if (big && el !== 'F') play(`sig_${el}` as Sfx, { vol: 0.9 })
+        if (b.from !== me) play('hurt', { vol: 0.5 })
       }
       // A counter arrives: hit or miss.
       if ((b.kind === 'counter' || b.kind === 'missed') && b.landed && !landed.current.has(b.id)) {
@@ -283,6 +300,13 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
       if (floats.current.has(f.id)) continue
       floats.current.add(f.id)
       const n = Number(f.text)
+      if (f.text === 'Destroyed!') {
+        // The end of a parry chain: the spell shatters (a bright crack, a ringing clang, a puff of dust).
+        play('counter_hit', { vol: 0.9, pitch: 1.3 })
+        play('fizzle_poof', { vol: 0.9, pitch: 0.8 })
+        impact(0.6)
+        continue
+      }
       if (!Number.isFinite(n)) continue
       const landing = v.bolts.some((b) => Math.abs(b.t + (b.kind === 'heal' ? 0 : b.fly) - f.t) < 60)
       if (landing) continue

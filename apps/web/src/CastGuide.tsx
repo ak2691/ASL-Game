@@ -1,8 +1,8 @@
 // How to cast: every sign and every drawing. Shown from the in-game Esc menu and from the home page.
-import { COMBO, COMBOS_ON, COMBO_CHARGES, COMBO_INFO, COMBO_MIX, COMBO_SHAPE, COUNTER, ELEMENTS, FORMS, HOLY_SHAPES, PUNCHES, SIGNATURE, TRAITS, UNHOLY_SHAPES } from './spells'
+import { COMBO, COMBOS_ON, COMBO_CHARGES, COMBO_INFO, COMBO_MIX, COMBO_SHAPE, COUNTER, ELEMENTS, FORMS, ANGELIC_SHAPES, PUNCHES, SIGNATURE, TRAITS, UNHOLY_SHAPES } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 
-/** What each Holy/Unholy/combo spell does, in a few words (numbers: Spell Info). */
+/** What each Angelic/Unholy/combo spell does, in a few words (numbers: Spell Info). */
 const SHORT: Record<string, string> = {
   star: 'Heal now',
   hourglass: 'Heal over time',
@@ -58,10 +58,10 @@ export function CastGuide() {
           <ShapeCard key={sh} shape={sh} color={ELEMENTS[el].color} label={FORMS[sh]} />
         ))}
       </div>
-      <div className="guide-sub">Holy (H): heals and buffs</div>
+      <div className="guide-sub">Angelic (A): heals and buffs</div>
       <div className="shape-guide">
-        {HOLY_SHAPES.map((sh) => (
-          <ShapeCard key={sh} shape={sh} color={ELEMENTS.H.color} label={FORMS[sh]} sub={SHORT[sh]} />
+        {ANGELIC_SHAPES.map((sh) => (
+          <ShapeCard key={sh} shape={sh} color={ELEMENTS.A.color} label={FORMS[sh]} sub={SHORT[sh]} />
         ))}
       </div>
       <div className="guide-sub">Unholy (U): curses</div>
@@ -101,16 +101,16 @@ export function CastGuide() {
       </ul>
       <b>3. Throw</b> — push your hand toward the camera.
       <p>
-        <b>Counter cycle</b> — Water → Fire → Ice → Earth → Lightning → Water (each beats the next). Holy and Unholy beat each other.{COMBOS_ON && ' To counter a combo: sign C and the two elements that beat it, then draw a circle.'}
+        <b>Counter cycle</b> — Water → Fire → Ice → Earth → Lightning → Water (each beats the next). Angelic and Unholy beat each other.{COMBOS_ON && ' To counter a combo: sign C and the two elements that beat it, then draw a circle.'}
       </p>
       <p>
         <b>Counterspell</b> — sign an element, draw a <b>circle</b>, push. If your opponent is still charged with the element yours
         beats when it lands, they're silenced for 2.5 s and lose their charge. Otherwise it's wasted. A counterspell of <b>any</b>{' '}
-        element also stops a heal (a Holy charge, or a regen still ticking).
+        element also stops a heal (an Angelic charge, or a regen still ticking).
       </p>
       <p>
         <b>Interrupt</b> — sign the element that beats theirs and just push, no drawing. Faster to land but weaker: 0.5 s silence. It
-        can't stop heals. Holy and Unholy have no interrupt, only the counterspell.
+        can't stop heals. Angelic and Unholy have no interrupt, only the counterspell.
       </p>
       <p className="shape-note">Fast strokes are fine — just keep your hand in view.</p>
     </div>

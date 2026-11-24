@@ -1,7 +1,7 @@
 // Home page corner: How to cast (book), Spell Info (i) and Settings (gear), as icon buttons.
 import { useState } from 'react'
 import type { Hand } from './recognition'
-import { DRAW_HAND_KEY, TWO_HANDS_KEY, loadDrawHand, loadTwoHands } from './settings'
+import { DRAW_HAND_KEY, loadDrawHand } from './settings'
 import { VolumeSlider } from './VolumeSlider'
 import { PushSlider } from './PushSlider'
 
@@ -25,7 +25,6 @@ export const GEAR =
 
 export function HomeCorner({ onGuide, onInfo }: { onGuide: () => void; onInfo: () => void }) {
   const [open, setOpen] = useState(false)
-  const [two, setTwo] = useState(loadTwoHands)
   const [draw, setDraw] = useState<Hand>(() => loadDrawHand())
   return (
     <div className="home-corner">
@@ -43,18 +42,15 @@ export function HomeCorner({ onGuide, onInfo }: { onGuide: () => void; onInfo: (
       {open && (
         <div className="settings-panel">
           <b>Settings</b>
-          <button onClick={() => (setTwo(!two), save(TWO_HANDS_KEY, two ? '0' : '1'))}>Two hands: {two ? 'on' : 'off'}</button>
-          {two && (
-            <button
-              onClick={() => {
-                const n: Hand = draw === 'right' ? 'left' : 'right'
-                setDraw(n)
-                save(DRAW_HAND_KEY, n)
-              }}
-            >
-              Draw with: {draw === 'right' ? 'Right hand' : 'Left hand'}
-            </button>
-          )}
+          <button
+            onClick={() => {
+              const n: Hand = draw === 'right' ? 'left' : 'right'
+              setDraw(n)
+              save(DRAW_HAND_KEY, n)
+            }}
+          >
+            Draw with: {draw === 'right' ? 'Right hand' : 'Left hand'}
+          </button>
           <PushSlider />
           <VolumeSlider />
         </div>

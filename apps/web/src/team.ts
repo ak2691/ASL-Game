@@ -2,7 +2,7 @@
 // its own spells. Nobody can be hurt. The fight engine supports teams; this is the first use of it.
 import { signsFor } from './spells'
 import { Combat, type Fid, type FighterSpec } from './combat'
-import { DUMMY_EVERY_MS, dummyParry, dummyPick, spellOf, type Arena, type OppCast, type Pt01, type Snapshot } from './battle'
+import { DUMMY_EVERY_MS, dummyParry, dummyPick, dummySpell, signTimes, spellOf, type Arena, type OppCast, type Pt01, type Snapshot } from './battle'
 
 export const FOES: Fid[] = ['enemy', 'enemy2'] // left, right
 const JITTER = 0.2
@@ -87,11 +87,11 @@ export class TeamArena implements Arena {
     const pool = this.pools[id] ?? []
     if (!this.casts[id] && pool.length && now >= (this.nextAt[id] ?? 0) && !this.combat.isSilenced(id, now)) {
       const [el, shape] = dummyPick(pool, this.combat.view(now).shroud[id] > 0)
-      const sp = spellOf(el, shape, this.castPct / 100)
-      const signs = signsFor(el) // a combo: C, then its two letters, spread over the charge
-      this.casts[id] = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, signs: signs.slice(1).map((l, i) => ({ at: now + (sp.chargeMs * (i + 1)) / signs.length, el: l })) }
+      const sp = dummySpell(el, shape, this.castPct / 100)
+      const signs = signsFor(el) // a combo: C, then its two letters right after, then it draws
+      this.casts[id] = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, signs: signTimes(sp, signs, now) }
       // Aimed as it starts, so you can see it's coming at you.
-      this.combat.aim(id, el === 'H' ? null : 'player')
+      this.combat.aim(id, el === 'A' ? null : 'player')
       this.combat.sign(id, signs[0], now)
     }
     const c = this.casts[id]

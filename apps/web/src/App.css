@@ -167,6 +167,28 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .dummy-bar .icon-btn svg { width: 18px; height: 18px; flex: none; }
 .corner-bar { position: fixed; bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); z-index: 5; display: flex; gap: 8px; align-items: center; }
 .dealt-line { font-size: 13px; color: var(--sub); }
+.charge-power { font-size: 0.75em; opacity: 0.8; }
+/* Wear rail: every element down the left edge of your half; a bar drains as that element wears. */
+.wear-rail { position: absolute; left: 6px; top: 50%; transform: translateY(-40%); z-index: 3; display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+  padding: 6px 4px; border-radius: 8px; background: rgba(0, 0, 0, 0.35); }
+.wear-pip { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; line-height: 1; text-shadow: 0 1px 2px #000; }
+.wear-pip b { width: 1em; text-align: center; }
+.wear-track { position: relative; display: block; width: 6px; height: 22px; border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
+.wear-track i { position: absolute; left: 0; right: 0; bottom: 0; background: currentColor; transition: height 0.3s linear; }
+.wear-rail.right { left: auto; right: 6px; }
+.wear-rail.right .wear-pip { flex-direction: row-reverse; }
+.wear-rail.right .wear-pip em { text-align: right; }
+.wear-chips { position: absolute; left: 6px; bottom: 6px; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; }
+.wear-chips span { padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); font-size: 13px; font-weight: 800; text-shadow: 0 1px 2px #000; }
+.wear-chips b { color: inherit; }
+.wear-pip em { font-style: normal; min-width: 2.6em; color: #fff; font-size: 0.95em; }
+.wear-pip.worn em { color: currentColor; }
+@media (max-width: 600px) {
+  .wear-rail { gap: 3px; padding: 4px 3px; transform: translateY(-25%); }
+  .wear-pip { font-size: 15px; }
+  .wear-track { width: 8px; height: 16px; }
+}
+@keyframes wear-in { from { opacity: 0; } to { opacity: 1; } }
 .dealt-line b { color: var(--text); font-weight: 600; }
 .dummy-spells { display: flex; flex-direction: column; gap: 12px; }
 .dummy-spells-head { display: flex; justify-content: space-between; align-items: baseline; }
@@ -596,7 +618,7 @@ html[data-theme] button.cta:hover, button.cta:hover { background: color-mix(in s
 .bolt.el-glacier { z-index: 0; } /* the slow glacier stays under the caster's other spells */
 .fx-steam { position: absolute; inset: -10%; background: radial-gradient(circle at 50% 50%, rgba(240, 245, 250, 0.85), rgba(220, 230, 240, 0.5) 50%, transparent 80%); opacity: 0; animation: shroud-in 1400ms ease-out var(--d) both; }
 .fx-sun { position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, rgba(255, 240, 150, 0.9), rgba(255, 180, 40, 0.45) 40%, transparent 70%); opacity: 0; animation: lava-rise 1600ms ease-out var(--d) both; }
-.st-steam { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(235, 240, 245, 0.55), rgba(235, 240, 245, 0.25) 60%, rgba(235, 240, 245, 0.1)); backdrop-filter: blur(3px); }
+.st-steam { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(235, 240, 245, 0.62), rgba(235, 240, 245, 0.32) 60%, rgba(235, 240, 245, 0.16)); } /* no backdrop blur: re-blurring the live camera every frame lagged it */
 .st-timer.guard { color: #d9c4ff; }
 .st-timer.exposed { color: #ff9ad5; }
 .st-timer.fog { color: #e8eef2; }
@@ -641,10 +663,11 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .sig-cloud.storm { filter: hue-rotate(10deg) brightness(0.55) saturate(0.5); height: 30%; }
 .sig-rainwash { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(40, 60, 110, 0.55), rgba(40, 60, 110, 0.15)); opacity: 0; animation: shroud-in 1600ms ease-out; }
 .st-storm { position: absolute; inset: 0; pointer-events: none; background:
-  linear-gradient(to bottom, rgba(30, 45, 90, 0.45), transparent 35%),
-  repeating-linear-gradient(105deg, transparent 0 14px, rgba(160, 196, 255, 0.35) 14px 15px);
-  background-size: 100% 100%, 200px 200px; animation: rain-move 400ms linear infinite; }
-@keyframes rain-move { to { background-position: 0 0, -40px 200px; } }
+  linear-gradient(to bottom, rgba(30, 45, 90, 0.45), transparent 35%); overflow: hidden; }
+/* Rain moves by transform (GPU-composited), not background-position, which repainted the whole view each frame. */
+.st-storm::before { content: ''; position: absolute; top: -200px; left: 0; right: -40px; bottom: 0; will-change: transform;
+  background: repeating-linear-gradient(105deg, transparent 0 14px, rgba(160, 196, 255, 0.35) 14px 15px); background-size: 200px 200px; animation: rain-move 400ms linear infinite; }
+@keyframes rain-move { to { transform: translate(-40px, 200px); } }
 .st-storm svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .st-storm polyline { fill: none; stroke: #fff; stroke-width: 1.2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 6px #9fb0ff); stroke-width: 4px; }
 .st-storm.on { box-shadow: inset 0 0 80px rgba(160, 190, 255, 0.5); }
@@ -775,3 +798,39 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   html[data-theme] .home button { padding: 6px; font-size: 0.95rem; }
   html[data-theme] .home .home-privacy { margin-top: 2px; font-size: 11px; }
 }
+
+/* Phones are held at arm's length: bigger in-fight text and bars so charges and health read at a glance. */
+@media (max-width: 600px) {
+  html[data-theme] .status-strip .charge { font-size: 24px; }
+  html[data-theme] .team-card.foe .status-strip .charge { font-size: 20px; }
+  html[data-theme] .team-card.ally .status-strip .charge { font-size: 18px; }
+  html[data-theme] .hp-bar { height: 30px; }
+  html[data-theme] .hp-text { font-size: 16px; font-weight: 700; }
+  html[data-theme] .st-timer { font-size: 15px; padding: 4px 12px 7px; }
+    html[data-theme] .tag { font-size: 13px; }
+  html[data-theme] .dealt-line, html[data-theme] .note-line { font-size: 15px; }
+  html[data-theme] .tier-light .impact-name { font-size: clamp(18px, 5cqw, 24px); }
+  html[data-theme] .tier-heavy .impact-name { font-size: clamp(22px, 6.5cqw, 32px); }
+}
+/* Touch screens: every button is at least a fingertip (44px) tall. */
+@media (pointer: coarse) {
+  html[data-theme] button { min-height: 44px; }
+  html[data-theme] button.small, html[data-theme] .dummy-bar > button:first-child { min-height: 40px; font-size: 14px; }
+  html[data-theme] .tut-dot { width: 32px; height: 32px; min-height: 32px; }
+  html[data-theme] .tower .floor { padding: 8px 10px; }
+}
+/* Phone portrait, picking a practice opponent: the tower's half gets most of the screen (you aren't signing yet). */
+@media (max-width: 800px) and (orientation: portrait) {
+  .duel:has(.tower-wrap) { grid-template-rows: minmax(0, 1fr) minmax(0, 2.2fr); }
+  .duel:has(.tower-wrap) .tower { max-height: calc(100cqh - 320px); }
+  .duel:has(.tower-wrap) .privacy-note { display: none; }
+}
+
+/* Interrupted (or whiffed): locked out for a moment. The half greys and shakes, a bar drains to free. */
+.st-locked { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: rgba(30, 30, 40, 0.45); backdrop-filter: grayscale(0.8); animation: lock-shake 0.25s ease-out; }
+.st-locked b { font-size: clamp(22px, 7cqw, 40px); font-weight: 900; color: #fff; text-shadow: 0 0 12px #ff9a3d, 0 2px 6px #000; text-transform: uppercase; }
+.st-locked .lock-bar { width: min(50cqw, 220px); height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.st-locked .lock-bar i { display: block; height: 100%; background: #ff9a3d; transition: width 0.1s linear; }
+.team-card .st-locked b { font-size: 16px; }
+@keyframes lock-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }

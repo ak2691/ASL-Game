@@ -41,12 +41,12 @@ Intro bots don't react to the player; each bot adds one new thing.
 | 1 | Pebble | Earth, Water | Heavies only | Very slow (~7 s cycle) | Alternates E, W. Never counters, never heals | Ice beats Earth, Lightning beats Water |
 | 2 | Ember | Fire, Lightning | Heavies + lights | Slow | Random, no repeats. Never counters | Water beats Fire, Earth beats Lightning. Lights are faster, so read quicker |
 | 3 | Frost | Ice, Fire | Heavies, lights | Slow | Sometimes interrupts your spell (15%, slow). Never full circle | Fire beats Ice; you can get countered, so vary |
-| 4 | Cleric | Holy, Water | Water heavies/lights, heals, Aegis | Slow | Heals often, Aegis on your wind-up. Never counters | Countering heals, chipping armor with lights |
-| 5 | Hexer | Unholy, Earth | Earth attacks, Doom, Shroud, Execute | Slow | Doom often, Execute when you're low. Sometimes interrupts | Holy beats Unholy, beating the Doom timer, playing blind under Shroud |
+| 4 | Cleric | Angelic, Water | Water heavies/lights, heals, Aegis | Slow | Heals often, Aegis on your wind-up. Never counters | Countering heals, chipping armor with lights |
+| 5 | Hexer | Unholy, Earth | Earth attacks, Doom, Shroud, Execute | Slow | Doom often, Execute when you're low. Sometimes interrupts | Angelic beats Unholy, beating the Doom timer, playing blind under Shroud |
 | 6 | Tide | Water, Ice, Lightning | + signatures, heals | Medium-slow | Counters 25% (circles too). Heals low | 3 elements at once, signatures, heals |
-| 7 | Zealot | Holy, Unholy, Fire | Fire attacks, heals, Aegis, Doom, Shroud, Execute | Medium-slow | Swaps between Holy and Unholy, Fire for damage. Counters 25% | Telling Holy from Unholy fast and picking the right answer |
-| 8 | Warden | All 5 | Full kit, rare Holy/Unholy | Medium-slow | Punishes spam (3x same element). No reads | Everything, still forgiving |
-| — | Novice | All + Holy/Unholy | Full | Current Easy | Current Easy AI | |
+| 7 | Zealot | Angelic, Unholy, Fire | Fire attacks, heals, Aegis, Doom, Shroud, Execute | Medium-slow | Swaps between Angelic and Unholy, Fire for damage. Counters 25% | Telling Angelic from Unholy fast and picking the right answer |
+| 8 | Warden | All 5 | Full kit, rare Angelic/Unholy | Medium-slow | Punishes spam (3x same element). No reads | Everything, still forgiving |
+| — | Novice | All + Angelic/Unholy | Full | Current Easy | Current Easy AI | |
 | — | Normal | | | Current Medium | | |
 | — | Hard | | | Current Hard | | |
 | — | Insane | | | Current Insane | | |

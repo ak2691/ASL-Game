@@ -1,6 +1,6 @@
 // Arenas: what the Spells page fights in. Practice = an AI enemy in the browser; online = a real
 // opponent through the server (online.ts). Both give the page the same Snapshot to draw.
-import { Combat, FIZZLE_LOCK_MS, MAX_HP, type CombatView, type Fid } from './combat'
+import { Combat, FIZZLE_LOCK_MS, MAX_HP, PARRY_WINDOW_MS, type CombatView, type Fid } from './combat'
 import { BEATS, canQuick, chargeInfo, COMBOS_ON, COMBO_MIX, COMBO_SHAPE, COUNTER, QUICK, SIGNATURE, mixCounter, signsFor, spellName } from './spells'
 import { samplePath } from './shapePaths'
 import { spiralPoints } from './shapes'
@@ -73,21 +73,23 @@ interface AiStyle {
   dodge: number // chance it abandons its unfinished spell when you're set to counter it (once per spell)
   healPunish: boolean // a second heal soon after the first: sometimes it ignores the heal and hits you hard instead
   drop: number // chance it abandons its own half-drawn spell to counter you (else it finishes, then counters)
-  utility: number // chance a cast is a Holy buff, an Unholy curse or a combo (when one fits)
-  smart: number // 0..1: how far it leans on Holy/Unholy tactics (Aegis vs your wind-ups, Shroud setups, armor play, blind guesses)
+  utility: number // chance a cast is a Angelic buff, an Unholy curse or a combo (when one fits)
+  smart: number // 0..1: how far it leans on Angelic/Unholy tactics (Aegis vs your wind-ups, Shroud setups, armor play, blind guesses)
   // Intro bots (the ladder's first rungs) limit what it knows:
   els?: string[] // elements it attacks with (default all 5)
   moves?: Record<string, number> // attack weights over line / h / signature (default ENEMY_MOVES)
   order?: 'alternate' | 'fresh' // alternate: cycles its elements; fresh: random, never the same twice in a row
-  magic?: string[] // Holy/Unholy spells it may cast (default all); heals come from healBelow
+  magic?: string[] // Angelic/Unholy spells it may cast (default all); heals come from healBelow
   hintMs?: number // shows the counter for its charge after this long (undefined = never)
+  comboHintMs?: number // ...and for its combos (default: hintMs)
   // Combos (plans/ai-combos.md):
   combos?: string[] // combos it casts
   comboRate?: number // chance a cast is one of them
   comboCounter?: number // chance it answers your locked combo (and your Glacier) with a combo counterspell
-  // Parry (plans/parry.md, "AI parry"): only when you play two-handed, so you can parry back.
-  parry?: number // chance it tries to parry a spell you throw at it (half vs lights)
-  parryAim?: number // chance a try lands in the window (else it mistimes and is staggered)
+  // Parry (plans/parry.md, "AI parry"):
+  parry?: number // chance it tries to parry your heavy (a quarter of that vs lights, 60% vs combos)
+  parrySig?: number // ...and your signatures (default: parry)
+  parryAim?: number // chance a try vs a light lands in the window; bigger windows are easier (x sqrt(window / 100 ms))
   reparry?: number // chance it tries to parry a spell you parried back at it
 }
 const ALL_COMBOS = Object.keys(COMBO_SHAPE)
@@ -95,24 +97,26 @@ const ALL_MAGIC = ['aegis', 'scythe', 'veil', 'blade']
 const UNHOLY_MAGIC = ['scythe', 'veil', 'blade']
 // Intro bots: slow, simple scripts that never read you. Each rung adds one new thing.
 const BOT = { ramp: false, healBelow: 0, react: 0, reactMs: [1500, 2000] as [number, number], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0, stun: 0, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0, smart: 0, magic: [] as string[] }
-const LIGHT_HEAVY = { line: 50, h: 50 }
+const LHS = { line: 35, h: 45, signature: 20 } // intro bots: lights, heavies and some signatures
 // Adept and up: each level is faster and thinks quicker; Magus and up punish a silence, read your
 // habits, and sometimes drop their own half-drawn spell to counter you.
 export const AI: Record<Difficulty, AiStyle> = {
-  pebble: { ...BOT, every: 4000, speed: 1.4, els: ['E', 'W'], moves: { h: 1 }, order: 'alternate' },
-  ember: { ...BOT, every: 3500, speed: 1.3, els: ['F', 'L'], moves: LIGHT_HEAVY, order: 'fresh' },
-  frost: { ...BOT, every: 3200, speed: 1.25, els: ['I', 'F'], moves: LIGHT_HEAVY, react: 0.15, combos: ['thermal'], comboRate: 0.12 },
-  cleric: { ...BOT, every: 3200, speed: 1.25, els: ['W'], moves: LIGHT_HEAVY, healBelow: 0.7, magic: ['aegis'], utility: 0.15, smart: 0.3 },
-  hexer: { ...BOT, every: 3000, speed: 1.2, els: ['E'], moves: LIGHT_HEAVY, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.15, reactMs: [1400, 1900], combos: ['grave'], comboRate: 0.12 },
-  tide: { ...BOT, every: 2800, speed: 1.15, els: ['W', 'I', 'L'], healBelow: 0.3, react: 0.25, reactMs: [1300, 1800], circle: 0.3, spamCounter: 0.3, combos: ['storm'], comboRate: 0.15 },
-  zealot: { ...BOT, every: 2600, speed: 1.1, els: ['F'], moves: LIGHT_HEAVY, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.25, reactMs: [1300, 1800], circle: 0.3, combos: ['sunfire', 'twilight'], comboRate: 0.15 },
-  warden: { ...BOT, every: 2600, speed: 1.1, healBelow: 0.25, spamCounter: 0.3, stun: 0.15, magic: ALL_MAGIC, utility: 0.03, smart: 0.15, combos: ['magma', 'glacier'], comboRate: 0.12 },
-  adept: { spamAt: 4, every: 2354, speed: 1.049, ramp: false, healBelow: 0.25, react: 0, reactMs: [1295, 1766], circle: 0.2, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.6, stun: 0.27, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15, combos: ['magma', 'steam'], comboRate: 0.1 },
-  magus: { parry: 0.15, parryAim: 0.55, reparry: 0.04, spamAt: 3, every: 1950, speed: 0.94, ramp: false, healBelow: 0.3, react: 0.2, reactMs: [1150, 1550], circle: 0.3, miss: 0.15, capitalize: true, reroll: 0, spamCounter: 0.6, stun: 0.32, read: 0.3, heal: 0.4, dodge: 0, healPunish: false, drop: 0.05, utility: 0.1, smart: 0.4, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.12, comboCounter: 0.2 },
-  archmage: { parry: 0.2, parryAim: 0.65, reparry: 0.08, spamAt: 3, every: 1600, speed: 0.84, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [1000, 1350], circle: 0.4, miss: 0.12, capitalize: true, reroll: 2000, spamCounter: 0.72, stun: 0.4, read: 0.55, heal: 0.6, dodge: 0.12, healPunish: false, drop: 0.15, utility: 0.2, smart: 0.7, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.15, comboCounter: 0.5 },
-  lich: { parry: 0.25, parryAim: 0.75, reparry: 0.12, spamAt: 3, every: 1300, speed: 0.74, ramp: true, healBelow: 0.4, react: 0.5, reactMs: [850, 1150], circle: 0.5, miss: 0.06, capitalize: true, reroll: 1600, spamCounter: 0.8, stun: 0.5, read: 0.85, heal: 0.78, dodge: 0.3, healPunish: true, drop: 0.3, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.18, comboCounter: 0.8 },
+  // Nov 24 balance pass (plans/balance.md): every rung faster, signatures from the start, parrying from Cleric,
+  // spam punished everywhere. Single-element bots got a second element (wear would cripple them otherwise).
+  pebble: { ...BOT, every: 2000, speed: 1.0, els: ['E', 'W'], moves: { line: 10, h: 70, signature: 20 }, order: 'alternate', react: 0.05, spamCounter: 0.25, hintMs: 0 },
+  ember: { ...BOT, every: 1800, speed: 0.95, els: ['F', 'L'], moves: LHS, order: 'fresh', react: 0.1, spamCounter: 0.35, hintMs: 0 },
+  frost: { ...BOT, every: 1700, speed: 0.9, els: ['I', 'F'], moves: LHS, react: 0.2, spamCounter: 0.5, combos: ['thermal'], comboRate: 0.15, hintMs: 0 },
+  cleric: { ...BOT, every: 1600, speed: 0.9, els: ['W', 'I'], moves: LHS, healBelow: 0.6, magic: ['aegis'], utility: 0.15, smart: 0.3, react: 0.15, spamCounter: 0.5, parry: 0.1, parrySig: 0.15, parryAim: 0.32, hintMs: 0 },
+  hexer: { ...BOT, every: 1450, speed: 0.85, els: ['E', 'L'], moves: LHS, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.25, reactMs: [1100, 1500], spamCounter: 0.55, combos: ['grave'], comboRate: 0.14, parry: 0.12, parrySig: 0.15, parryAim: 0.34, hintMs: 300 },
+  tide: { ...BOT, every: 1300, speed: 0.8, els: ['W', 'I', 'L'], moves: LHS, healBelow: 0.3, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['storm'], comboRate: 0.17, parry: 0.15, parrySig: 0.2, parryAim: 0.36, hintMs: 900 },
+  zealot: { ...BOT, every: 1250, speed: 0.78, els: ['F', 'E'], moves: LHS, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['sunfire', 'twilight'], comboRate: 0.17, parry: 0.18, parrySig: 0.2, parryAim: 0.38, hintMs: 900 },
+  warden: { ...BOT, every: 1150, speed: 0.75, healBelow: 0.25, react: 0.38, reactMs: [1000, 1300], spamCounter: 0.75, stun: 0.2, read: 0.25, magic: ALL_MAGIC, utility: 0.03, smart: 0.15, combos: ['magma', 'glacier'], comboRate: 0.12, parry: 0.2, parrySig: 0.25, parryAim: 0.4, comboHintMs: 1500 },
+  adept: { parry: 0.22, parrySig: 0.28, parryAim: 0.42, reparry: 0.02, spamAt: 3, every: 950, speed: 0.68, ramp: false, healBelow: 0.3, react: 0.4, reactMs: [900, 1200], circle: 0.3, miss: 0.05, capitalize: false, reroll: 0, spamCounter: 0.8, stun: 0.3, read: 0.3, heal: 0.25, dodge: 0, healPunish: false, drop: 0.05, utility: 0.08, smart: 0.3, combos: ['magma', 'steam'], comboRate: 0.15, comboCounter: 0.1 },
+  magus: { parry: 0.3, parrySig: 0.35, parryAim: 0.45, reparry: 0.04, spamAt: 3, every: 800, speed: 0.62, ramp: false, healBelow: 0.33, react: 0.48, reactMs: [800, 1050], circle: 0.35, miss: 0.1, capitalize: true, reroll: 2400, spamCounter: 0.85, stun: 0.35, read: 0.45, heal: 0.5, dodge: 0.05, healPunish: false, drop: 0.15, utility: 0.12, smart: 0.5, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.17, comboCounter: 0.25 },
+  archmage: { parry: 0.42, parrySig: 0.46, parryAim: 0.48, reparry: 0.08, spamAt: 3, every: 700, speed: 0.57, ramp: true, healBelow: 0.36, react: 0.56, reactMs: [700, 950], circle: 0.45, miss: 0.07, capitalize: true, reroll: 1800, spamCounter: 0.9, stun: 0.45, read: 0.65, heal: 0.65, dodge: 0.15, healPunish: false, drop: 0.28, utility: 0.2, smart: 0.75, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.19, comboCounter: 0.5 },
+  lich: { parry: 0.45, parrySig: 0.5, parryAim: 0.5, reparry: 0.12, spamAt: 3, every: 650, speed: 0.55, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [650, 880], circle: 0.5, miss: 0.04, capitalize: true, reroll: 1400, spamCounter: 0.92, stun: 0.55, read: 0.9, heal: 0.8, dodge: 0.32, healPunish: true, drop: 0.33, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.22, comboCounter: 0.75 },
   // The finale: the whole kit, used on purpose, no mistakes. A step above Lich in every number.
-  ascendant: { parry: 0.3, parryAim: 0.85, reparry: 0.15, spamAt: 3, every: 1100, speed: 0.65, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [750, 950], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.85, stun: 0.55, read: 1, heal: 0.85, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.24, comboCounter: 1 },
+  ascendant: { parry: 0.5, parrySig: 0.55, parryAim: 0.53, reparry: 0.15, spamAt: 3, every: 600, speed: 0.53, ramp: true, healBelow: 0.4, react: 0.66, reactMs: [580, 780], circle: 0.6, miss: 0, capitalize: true, reroll: 1200, spamCounter: 0.95, stun: 0.6, read: 1, heal: 0.88, dodge: 0.38, healPunish: true, drop: 0.38, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.26, comboCounter: 1 },
 }
 /** The practice ladder, in order. */
 export const LADDER: { id: Difficulty; name: string }[] = [
@@ -158,15 +162,16 @@ const DRAW_MS: Record<string, number> = {
   scythe: 1800,
   veil: 2000,
   blade: 2400,
-  volcano: 2500,
-  cloud: 2400,
-  iceberg: 2600,
-  yinyang: 2700,
-  puff: 2500,
-  thermo: 2600,
-  plasma: 2600,
-  sun: 2900,
-  tomb: 2600,
+  // Combos, by how much drawing each one is (Nov 24: they were far too quick to answer):
+  tomb: 3000, // 9 straight lines
+  iceberg: 3100, // 10 straight lines
+  volcano: 3100, // 9 lines and a small arc
+  cloud: 3300, // three arcs, then the bolt
+  thermo: 3500, // tube, bulb, then a 4-line crack
+  puff: 3800, // 8 humps, each a careful arc
+  yinyang: 3800, // circle, the S, both dots
+  sun: 4000, // 16 lines, exactly 8 points
+  plasma: 4200, // 3 curved petals, then the ball around them
 }
 const ENEMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L']
 // What it attacks with (weights). Same rules as the player, so reading the shape tells you what's coming.
@@ -216,7 +221,7 @@ function rawShape(shape: string): Pt01[] {
     return pts
   }
   const c = SHAPE_CORNERS[shape]
-  if (!c) return samplePath(shape) // Holy, Unholy and combo shapes: along their guide path
+  if (!c) return samplePath(shape) // Angelic, Unholy and combo shapes: along their guide path
   const pts: Pt01[] = []
   for (let i = 1; i < c.length; i++)
     for (let k = 0; k < 16; k++) {
@@ -250,14 +255,44 @@ function pick<T>(items: { w: number; v: T }[]) {
   return (items.find((m) => (r -= m.w) < 0) ?? items[0]).v
 }
 
+/** How much a faster opponent speeds up a drawing: fully for simple shapes (line, H, circle), half for
+ *  signatures and Angelic/Unholy, a little for combos. Complex drawings take time however good you are. */
+const speedFor = (shape: string, speed: number) =>
+  shape === 'line' || shape === 'h' || shape === 'circle' || shape === 'jab' ? speed : COMBO_SHAPES.has(shape) ? lerp(speed, 1, 0.7) : lerp(speed, 1, 0.5)
+const COMBO_SHAPES = new Set(Object.values(COMBO_SHAPE))
+const COMBO_LETTER_MS = 400 // each of a combo's letters (C, then two elements), at speed 1: about a person's pace
+
 export function spellOf(el: string, shape: string, speed: number, chargeMs = CHARGE_MS * speed) {
-  // Every letter takes at least LETTER_GAP_MS to sign, like a player's: a combo (C + two letters) can't be signed in an instant.
-  chargeMs = Math.max(chargeMs, signsFor(el).length * LETTER_GAP_MS)
-  const drawMs = DRAW_MS[shape] * speed
+  // Every letter takes at least LETTER_GAP_MS to sign, like a player's. Combos and combo counterspells
+  // (C + two letters) are signed at about a person's pace, so you can see them coming.
+  const letters = signsFor(el).length
+  chargeMs = letters > 1 ? Math.max(chargeMs, letters * COMBO_LETTER_MS * lerp(speed, 1, 0.5)) : Math.max(chargeMs, letters * LETTER_GAP_MS)
+  const drawMs = DRAW_MS[shape] * speedFor(shape, speed)
   // Placed like a player's drawing on a 16:9 camera frame: centered, kept square, 75% of the height.
   const points = shape === 'jab' ? [] : shapePoints(shape).map((p) => ({ x: 0.5 + (p.x - 0.5) * 0.75 * (9 / 16), y: 0.5 + (p.y - 0.5) * 0.75 }))
   return { el, shape, name: spellName(el, shape), color: chargeInfo(el).color, points, chargeMs, drawMs, readyMs: shape === 'jab' ? 0 : READY_MS * speed }
 }
+
+/** A training dummy's spell: the cast time % scales every drawing fully (no opponent skill curve), and a
+ *  combo's letters come at once, LETTER_GAP_MS apart (longer at a slower cast time), then it draws. */
+/** Just a dummy spell's timing (ms), without its drawing: for showing cast times in settings. */
+export function dummyTimes(el: string, shape: string, pct: number) {
+  const letters = signsFor(el).length
+  const signGap = Math.max(LETTER_GAP_MS, LETTER_GAP_MS * pct)
+  const chargeMs = letters > 1 ? signGap * (letters - 1) : CHARGE_MS * pct
+  return { chargeMs, drawMs: DRAW_MS[shape] * pct, readyMs: shape === 'jab' ? 0 : READY_MS * pct }
+}
+export function dummySpell(el: string, shape: string, pct: number) {
+  const sp = spellOf(el, shape, pct)
+  const drawMs = DRAW_MS[shape] * pct
+  const letters = signsFor(el).length
+  if (letters < 2) return { ...sp, drawMs, signGap: 0 }
+  const signGap = Math.max(LETTER_GAP_MS, LETTER_GAP_MS * pct)
+  return { ...sp, drawMs, chargeMs: signGap * (letters - 1), signGap }
+}
+/** When each letter after the first is signed: a dummy's at its fixed gap, anyone else's spread over the charge. */
+export const signTimes = (sp: { chargeMs: number; signGap?: number }, signs: string[], now: number) =>
+  signs.slice(1).map((el, i) => ({ at: now + (sp.signGap ? sp.signGap : sp.chargeMs / signs.length) * (i + 1), el }))
 
 type EnemyCast = ReturnType<typeof spellOf> & {
   start: number
@@ -267,7 +302,7 @@ type EnemyCast = ReturnType<typeof spellOf> & {
   signs?: { at: number; el: string }[] // a combo's mix, signed one letter at a time while charging
 }
 /** Spells that hit directly (a Mirror would send them back). */
-const isDirect = (el: string, shape: string) => el !== 'H' && shape !== 'scythe' && shape !== 'veil' && shape !== COUNTER && shape !== QUICK
+const isDirect = (el: string, shape: string) => el !== 'A' && shape !== 'scythe' && shape !== 'veil' && shape !== COUNTER && shape !== QUICK
 
 export class PracticeArena implements Arena {
   private combat = new Combat()
@@ -277,7 +312,7 @@ export class PracticeArena implements Arena {
   private started = 0
   private style = AI.adept
   private els = ENEMY_ELEMENTS
-  private own = [...ENEMY_ELEMENTS, 'H', 'U'] // elements it can counter with
+  private own = [...ENEMY_ELEMENTS, 'A', 'U'] // elements it can counter with
   private magic = ALL_MAGIC
   private elIdx = 0
   private lastEl = ''
@@ -302,16 +337,16 @@ export class PracticeArena implements Arena {
   private lastPlayerSilence = 0 // your silence left, last update (a jump = you were just silenced)
   private lastCombo = '' // never the same combo twice in a row
   private glacierRolled = false // already decided whether to break the Glacier coming at it
-  playerTwoHands = false // set by the page: it only parries when you can parry back
   private parrySeen = new Set<number>() // bolts it already decided on
   private parryAt: number | null = null // when it pushes for a parry it decided to try
+  private thrown: string[] = [] // your last throws (element:shape), to spot a spammed spell
 
   start(now: number, difficulty: Difficulty = 'pebble') {
     this.combat = new Combat()
     this.style = AI[difficulty]
     this.els = this.style.els ?? ENEMY_ELEMENTS
     this.magic = this.style.magic ?? ALL_MAGIC
-    this.own = [...this.els, ...(this.magic.includes('aegis') || this.style.healBelow > 0 ? ['H'] : []), ...(this.magic.some((m) => UNHOLY_MAGIC.includes(m)) ? ['U'] : [])]
+    this.own = [...this.els, ...(this.magic.includes('aegis') || this.style.healBelow > 0 ? ['A'] : []), ...(this.magic.some((m) => UNHOLY_MAGIC.includes(m)) ? ['U'] : [])]
     this.elIdx = 0
     this.lastEl = ''
     this.knockedSeen = 0
@@ -339,6 +374,7 @@ export class PracticeArena implements Arena {
     this.glacierRolled = false
     this.parrySeen.clear()
     this.parryAt = null
+    this.thrown = []
   }
 
   /** End the match early (no winner). */
@@ -376,7 +412,8 @@ export class PracticeArena implements Arena {
     if (this.combat.push('player', now) !== 'ok') return
     // Remember attacks as light/heavy (no ready spell = a quick interrupt). Heals and counters don't count.
     const shape = r ? r.shape : v.charge.player ? QUICK : null
-    if (r?.el === 'H') this.lastPlayerHeal = now
+    if (r?.el === 'A') this.lastPlayerHeal = now
+    if (r) this.thrown = [...this.thrown.slice(-2), `${r.el}:${r.shape}`]
     if (shape === COUNTER || shape === QUICK) {
       // A real counter: you weren't bluffing, so it trusts the threat a little more again.
       this.baitCheck = null
@@ -384,11 +421,11 @@ export class PracticeArena implements Arena {
     }
     // How long you take from charge to throw (it learns your pace to time its counters).
     if (this.playerCharge && shape && shape !== QUICK) this.castTimes = [...this.castTimes.slice(-2), now - this.playerCharge.since]
-    if (shape && shape !== COUNTER && r?.el !== 'H') this.unanswered++
-    if (shape && shape !== COUNTER && r?.el !== 'H') this.moves = [...this.moves.slice(-5), kindOf(shape)]
+    if (shape && shape !== COUNTER && r?.el !== 'A') this.unanswered++
+    if (shape && shape !== COUNTER && r?.el !== 'A') this.moves = [...this.moves.slice(-5), kindOf(shape)]
     this.playerCharge = null
     // A regen keeps ticking after the throw, so a counter already planned against it still goes.
-    if (!(r?.el === 'H' && r.shape === 'hourglass')) this.reactAt = null
+    if (!(r?.el === 'A' && r.shape === 'hourglass')) this.reactAt = null
   }
 
   /** Faster as the fight goes on, then levels off: about 6% faster after 30 s, 9% after a minute, 10% at most. */
@@ -405,7 +442,7 @@ export class PracticeArena implements Arena {
     const hpShare = v.hp.enemy / v.maxHp.enemy
     if (hpShare < s.healBelow && now - this.lastHeal > 6000 && Math.random() < (s.capitalize ? 0.85 : 0.5)) {
       this.lastHeal = now
-      return spellOf('H', hpShare < s.healBelow / 2 ? 'star' : 'hourglass', sp)
+      return spellOf('A', hpShare < s.healBelow / 2 ? 'star' : 'hourglass', sp)
     }
     const combo = this.comboSpell(now, v, sp)
     if (combo) return combo
@@ -434,6 +471,16 @@ export class PracticeArena implements Arena {
     }
     const el = this.nextEl()
     const moves = s.moves ? Object.entries(s.moves).map(([v, w]) => ({ w, v })) : ENEMY_MOVES.map((m) => ({ w: m.w, v: m.shape }))
+    // Readers (Warden and up) pick the moment: big spells while you're drawing (you'd have to drop your
+    // spell to answer), lights while you're idle and ready to counter or parry.
+    if (s.read > 0) {
+      const drawingNow = this.playerStrokeAt !== null && now - this.playerStrokeAt > 200
+      const k = lerp(1, 1.8, Math.min(1, s.read * 1.5))
+      for (const m of moves) {
+        if (drawingNow && m.v !== 'line') m.w *= k
+        if (!drawingNow && !v.charge.player && m.v === 'line') m.w *= k
+      }
+    }
     let shape = pick(moves)
     if (s.capitalize && v.silenced.player > 1200) shape = 'signature' // you can't counter it now
     else if (s.capitalize && v.hp.player / v.maxHp.player < 0.2) shape = 'line' // finish fast
@@ -452,6 +499,10 @@ export class PracticeArena implements Arena {
     else if (o === 'fresh' && this.els.length > 1) {
       const rest = this.els.filter((x) => x !== this.lastEl)
       el = rest[Math.floor(Math.random() * rest.length)]
+    } else if ((this.style.smart >= 0.5 || this.style.read > 0) && this.els.length > 1) {
+      // Smart ones rotate: fresher elements (less wear) are more likely.
+      const now = performance.now()
+      el = pick(this.els.map((x) => ({ w: this.combat.powerOf('enemy', x, now) ** 3, v: x })))
     } else el = this.anyEl()
     this.lastEl = el
     return el
@@ -460,8 +511,15 @@ export class PracticeArena implements Arena {
   /** Intro bots: once it's been charging a while, the element that counters it. */
   private hint(now: number) {
     const e = this.enemy
+    if (!e || e.counter) return null
+    // A combo: once its mix is locked in, the combo counterspell (C + the two elements that beat it).
+    if (e.el in COMBO_MIX) {
+      const ms = this.style.comboHintMs ?? this.style.hintMs
+      if (ms === undefined || this.combat.chargeOf('enemy') !== e.el || now - e.start < ms) return null
+      return mixCounter(COMBO_MIX[e.el].map(beaterOf))
+    }
     const ms = this.style.hintMs
-    if (ms === undefined || !e || e.counter || !(e.el in BEATS) || now - e.start < ms) return null
+    if (ms === undefined || !(e.el in BEATS) || now - e.start < ms) return null
     return beaterOf(e.el)
   }
 
@@ -493,7 +551,7 @@ export class PracticeArena implements Arena {
     return spellOf(c, COMBO_SHAPE[c], sp)
   }
 
-  /** Holy buffs and Unholy curses, when one fits the moment. */
+  /** Angelic buffs and Unholy curses, when one fits the moment. */
   private utilitySpell(v: CombatView, sp: number) {
     const s = this.style
     if (v.doom.enemy > 0) return spellOf(this.anyEl(), 'line', sp) // doomed: throw anything, fast
@@ -506,7 +564,7 @@ export class PracticeArena implements Arena {
       // Doom: its 30 lands as a direct hit, which armor can't stop from being a threat: better vs armor.
       { w: armored ? lerp(1, 4, s.smart) : 1, v: ['U', 'scythe'] },
       { w: v.shroud.enemy > 0 ? 0 : 1, v: ['U', 'veil'] },
-      { w: v.shield.enemy > 0 ? 0 : 1, v: ['H', 'aegis'] },
+      { w: v.shield.enemy > 0 ? 0 : 1, v: ['A', 'aegis'] },
     ]
     const allowed = opts.filter((o) => this.magic.includes(o.v[1]))
     if (!allowed.some((o) => o.w > 0)) return null
@@ -539,13 +597,13 @@ export class PracticeArena implements Arena {
       pc.rollAt = s.reroll ? now + s.reroll : Infinity // still charging later (a long heavy): roll again
       const combo = pc.el in COMBO_MIX
       // heals: any element's counterspell stops them; combos: only a combo counterspell
-      const counterable = combo ? !!s.comboCounter : pc.el === 'H' || (pc.el in BEATS && this.own.includes(beaterOf(pc.el)))
+      const counterable = combo ? !!s.comboCounter : pc.el === 'A' || (pc.el in BEATS && this.own.includes(beaterOf(pc.el)))
       // Spamming: the same element spamAt+ times in a row (counting this one) and it's ready for it.
       const h = this.history
       const n = s.spamAt ?? 3
       const spam = s.spamCounter > 0 && h.length >= n && h.slice(-n).every((x) => x === pc.el)
       // Its guess at what you're about to throw: light means interrupt fast, heavy means circle.
-      const healing = pc.el === 'H'
+      const healing = pc.el === 'A'
       const guess = s.read && !healing ? predict(this.moves) : null
       // It saw this element coming (your charges follow a pattern): it's already set to counter it.
       const expected = s.read > 0 && !healing && predict(this.history.slice(0, -1)) === pc.el
@@ -560,13 +618,15 @@ export class PracticeArena implements Arena {
         ? Math.min(1, again ? 0.95 : s.heal + (low ? 0.05 : 0))
         : Math.max(s.react, spam ? s.spamCounter : 0, guess ? lerp(s.react, 0.9, s.read) : 0, expected ? lerp(s.react, 0.8, s.read) : 0)
       if (counterable && Math.random() < chance) {
-        const ms = s.reactMs[0] + Math.random() * (s.reactMs[1] - s.reactMs[0])
+        // A combo takes a moment longer to recognize (which two elements, which counter pair).
+        const ms = s.reactMs[0] + Math.random() * (s.reactMs[1] - s.reactMs[0]) + (combo ? 400 : 0)
         const quick = guess === 'L' ? lerp(1, 0.45, s.read) : guess === 'H' ? lerp(1, 0.5, s.read) : 1
         const ready = expected ? lerp(1, 0.6, s.read) : again ? 0.5 : healing && low && s.read ? 0.7 : 1
         this.reactAt = now + ms * Math.min(quick, ready, spam ? lerp(0.8, 0.5, Math.min(1, s.read * 2)) : 1)
         // Expecting it (spam or a pattern) and it knows your pace: react in time to land an interrupt
         // before you throw, but never quicker than 250 ms (no mind-reading).
-        if (s.read > 0 && (spam || guess || expected) && this.castTimes.length) {
+        // Spam is timed this way on every rung (mashing is the one thing even Adept reads).
+        if ((spam || (s.read > 0 && (guess || expected))) && this.castTimes.length) {
           const hold = Math.max(SIGN_HOLD_MS, COUNTER_HOLD_MS * this.speed(now))
           const latest = pc.since + Math.min(...this.castTimes) - hold - 160 - 60
           this.reactAt = Math.max(now + 250, Math.min(this.reactAt, latest))
@@ -587,7 +647,7 @@ export class PracticeArena implements Arena {
     this.reactAt = null
     // Dropping its own half-drawn spell works like yours: the stroke fizzles (throws locked for a moment).
     const abandoned = !!e && !e.counter && now - e.start >= e.chargeMs
-    const healing = this.reactTo === 'H'
+    const healing = this.reactTo === 'A'
     // Only if there's still something to counter: your charge, or (for a heal) a regen ticking.
     if (!(pc?.el === this.reactTo || (healing && this.combat.view(now).regen.player))) return
     // A heal needs the full counterspell (any element); otherwise a quick interrupt or a circle.
@@ -605,7 +665,7 @@ export class PracticeArena implements Arena {
     }
     // Too slow to circle before you throw (it knows your pace)? Then a quick interrupt instead.
     const hold = Math.max(SIGN_HOLD_MS, COUNTER_HOLD_MS * this.speed(now))
-    // Vs heavies it wants the circle (a 2.5 s silence leaves room for a big punish), and each heavy you
+    // Vs heavies it wants the circle (a stun leaves room for a big punish), and each heavy you
     // throw in a row makes it draw the circle faster: 12% per heavy, down to 55% of normal.
     let streak = 0
     for (let i = this.moves.length - 1; i >= 0 && this.moves[i] === 'H'; i--) streak++
@@ -616,7 +676,7 @@ export class PracticeArena implements Arena {
       const circleLands = hold + DRAW_MS.circle * this.speed(now) * circleSpeed + COUNTER_READY_MS + 240
       if (now + circleLands > pc.since + pace) shape = 'jab'
     }
-    if (!canQuick(el)) shape = 'circle' // Holy and Unholy have no quick interrupt
+    if (!canQuick(el)) shape = 'circle' // Angelic and Unholy have no quick interrupt
     const base = spellOf(el, shape, this.speed(now), hold)
     const sp = { ...base, drawMs: shape === 'circle' && !healing ? base.drawMs * circleSpeed : base.drawMs, readyMs: shape === 'jab' ? 0 : COUNTER_READY_MS }
     if (abandoned) this.combat.drew('enemy', null, now)
@@ -697,21 +757,28 @@ export class PracticeArena implements Arena {
   /** Parry: once per spell you throw at it, it may try; a try is timed into the window or mistimed (too early). */
   private parryCheck(now: number) {
     const s = this.style
-    if (!this.playerTwoHands || !(s.parry || s.reparry)) return
+    if (!(s.parry || s.reparry)) return
     for (const b of this.combat.view(now).bolts) {
       if (b.to !== 'enemy' || !b.parryable || b.parried || b.landed || this.parrySeen.has(b.id)) continue
       this.parrySeen.add(b.id)
       if (this.parryAt !== null) continue // already set to parry something
       const lands = b.t + b.fly
-      let chance = b.reflected ? s.reparry ?? 0 : s.parry ?? 0
-      if (b.tier === 'light') chance /= 2 // too fast to see coming
-      // Smart ones won't throw away their own big spell that's nearly out.
+      const win = b.parryMs ?? PARRY_WINDOW_MS
+      const combo = b.el in COMBO_MIX
+      const heavy = s.parry ?? 0
+      let chance = b.reflected ? s.reparry ?? 0 : b.tier === 'light' ? heavy / 4 : combo ? heavy * 0.6 : b.tier === 'signature' ? s.parrySig ?? heavy : heavy
+      // The same spell from you 3 times in a row: it knows the timing and goes for it more.
+      const key = `${b.el}:${b.shape}`
+      if (!b.reflected && this.thrown.length >= 2 && this.thrown.slice(-2).every((k) => k === key)) chance = Math.min(0.95, chance * 1.6)
+      // It won't throw away its own heavy or bigger spell that's already being drawn (smarter ones judge it).
       const e = this.enemy
-      if (e && !e.counter && s.smart >= 0.7 && e.shape === SIGNATURE[e.el] && now - e.start > e.chargeMs) chance = 0
+      if (e && !e.counter && e.shape !== 'line' && now - e.start > e.chargeMs && Math.random() < lerp(0.4, 1, s.smart)) chance *= 0.15
       // Its counter will be out before your spell lands: it throws that instead of parrying.
       if (e?.counter && e.ends <= lands) chance = 0
       if (Math.random() >= chance) continue
-      this.parryAt = Math.random() < (s.parryAim ?? 0) ? lands - 30 - Math.random() * 50 : lands - 200 - Math.random() * 200
+      // Bigger windows are easier to hit; a miss is a mistimed push (too early).
+      const aim = Math.min(0.97, (s.parryAim ?? 0) * Math.sqrt(win / PARRY_WINDOW_MS))
+      this.parryAt = Math.random() < aim ? lands - 10 - Math.random() * (win - 30) : lands - win - 80 - Math.random() * 250
       this.parryAt = Math.max(now, this.parryAt)
     }
     if (this.parryAt !== null && now >= this.parryAt) {
@@ -765,7 +832,7 @@ export class PracticeArena implements Arena {
   private aegisCheck(now: number, v: CombatView) {
     const s = this.style
     const pc = this.playerCharge
-    if (!this.magic.includes('aegis') || !pc || pc.aegisRolled || v.shroud.player > 0 || v.shield.enemy > 0 || pc.el === 'H') return
+    if (!this.magic.includes('aegis') || !pc || pc.aegisRolled || v.shroud.player > 0 || v.shield.enemy > 0 || pc.el === 'A') return
     const r = v.ready.player
     const big = r ? r.shape !== 'line' && r.shape !== COUNTER : this.playerStrokeAt !== null && now - this.playerStrokeAt > 500
     if (!big) return
@@ -773,13 +840,13 @@ export class PracticeArena implements Arena {
     const e = this.enemy
     if (e && (e.counter || now - e.start >= e.chargeMs)) return // busy drawing its own spell
     if (Math.random() >= lerp(0.1, 0.5, s.smart)) return
-    const sp = spellOf('H', 'aegis', this.speed(now))
+    const sp = spellOf('A', 'aegis', this.speed(now))
     const castMs = sp.chargeMs + sp.drawMs + sp.readyMs
     // Smart: only if it lands before you'd throw (your pace, or about 1.2 s once readied).
     const left = r ? 1200 : this.castTimes.length ? pc.since + Math.min(...this.castTimes) - now : 2500
     if (Math.random() < s.smart && castMs > left) return
     this.enemy = { ...sp, start: now, ends: now + castMs }
-    this.combat.sign('enemy', 'H', now)
+    this.combat.sign('enemy', 'A', now)
   }
 
   /** The fight as the AI may read it. */
@@ -810,12 +877,25 @@ export class PracticeArena implements Arena {
         this.reactAt = null
         this.switchTo = null
       }
-      // Silenced (your counter landed): whatever it was casting is gone.
+      // Stunned (your counter, Prison or Plasma landed): whatever it was casting is gone. It starts again
+      // shortly after the stun ends (which can be early: your next hit ends it).
       if (this.combat.isSilenced('enemy', now)) {
-        if (this.enemy) this.nextEnemyAt = Math.max(this.nextEnemyAt, now + 2000)
+        this.nextEnemyAt = Math.max(this.nextEnemyAt, now + 300)
         this.enemy = null
         this.reactAt = null
       } else {
+        // Locked out (your interrupt landed, or its own interrupt whiffed): nothing it can do until it ends.
+        if (this.combat.isLocked('enemy', now)) {
+          this.enemy = null
+          this.reactAt = null
+          this.nextEnemyAt = Math.max(this.nextEnemyAt, now + 150)
+        }
+        // Your interrupt landed: its spell fizzled (charge gone). It drops the cast and starts over after the lock.
+        if (this.enemy && !this.combat.chargeOf('enemy') && !this.combat.view(now).ready.enemy) {
+          this.enemy = null
+          this.reactAt = null
+          this.nextEnemyAt = Math.max(this.nextEnemyAt, now + FIZZLE_LOCK_MS + 150 + Math.random() * 250)
+        }
         // Just silenced you (a jump in your silence): hard and insane go for the opening.
         const silenceLeft = this.combat.view(now).silenced.player
         if (silenceLeft > this.lastPlayerSilence + 50) this.unanswered = 0
@@ -957,9 +1037,9 @@ export class DummyArena implements Arena {
       }
       if (!this.enemy && this.pool.length && now >= this.nextEnemyAt && !this.combat.isSilenced('enemy', now)) {
         const [el, shape] = dummyPick(this.pool, this.combat.view(now).shroud.enemy > 0)
-        const sp = spellOf(el, shape, this.castPct / 100)
-        const signs = signsFor(el) // a combo: C, then its two letters, spread over the charge
-        this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, signs: signs.slice(1).map((l, i) => ({ at: now + (sp.chargeMs * (i + 1)) / signs.length, el: l })) }
+        const sp = dummySpell(el, shape, this.castPct / 100)
+        const signs = signsFor(el) // a combo: C, then its two letters right after, then it draws
+        this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, signs: signTimes(sp, signs, now) }
         this.combat.sign('enemy', signs[0], now)
       }
       const e = this.enemy

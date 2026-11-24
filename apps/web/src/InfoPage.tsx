@@ -1,6 +1,6 @@
 // Spell info: every spell's damage and effects. Attack numbers come straight from combat.ts;
 // signature and heal numbers are written here (keep them in sync with land() in combat.ts).
-import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
+import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 
 const s = (ms: number) => `${ms / 1000} s`
@@ -15,10 +15,10 @@ const ATTACK_EFFECT: Record<string, string> = {
 
 const SIGNATURES = [
   { el: 'F', name: 'Meteor', draw: 'Circle with 4 spikes', dmg: '32', effect: '+18 burn over 2.5 s. The most total damage.' },
-  { el: 'I', name: 'Frozen Prison', draw: 'Square + both diagonals', dmg: '20', effect: `Silences them for ${s(PRISON_SILENCE_MS)}, whatever their element, and chills them: their next hit within ${s(CHILL_MS)} does +${PRISON_CHILL * 100}%.` },
-  { el: 'W', name: 'Tidal Wave', draw: 'Spiral', dmg: '25', effect: 'You heal 22.' },
+  { el: 'I', name: 'Frozen Prison', draw: 'Square + both diagonals', dmg: '24', effect: `Stuns them up to ${s(PRISON_SILENCE_MS)}, whatever their element, and chills them: their next hit within ${s(CHILL_MS)} does +${PRISON_CHILL * 100}%.` },
+  { el: 'W', name: 'Tidal Wave', draw: 'Spiral', dmg: '25', effect: `You heal ${TIDAL_HEAL}.` },
   { el: 'E', name: 'Earthquake', draw: '3 towers', dmg: '38', effect: 'Knocks off their charge and readied spell.' },
-  { el: 'L', name: 'Thunderbolt', draw: '7 zigzag lines', dmg: '22', effect: 'Three fast static pulses where their throws fizzle.' },
+  { el: 'L', name: 'Thunderbolt', draw: '7 zigzag lines', dmg: '28', effect: 'Three fast static pulses where their throws fizzle.' },
 ]
 
 const UNHOLY = [
@@ -31,12 +31,12 @@ const COMBO_ROWS = [
   { c: 'magma', mix: 'C, F, E', draw: 'Volcano with a base', dmg: `${MAGMA[0]}`, effect: `+${MAGMA[1]} burn over 5 s.` },
   { c: 'storm', mix: 'C, W, L', draw: 'Cloud with a bolt', dmg: `${STORM.hit}`, effect: `${STORM.count} static pulses, ${STORM.pulse} damage each. A throw in a pulse fizzles and takes ${STORM.zap}.` },
   { c: 'glacier', mix: 'C, I, E', draw: 'Iceberg', dmg: `${GLACIER_DMG}`, effect: `Takes ${s(GLACIER_MS)} to arrive. Only a Fire + Ice combo counterspell stops it.` },
-  { c: 'twilight', mix: 'C, H, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take double damage.` },
+  { c: 'twilight', mix: 'C, A, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take double damage.` },
   { c: 'steam', mix: 'C, F, W', draw: 'Puffy cloud', dmg: `${STEAM_HIT}`, effect: `For ${s(STEAM_MS)} their attacks have a 50% chance to miss.` },
   { c: 'thermal', mix: 'C, F, I', draw: 'Thermometer with a crack', dmg: `${THERMAL.hit}`, effect: `+${THERMAL.burn} burn, and chills them: their next hit does +${THERMAL.chill * 100}%.` },
-  { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Stuns ${s(PLASMA.stun)} and burns +${PLASMA.burn}.` },
-  { c: 'sunfire', mix: 'C, H, F', draw: 'Sun', dmg: `${SUNFIRE[0]}`, effect: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
-  { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `For ${s(GRAVE.ms)} they can't heal or use any Holy spell. A Holy counterspell still works.` },
+  { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Stuns up to ${s(PLASMA.stun)} and burns +${PLASMA.burn}.` },
+  { c: 'sunfire', mix: 'C, A, F', draw: 'Sun', dmg: `${SUNFIRE[0]}`, effect: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
+  { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `For ${s(GRAVE.ms)} they can't heal or use any Angelic spell. An Angelic counterspell still works.` },
 ]
 
 export function InfoPage({ onHome }: { onHome: () => void }) {
@@ -54,7 +54,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
 
       <section className="info-card">
         <h2>Attacks</h2>
-        <p className="info-note">Light = a line. Heavy = an H. Same drawings for every element.</p>
+        <p className="info-note">Light = a line. Heavy = an H. Same drawings for every element. Heavies hit harder but fly slower, so they're easier to parry.</p>
         <table className="info-table">
           <thead>
             <tr>
@@ -107,7 +107,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
       </section>
 
       <section className="info-card">
-        <h2 style={{ color: ELEMENTS.H.color }}>Holy (H)</h2>
+        <h2 style={{ color: ELEMENTS.A.color }}>Angelic (A)</h2>
         <table className="info-table">
           <tbody>
             <tr>
@@ -143,7 +143,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
             ))}
           </tbody>
         </table>
-        <p className="info-note">Holy and Unholy counter each other. Neither has an interrupt, only the counterspell.</p>
+        <p className="info-note">Angelic and Unholy counter each other. Neither has an interrupt, only the counterspell.</p>
       </section>
 
       <section className="info-card" hidden={!COMBOS_ON}>
@@ -183,12 +183,12 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
             <tr>
               <td>Counterspell</td>
               <td>Sign the beating element, draw a circle, push</td>
-              <td>Silences them {s(COUNTER_SILENCE_MS)} and drops their charge, if they still hold the element yours beats when it lands</td>
+              <td>Stuns them until your next spell hits them (at most {s(COUNTER_SILENCE_MS)}), if they still hold the element yours beats when it lands</td>
             </tr>
             <tr>
               <td>Interrupt</td>
               <td>Sign the beating element, just push</td>
-              <td>Faster, silences {s(QUICK_SILENCE_MS)}. Can't stop heals</td>
+              <td>Faster. Their spell fizzles and they're locked out (no signing, drawing or throwing) for {s(INTERRUPT_LOCK_MS)}. If it misses, you're locked out for {s(WHIFF_MS)}. Can't stop heals</td>
             </tr>
           </tbody>
         </table>
@@ -197,7 +197,8 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
       <section className="info-card">
         <h2>Status effects</h2>
         <ul className="info-list">
-          <li><b>Silenced:</b> you can't charge, draw or throw. Your charge and readied spell are gone.</li>
+          <li><b>Interrupted / Whiffed:</b> locked out: you can't sign, draw or throw until it ends.</li>
+          <li><b>Stunned:</b> you can't charge, draw or throw. Your charge and readied spell are gone. It ends early when whoever stunned you hits you.</li>
           <li><b>Fizzled:</b> a wrong drawing, or a spell you didn't throw in time. No throws for {s(FIZZLE_LOCK_MS)}, and your charge is gone.</li>
           <li><b>Static:</b> throws during a pulse fizzle. Wait for the gap.</li>
           <li><b>Chilled:</b> the next hit you take does extra damage.</li>
@@ -206,6 +207,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
           <li><b>Armor (Aegis):</b> direct hits are soaked first. It drains over time.</li>
           <li><b>Doomed:</b> a countdown. Land any cast before it ends.</li>
           <li><b>Shrouded:</b> your opponent can't see your charge or drawing.</li>
+          <li><b>Worn:</b> every throw wears its element (a light half as much). Each stack takes {WEAR_STEP * 100}% off that element's damage and heals, down to {WEAR_FLOOR * 100}%. A stack fades every {s(WEAR_DECAY_MS)}. A combo hits at the average of its two elements and wears both. Mix your elements.</li>
         </ul>
       </section>
 
@@ -214,7 +216,8 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
         <ul className="info-list">
           <li>A charge stays until you use it. Open all five fingers (not right after a drawing) to drop it.</li>
           <li>A drawn spell fades (and fizzles) after {s(READY_LIFE_MS)} if you don't push.</li>
-          <li>Spells fly before they land: light is fastest, signatures slowest. Counters fly fastest of all.</li>
+          <li>Spells fly before they land: light is fastest, combos slowest. Counters fly fastest of all.</li>
+          <li>Parry: push with both hands just before a spell hits. The window is {PARRY_WINDOWS.light} ms for lights, {PARRY_WINDOWS.heavy} ms for heavies, {PARRY_WINDOWS.signature} ms for signatures and {PARRY_WINDOWS.combo} ms for combos. It goes back at half power, faster, and only a {PARRY_WINDOWS.light} ms parry returns it again.</li>
         </ul>
       </section>
     </main>

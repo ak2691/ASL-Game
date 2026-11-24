@@ -2,7 +2,6 @@
 import type { Hand } from './recognition'
 import { COMBOS_ON, COMBO_SHAPE, SIGNATURE, shapesFor } from './spells'
 
-export const TWO_HANDS_KEY = 'spells-two-hands'
 export const DRAW_HAND_KEY = 'spells-draw-hand'
 export function loadDrawHand(): Hand {
   try {
@@ -12,13 +11,6 @@ export function loadDrawHand(): Hand {
     /* fall through */
   }
   return 'right' // most players are right-handed: the right hand draws, the left signs
-}
-export function loadTwoHands() {
-  try {
-    return localStorage.getItem(TWO_HANDS_KEY) !== '0'
-  } catch {
-    return true
-  }
 }
 
 // Push sensitivity: how much the hand must grow on screen (move toward the camera) to throw or parry.
@@ -51,9 +43,9 @@ export function setPushGrowth(v: number) {
   }
 }
 
-// Training dummy: which spells it may throw when attacking, as "element:shape" ("F:line", "H:star", ...).
+// Training dummy: which spells it may throw when attacking, as "element:shape" ("F:line", "A:star", ...).
 export const DUMMY_POOL_KEY = 'spells-dummy-pool'
-export const DUMMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L', 'H', 'U']
+export const DUMMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
 export const DUMMY_COMBOS = COMBOS_ON ? Object.keys(COMBO_SHAPE) : []
 export const ALL_DUMMY_SPELLS = [...DUMMY_ELEMENTS, ...DUMMY_COMBOS].flatMap((el) => shapesFor(el).map((sh) => `${el}:${sh}`))
 export const DUMMY_POOL2_KEY = 'spells-dummy-pool-2' // the second enemy's spells
@@ -62,10 +54,11 @@ export function loadDummyPool(key = DUMMY_POOL_KEY): string[] {
   try {
     const v = JSON.parse(localStorage.getItem(key) ?? 'null')
     if (Array.isArray(v)) {
-      // Older saves used "F:signature" (the element's signature shape) and had no Holy or Unholy: those start on.
+      // Older saves used "F:signature" (the element's signature shape) and had no Angelic or Unholy: those start on.
       const old = v.some((x) => typeof x === 'string' && x.endsWith(':signature'))
-      const pool = v.map((x) => (typeof x === 'string' && x.endsWith(':signature') ? `${x[0]}:${SIGNATURE[x[0]]}` : x))
-      if (old) pool.push(...ALL_DUMMY_SPELLS.filter((k) => k[0] === 'H' || k[0] === 'U'))
+      // Angelic became Angelic (Nov 25): saved "H:star" is now "A:star".
+      const pool = v.map((x) => (typeof x === 'string' && x.endsWith(':signature') ? `${x[0]}:${SIGNATURE[x[0]]}` : typeof x === 'string' && x.startsWith('H:') ? `A:${x.slice(2)}` : x))
+      if (old) pool.push(...ALL_DUMMY_SPELLS.filter((k) => k[0] === 'A' || k[0] === 'U'))
       return pool.filter((x) => ALL_DUMMY_SPELLS.includes(x))
     }
   } catch {

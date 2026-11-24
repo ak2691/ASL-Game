@@ -15,7 +15,7 @@ Combos are top-of-ladder only. The early rungs stay as they are.
 
 New bosses always sit after Lich (see "Characters" below).
 
-## When it picks each combo (fits the moment, like its Holy/Unholy picks)
+## When it picks each combo (fits the moment, like its Angelic/Unholy picks)
 - **Magma**: you're silenced or stunned and can't counter. Raw damage.
 - **Storm**: you throw fast (light spam). The pulses punish throwing.
 - **Advancing Glacier**: you're busy (drawing a signature, or silenced). It's a 5 s threat you must answer with C, F, I.

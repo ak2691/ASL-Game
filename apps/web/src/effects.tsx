@@ -1,7 +1,7 @@
 // Spell impact visuals: an element projectile flies across, then the target's half gets an element effect.
 // Strength sets the size: light (line) < heavy (H, counter, heal) < signature.
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
-import { DOOM_MS, GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
+import { DOOM_MS, INTERRUPT_LOCK_MS, WHIFF_MS, GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
 import { COMBO_MIX, isMixCounter } from './spells'
 
 const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
@@ -141,9 +141,11 @@ function Projectile({ b }: { b: Bolt }) {
         {defs('#ff5a14', '#ffb13d')}
         <path d="M0 50 Q30 16 66 24 L66 76 Q30 84 0 50 Z" fill={trail} filter={blur} />
         <circle cx="68" cy="50" r="30" fill={core} filter={blur} />
+        <g className="upright">
         <path d="M50 34 L68 22 L88 30 L94 52 L84 72 L60 76 L46 58 Z" fill="#3a1c10" />
         <path d="M56 36 L70 46 L66 60 M70 46 L86 40 M66 60 L80 66 M66 60 L54 64" fill="none" stroke="#ffb13d" strokeWidth="3" strokeLinecap="round" />
         <path d="M58 76 Q57 86 60 90 Q63 86 62 76 Z M76 74 Q76 82 78 84 Q80 82 79 74 Z" fill="#ff7a1f" />
+        </g>
       </>
     )
   else if (b.el === 'steam')
@@ -202,8 +204,10 @@ function Projectile({ b }: { b: Bolt }) {
         {defs('#6a4a8c', '#c9b6e0')}
         <path d="M0 50 Q30 28 56 34 L56 66 Q30 72 0 50 Z" fill={trail} filter={blur} />
         <circle cx="66" cy="50" r="30" fill={core} filter={blur} opacity="0.6" />
+        <g className="upright">
         <path d="M52 80 L52 40 A14 14 0 0 1 80 40 L80 80 Z" fill="#8a7a9c" stroke="#3a2c4c" strokeWidth="3" />
         <path d="M66 46 L66 70 M58 54 L74 54" stroke="#3a2c4c" strokeWidth="4" strokeLinecap="round" />
+        </g>
       </>
     )
   else if (b.el === 'twilight')
@@ -225,9 +229,11 @@ function Projectile({ b }: { b: Bolt }) {
     art = (
       <>
         {defs('#7fd0ff', '#e8f8ff')}
+        <g className="upright">
         <path d="M18 92 L26 30 L40 40 L52 8 L66 34 L80 22 L90 92 Z" fill="#cdeeff" opacity="0.9" />
         <path d="M52 8 L66 34 L60 92 L44 92 Z" fill="#9fdcff" opacity="0.8" />
         <path d="M18 92 L26 30 L40 40 L52 8 L66 34 L80 22 L90 92 Z" fill="none" stroke="#fff" strokeWidth="2" />
+        </g>
       </>
     )
   else if (el === 'I' && sig)
@@ -276,12 +282,14 @@ function Projectile({ b }: { b: Bolt }) {
             <stop offset="1" stopColor="#bfe0ff" />
           </linearGradient>
         </defs>
+        <g className="upright">
         <path d="M2 98 L2 70 Q10 40 34 26 Q62 8 84 20 Q98 30 90 46 Q84 34 70 36 Q56 40 60 56 Q66 72 98 74 L98 98 Z" fill="#3d8bff" filter={blur} />
         <path d="M2 98 L2 70 Q10 40 34 26 Q62 8 84 20 Q98 30 90 46 Q84 34 70 36 Q56 40 60 56 Q66 72 98 74 L98 98 Z" fill={`url(#${id}w)`} />
         <path d="M30 28 Q60 8 84 20 Q98 30 90 46" fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" />
         {[[94, 14, 4], [86, 8, 3], [98, 26, 2.5]].map(([x, y, r]) => (
           <circle key={x} cx={x} cy={y} r={r} fill="#fff" />
         ))}
+        </g>
       </>
     ) : (
       // Water orb: a shining bubble of water with a ripple ring and droplets.
@@ -334,11 +342,13 @@ function Projectile({ b }: { b: Bolt }) {
       <>
         {defs('#a05cd6', '#e6c2ff')}
         <path d="M0 50 Q20 30 40 34 L40 66 Q20 70 0 50 Z" fill={trail} filter={blur} />
+        <g className="upright">
         <rect x="24" y="16" width="70" height="68" rx="4" fill="#a05cd6" opacity="0.7" filter={blur} />
         <rect x="26" y="18" width="14" height="64" rx="2" fill="#6b4a32" />
         <rect x="40" y="22" width="50" height="56" fill="#cfc8e0" />
         <path d="M40 22 H90 V44 H40 Z" fill="#ece8f6" />
         <path d="M86 24 V76" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+        </g>
       </>
     )
   else if (el === 'U')
@@ -374,14 +384,14 @@ function Projectile({ b }: { b: Bolt }) {
 }
 
 /** Parry timing: a ring per spell flying at `side` that closes on impact and lights up when the parry
- *  window opens (the last PARRY_WINDOW_MS). Pure CSS timing from the moment it appears. */
+ *  window opens (the last parryMs: bigger spells open sooner). Pure CSS timing from the moment it appears. */
 export function ParryRings({ side, bolts, windowMs }: { side: Side; bolts: Bolt[]; windowMs: number }) {
   return (
     <>
       {bolts
         .filter((b) => b.from !== side && b.parryable && !b.parried && !b.landed)
         .map((b) => (
-          <div key={b.id} className="parry-ring" style={{ color: b.color, '--fly': `${b.fly}ms`, '--open': `${Math.max(0, b.fly - windowMs)}ms`, '--win': `${windowMs}ms` } as Vars} />
+          <div key={b.id} className="parry-ring" style={{ color: b.color, '--fly': `${b.fly}ms`, '--open': `${Math.max(0, b.fly - (b.parryMs ?? windowMs))}ms`, '--win': `${b.parryMs ?? windowMs}ms` } as Vars} />
         ))}
     </>
   )
@@ -487,7 +497,7 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
       )
     }
   }
-  if (els.includes('H'))
+  if (els.includes('A'))
     for (let i = 0; i < n; i++)
       add('p sparkle', { '--x': `${(r() - 0.5) * 70}%`, '--s': `${4 + r() * 7}px`, '--d': d(r() * 400), '--t': `${800 + r() * 500}ms` })
 
@@ -515,6 +525,12 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
  *  burn flickers from below, regen pulses green, and a knock-off drops rubble. */
 export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
   const silenced = view.silenced[side]
+  const locked = view.locked?.[side] ?? 0
+  // Which lockout: decided when it starts (a whiff is longer), so the label doesn't flip as it drains.
+  const lockKind = useRef<'Interrupted' | 'Whiffed'>('Interrupted')
+  const wasLocked = useRef(0)
+  if (locked > wasLocked.current + 60) lockKind.current = locked > INTERRUPT_LOCK_MS ? 'Whiffed' : 'Interrupted'
+  wasLocked.current = locked
   const knocks = view.knocked[side]
   const seenKnocks = useRef(knocks)
   const [knockId, setKnockId] = useState<number | null>(null)
@@ -556,6 +572,14 @@ export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
         </div>
       )}
       {silenced > 0 && <div className="st-silence" />}
+      {locked > 0 && (
+        <div className="st-locked">
+          <b>{lockKind.current}</b>
+          <span className="lock-bar">
+            <i style={{ width: `${Math.min(100, (locked / WHIFF_MS) * 100)}%` }} />
+          </span>
+        </div>
+      )}
       {knockId !== null && (
         <div key={knockId} className="st-knock" onAnimationEnd={() => setKnockId(null)}>
           {Array.from({ length: 10 }, (_, i) => (
@@ -642,7 +666,7 @@ function signature(b: Bolt, r: () => number, parts: ReactElement[]) {
     )
 }
 
-/** Holy, Unholy and combo spells: one look each, on top of their particles. */
+/** Angelic, Unholy and combo spells: one look each, on top of their particles. */
 function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number) {
   const k = () => parts.length
   const d = (extra = 0) => `${delay + extra}ms`

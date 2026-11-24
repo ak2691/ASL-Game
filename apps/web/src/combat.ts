@@ -6,12 +6,18 @@ export { isValidSpell }
 
 export const MAX_HP = 350
 const TICK_MS = 500
-export const COUNTER_SILENCE_MS = 2500 // a landed counterspell
-export const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
+// Stuns (counterspell, Frozen Prison, Plasma) last their full time at most, and end early when the
+// player who stunned you hits you: a stun guarantees one follow-up, not a free combo.
+export const COUNTER_SILENCE_MS = 3000 // a landed counterspell: stunned until their next hit lands, at most this long
+// Interrupts (Nov 25): a landed one makes their spell fizzle and locks them out completely (no signing,
+// drawing or throwing) for INTERRUPT_LOCK_MS. A missed one ("Whiffed") locks out its caster for WHIFF_MS:
+// mashing interrupts loses, a sure read wins. (A missed counterspell has no extra lock: the drawing was the price.)
+export const INTERRUPT_LOCK_MS = 750
+export const WHIFF_MS = 1000
 export const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
 export const CHILL_MS = 4000
-export const PRISON_CHILL = 0.45 // Frozen Prison also chills: +45% on the next hit they take within CHILL_MS
-// Holy buffs, Unholy curses, combos. First guesses, to tune in playtests.
+export const PRISON_CHILL = 0.6 // Frozen Prison also chills: +60% on the next hit they take within CHILL_MS
+// Angelic buffs, Unholy curses, combos. First guesses, to tune in playtests.
 export const AEGIS_HP = 45 // Aegis: armor that soaks direct-hit damage...
 export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be recast while any is left.
 export const MIRROR_MS = 4000 // Mirror: the next direct-damage spell within this time flies back
@@ -22,22 +28,24 @@ export const EXECUTE: [number, number, number] = [15, 0.3, 60] // Execute: base 
 // (a readied Execute hit by a counterspell backfires: the caster takes half of what it would do to them)
 // Combos (plans/combos.md). First guesses, to tune in playtests.
 // Nov 23 buff: a combo (C + 2 letters + a hard drawing) takes ~2-3x a heavy, so each should be worth ~2x one.
-export const MAGMA: [number, number] = [35, 35] // hit, then burn over 5 s
-export const STORM = { hit: 18, pulse: 8, zap: 12, count: 5 } // 0.25 s on / 0.6 s off; a throw in a pulse fizzles and takes `zap`
-export const GLACIER_MS = 5000 // Advancing Glacier: creeps this long, then crushes...
-export const GLACIER_DMG = 70 // ...for this. Only a Fire + Ice combo counterspell stops it.
-export const TWILIGHT_MS = 7000 // you take 50% less, they take 100% more (stacks with chill)
+// Nov 24 buff (~+30%, plans/balance.md): a combo is a ~4 s cast, so it should out-damage a signature per second.
+export const MAGMA: [number, number] = [45, 45] // hit, then burn over 5 s
+export const STORM = { hit: 25, pulse: 10, zap: 15, count: 5 } // 0.35 s on / 0.6 s off; a throw in a pulse fizzles and takes `zap`
+export const GLACIER_MS = 6500 // Advancing Glacier: creeps this long, then crushes...
+export const GLACIER_DMG = 95 // ...for this. Only a Fire + Ice combo counterspell stops it.
+export const TWILIGHT_MS = 8000 // you take 50% less, they take 100% more (stacks with chill)
 export const TWILIGHT_GUARD = 0.5 // you take this much less
 export const TWILIGHT_EXPOSE = 1 // they take this much more (Nov 23 buff: was 0.5)
 export const STEAM_MS = 6000 // their screen fogs and their attacks may miss
 export const STEAM_MISS = 0.5
-export const STEAM_HIT = 22
-export const THERMAL = { hit: 28, burn: 16, chill: 0.35 } // a hit, a burn and a chill
-export const PLASMA = { hit: 35, burn: 15, stun: 2000 } // stun = a silence (Nov 23 buff: was 1.75 s)
-export const SUNFIRE: [number, number] = [15, 40] // hit, then a 6 s burn that heals you what it deals
-export const GRAVE = { hit: 30, ms: 10000 } // no healing (Water's mend included) and no Holy spells (a Holy counterspell still works)
-export const HEAL = 34 // Holy star: right away
-export const REGEN = { amount: 9, ticks: 5 } // Holy hourglass: every 0.5 s
+export const STEAM_HIT = 32
+export const THERMAL = { hit: 38, burn: 22, chill: 0.5 } // a hit, a burn and a chill
+export const PLASMA = { hit: 42, burn: 20, stun: 2000 } // stun = a silence (Nov 23 buff: was 1.75 s)
+export const SUNFIRE: [number, number] = [20, 55] // hit, then a 6 s burn that heals you what it deals
+export const GRAVE = { hit: 42, ms: 10000 } // no healing (Water's mend included) and no Angelic spells (a Angelic counterspell still works)
+export const TIDAL_HEAL = 28 // Tidal Wave heals its caster this much
+export const HEAL = 34 // Angelic star: right away
+export const REGEN = { amount: 9, ticks: 5 } // Angelic hourglass: every 0.5 s
 // Casting rules. The browser only reports what it recognized (a held letter, a finished shape, a
 // push); these decide what that does. Online, only the server runs them.
 /** A fizzle (failed drawing, or a readied spell that faded) locks all throws this long; the charge stays. */
@@ -46,29 +54,40 @@ export const READY_LIFE_MS = 3000 // a readied spell fades (and fizzles) if not 
 // Simple anti-cheat: a drawing only counts if its stroke has been arriving for this long. Stops a
 // lag switch from sending charge + drawing + push in one burst (a cast the opponent never saw).
 const MIN_DRAW_MS = 100
-// Parry (plans/parry.md): a two-hand push in the last PARRY_WINDOW_MS before a spell hits you sends it
-// back: 100%, then 75%, then 50% of its power (REFLECT_POWER); parrying it after that just ends it.
+// Parry (plans/parry.md, plans/balance.md): a two-hand push in the last part of a spell's flight (its parry
+// window: bigger spells are easier to parry) sends it back: 50%, then 35% of its power (REFLECT_POWER);
+// parrying it after that just ends it. A reflection flies 1.5x faster and has the light window.
 // Too early, too late or with nothing coming: a stagger (no throws and no parries for PARRY_MISS_MS).
-export const PARRY_WINDOW_MS = 100
+export const PARRY_WINDOW_MS = 100 // lights, and anything reflected
+export const PARRY_WINDOWS = { light: 100, heavy: 150, signature: 200, combo: 150 }
+const REFLECT_SPEED = 1.5
 export const PARRY_MISS_MS = 1000
 export const PARRY_HIT_MS = 500 // a landed parry: no throws for this long (getting your bearings back)
-const REFLECT_POWER = [1, 0.75, 0.5]
+const REFLECT_POWER = [0.5, 0.35]
+// Wear (Nov 24 balance pass, plans/balance.md): each throw of an element wears it. A worn element's
+// spells do less (damage, burns, heals): -WEAR_STEP per stack, down to WEAR_FLOOR. A stack fades every
+// WEAR_DECAY_MS. Spamming one element sinks fast; rotating 3 elements stays at full power.
+// A light adds half a stack. Counters don't wear. A combo hits at the average of its two elements' power
+// and adds a stack to each.
+export const WEAR_STEP = 0.3
+export const WEAR_FLOOR = 0.3 // Nov 24: was 0.4
+export const WEAR_DECAY_MS = 5000
 
 // Attack damage per element: [light, heavy]. Numbers are a first guess, to tune in playtests.
 export const PUNCH: Record<string, [number, number]> = {
-  E: [10, 22], // hardest direct hits
-  F: [7, 17], // + burn
-  W: [6, 15], // + mend
-  L: [5, 13], // + static
-  I: [5, 11], // + chill
+  E: [10, 24], // hardest direct hits
+  F: [7, 18], // + burn
+  W: [6, 16], // + mend
+  L: [5, 16], // + static
+  I: [5, 12], // + chill
 }
 export const BURN: [number, number] = [4, 8] // Fire: extra damage over ~1.5 s
-export const CHILL: [number, number] = [0.25, 0.35] // Ice (light, heavy): the next hit they take does this much more
-export const STATIC_PULSES: [number, number] = [1, 2] // Lightning: pulses of 0.25 s, 1 s gaps
+export const CHILL: [number, number] = [0.25, 0.5] // Ice (light, heavy): the next hit they take does this much more
+export const STATIC_PULSES: [number, number] = [1, 3] // Lightning: pulses of 0.5 s, 1 s gaps
 
 // Static pulse patterns: throws fizzle during "on".
-const PUNCH_STATIC = { on: 250, off: 1000 }
-const THUNDERBOLT_STATIC = { on: 250, off: 800, count: 3 } // tighter rhythm, more pulses
+const PUNCH_STATIC = { on: 500, off: 1000 }
+const THUNDERBOLT_STATIC = { on: 500, off: 800, count: 3 } // tighter rhythm, more pulses
 
 /** A team. In 1v1 each team has one fighter, whose id is the team's name. */
 export type Side = 'player' | 'enemy'
@@ -101,9 +120,12 @@ export interface Float {
 }
 
 /** How long a thrown spell flies before it lands (its effects apply on landing). */
-export const FLY_MS = { light: 320, heavy: 480, signature: 650 }
+export const FLY_MS = { light: 320, heavy: 700, signature: 850 }
+const COMBO_FLY_MS = 900
 /** Counters are already hard to land, so they fly faster: the counterspell 2×, the quick interrupt 3×. */
-const flyMs = (shape: string, tier: keyof typeof FLY_MS) => (shape === COUNTER ? 240 : shape === QUICK ? 160 : FLY_MS[tier])
+const flyMs = (shape: string, tier: keyof typeof FLY_MS, el: string) => (shape === COUNTER ? 240 : shape === QUICK ? 160 : el in COMBO_CHARGES ? COMBO_FLY_MS : FLY_MS[tier])
+/** How long before impact a parry catches this spell. */
+export const parryMs = (b: Pick<Bolt, 'tier' | 'el' | 'reflected'>) => (b.reflected ? PARRY_WINDOW_MS : b.el in COMBO_CHARGES ? PARRY_WINDOWS.combo : PARRY_WINDOWS[b.tier])
 
 /** A thrown spell, for the cast animation (its name flies from the caster to the target). */
 export interface Bolt {
@@ -122,7 +144,8 @@ export interface Bolt {
   parryable?: boolean // a spell flying at someone that a parry can send back
   parried?: boolean // sent back (or ended) by a parry before it landed
   reflected?: boolean // this bolt is a parry's reflection (not a fresh throw)
-  power?: number // share of its damage (1, or less once reflected)
+  power?: number // share of its damage (1, or less once reflected or worn)
+  parryMs?: number // its parry window (ms before impact)
   t: number
 }
 
@@ -167,6 +190,7 @@ export interface CombatView {
   ready: Record<Fid, { el: string; shape: string } | null> // readied spell, waiting for a push
   fizzled: Record<Fid, number> // ms of fizzle lockout left (no throws)
   staggered: Record<Fid, number> // ms left of a missed parry's stagger (no parrying)
+  locked: Record<Fid, number> // ms left of an interrupt or whiff lockout (no signing, drawing or throwing)
   shield: Record<Fid, number> // Aegis armor left (0 = none)
   mirror: Record<Fid, number> // ms of Mirror left
   doom: Record<Fid, number> // ms until Doom hits (0 = none)
@@ -175,6 +199,7 @@ export interface CombatView {
   exposed: Record<Fid, number> // ms of Twilight's curse left (takes more damage)
   fog: Record<Fid, number> // ms of Steam left (their attacks may miss)
   noHeal: Record<Fid, number> // ms of Grave left (can't heal)
+  wear: Record<Fid, Record<string, number>> // worn elements only: their power now, in % (WEAR_FLOOR..99)
   glacier: Record<Fid, number> // ms until an Advancing Glacier reaches them (0 = none)
   storm: Record<Fid, boolean> // a Storm (combo) is raining on them: its static pulses hurt
   notes: Note[]
@@ -191,10 +216,14 @@ export class Combat {
   private team: Record<Fid, Side> = {}
   private maxHp: Record<Fid, number> = {}
   private silencedUntil: Record<Fid, number> = {}
+  private stunBy: Record<Fid, Fid | null> = {} // who stunned them (their next hit ends it)
   private fizzledUntil: Record<Fid, number> = {}
+  private lockedUntil: Record<Fid, number> = {} // interrupted or whiffed: no signing, drawing or throwing
+  private parryLockUntil: Record<Fid, number> = {} // after a parry (landed or missed): no throws until then. Not a fizzle.
   // active = last drawing/charging activity (idle fade); since = when charged
   private charge: Record<Fid, { el: string; since: number; active: number; mix?: string[] } | null> = {}
   private ready: Record<Fid, { el: string; shape: string; at: number } | null> = {}
+  private wear: Record<Fid, Record<string, { n: number; at: number }>> = {}
   private strokeStart: Record<Fid, number | null> = {} // when the current stroke began
   notes: Note[] = []
   private static: Record<Fid, Static | null> = {}
@@ -213,7 +242,7 @@ export class Combat {
   private aimAt: Record<Fid, Fid | null> = {} // who each fighter aims at (null = default target)
   private lastHitBy: Record<Fid, Fid | null> = {} // the last enemy that hit them (default target)
   private ticking: Ticking[] = []
-  private flying: { caster: Fid; target: Fid; el: string; shape: string; landAt: number; bolt: Bolt; power?: number; reflects?: number; miss?: boolean }[] = []
+  private flying: { caster: Fid; target: Fid; el: string; shape: string; landAt: number; bolt: Bolt; power?: number; wear?: number; reflects?: number; miss?: boolean }[] = []
   private staggeredUntil: Record<Fid, number> = {} // a missed parry: no parrying again until then
   private pendingMiss = false // the spell landing right now was thrown from Steam's fog: it misses
   private landScale = 1 // the power of the spell landing right now (a reflected one hits softer)
@@ -236,7 +265,10 @@ export class Combat {
       this.maxHp[f.id] = f.maxHp
       this.hp[f.id] = f.maxHp
       this.silencedUntil[f.id] = 0
+      this.stunBy[f.id] = null
       this.fizzledUntil[f.id] = 0
+      this.parryLockUntil[f.id] = 0
+      this.lockedUntil[f.id] = 0
       this.charge[f.id] = null
       this.ready[f.id] = null
       this.strokeStart[f.id] = null
@@ -255,7 +287,18 @@ export class Combat {
       this.aimAt[f.id] = null
       this.lastHitBy[f.id] = null
       this.staggeredUntil[f.id] = 0
+      this.wear[f.id] = {}
     }
+  }
+
+  /** Wear stacks on `side`'s element right now (they fade over time). */
+  private wearOf(side: Fid, el: string, now: number) {
+    const w = this.wear[side][el]
+    return w ? Math.max(0, w.n - (now - w.at) / WEAR_DECAY_MS) : 0
+  }
+  /** The power `side`'s next spell of `el` would have (1 = fresh). */
+  powerOf(side: Fid, el: string, now: number) {
+    return Math.max(WEAR_FLOOR, 1 - WEAR_STEP * this.wearOf(side, el, now))
   }
 
   /** Out of the fight (no HP left). Out fighters can't act or be targeted. */
@@ -276,7 +319,7 @@ export class Combat {
   targetOf(id: Fid, el: string, shape: string): Fid | null {
     if (shape === 'veil') return id // Shroud is always on yourself
     const a = this.aimAt[id]
-    if (el === 'H' && shape !== COUNTER) {
+    if (el === 'A' && shape !== COUNTER) {
       if (a && this.team[a] === this.team[id] && !this.isOut(a)) return a
       const share = (x: Fid) => (this.maxHp[x] === Infinity ? 1 : this.hp[x] / this.maxHp[x])
       return this.friends(id).sort((p, q) => share(p) - share(q) || (p === id ? -1 : q === id ? 1 : 0))[0] ?? id
@@ -294,8 +337,8 @@ export class Combat {
 
   private bolt(by: Fid, to: Fid, name: string, color: string, kind: Bolt['kind'], now: number, el = '', shape = '') {
     const p = PUNCHES.indexOf(shape)
-    const tier: Bolt['tier'] = p === 0 || shape === QUICK ? 'light' : p === 1 || shape === COUNTER || el === 'H' || !shape ? 'heavy' : 'signature'
-    const b: Bolt = { id: this.nextId++, from: this.team[by], by, to, name, color, kind, el, shape, tier, fly: flyMs(shape, tier), t: now }
+    const tier: Bolt['tier'] = p === 0 || shape === QUICK ? 'light' : p === 1 || shape === COUNTER || el === 'A' || !shape ? 'heavy' : 'signature'
+    const b: Bolt = { id: this.nextId++, from: this.team[by], by, to, name, color, kind, el, shape, tier, fly: flyMs(shape, tier, el), t: now }
     this.bolts.push(b)
     return b
   }
@@ -354,7 +397,7 @@ export class Combat {
       const soak = Math.min(Math.floor(armor), amount)
       amount -= soak
       this.shield[target] = armor - soak >= 1 ? { hp: armor - soak, at: now } : null
-      this.float(target, `Blocked ${soak}`, ELEMENTS.H.color, now)
+      this.float(target, `Blocked ${soak}`, ELEMENTS.A.color, now)
     }
     return Math.max(0, this.changeHp(target, -amount, color, now))
   }
@@ -379,6 +422,17 @@ export class Combat {
     this.chill[side] = { pct, until: now + CHILL_MS }
   }
 
+  /** Interrupted or whiffed: no signing, drawing or throwing. */
+  isLocked(side: Fid, now: number) {
+    return this.lockedUntil[side] > now
+  }
+  private lock(side: Fid, ms: number, now: number) {
+    this.lockedUntil[side] = Math.max(this.lockedUntil[side], now + ms)
+    this.charge[side] = null
+    this.ready[side] = null
+    this.strokeStart[side] = null
+  }
+
   isSilenced(side: Fid, now: number) {
     return this.silencedUntil[side] > now
   }
@@ -393,8 +447,9 @@ export class Combat {
     return t % period < s.on ? 'on' : 'gap'
   }
 
-  private silence(side: Fid, ms: number, now: number) {
+  private silence(side: Fid, ms: number, now: number, by: Fid | null = null) {
     this.silencedUntil[side] = Math.max(this.silencedUntil[side], now + ms)
+    this.stunBy[side] = by
     this.charge[side] = null
     this.ready[side] = null
     this.strokeStart[side] = null
@@ -410,7 +465,7 @@ export class Combat {
 
   /** A held letter was recognized as an element. Returns true if it (newly) charged. */
   sign(side: Fid, el: string, now: number): boolean {
-    if (this.winner || this.isOut(side) || !(ELEMENTS[el] || (el === COMBO && COMBOS_ON)) || this.isSilenced(side, now) || this.ready[side]) return false
+    if (this.winner || this.isOut(side) || !(ELEMENTS[el] || (el === COMBO && COMBOS_ON)) || this.isSilenced(side, now) || this.isLocked(side, now) || this.ready[side]) return false
     const c = this.charge[side]
     // Mixing a combo: element letters go into the mix instead of replacing the charge.
     if (c?.el === COMBO && MIXABLE.includes(el)) {
@@ -445,7 +500,7 @@ export class Combat {
   /** A stroke is being drawn: keeps the charge alive. Drawing while a spell is readied abandons it
    *  (a fizzle). Returns true if a readied spell was dropped. */
   drawing(side: Fid, now: number): boolean {
-    if (this.isOut(side)) return false
+    if (this.isOut(side) || this.isLocked(side, now)) return false
     const c = this.charge[side]
     if (c) c.active = now
     // A combo still being mixed (fewer than 2 elements) ignores drawing: the hand passing through a
@@ -465,6 +520,10 @@ export class Combat {
    *  that fits the charge is readied; anything else fizzles. Returns the readied spell, or null. */
   drew(side: Fid, shape: string | null, now: number): { el: string; shape: string } | null {
     if (this.winner || this.isOut(side) || this.isSilenced(side, now)) return null
+    if (this.isLocked(side, now)) {
+      this.strokeStart[side] = null
+      return null
+    }
     const c = this.charge[side]
     if (c) c.active = now
     const start = this.strokeStart[side]
@@ -501,6 +560,7 @@ export class Combat {
    *  if there was nothing to throw. */
   push(side: Fid, now: number): CastResult | null {
     if (this.winner || this.isOut(side)) return null
+    if (this.parryLockUntil[side] > now || this.isLocked(side, now)) return null // recovering from a parry, or locked out
     if (this.fizzledUntil[side] > now) {
       this.charge[side] = null // any throw uses up your charge, even one that can't go yet
       return 'fizzled'
@@ -518,7 +578,7 @@ export class Combat {
   private cast(caster: Fid, el: string, shape: string, now: number): CastResult {
     if (this.winner || !isValidSpell(el, shape)) return 'invalid'
     if (this.isSilenced(caster, now)) return 'silenced'
-    if (this.fizzledUntil[caster] > now) return 'fizzled'
+    if (this.fizzledUntil[caster] > now || this.parryLockUntil[caster] > now || this.isLocked(caster, now)) return 'fizzled'
     if (this.staticAt(caster, now) === 'on') {
       // Lightning static: the throw fizzles. The spell and the charge are lost.
       this.float(caster, 'Fizzled (static)', ELEMENTS.L.color, now)
@@ -540,7 +600,7 @@ export class Combat {
     this.charge[caster] = null // throwing uses up your charge
     this.ready[caster] = null
     this.note(caster, spellName(el, shape), FORMS[shape] ?? '', color, true, now)
-    const self = (el === 'H' && shape !== COUNTER) || shape === 'veil' // spells on yourself (Holy, and Shroud); a Holy counterspell flies
+    const self = (el === 'A' && shape !== COUNTER) || shape === 'veil' // spells on yourself (Angelic, and Shroud); a Angelic counterspell flies
     if (this.doomAt[caster]) {
       this.doomAt[caster] = 0
       this.float(caster, 'Doom lifted', ELEMENTS.U.color, now)
@@ -553,7 +613,16 @@ export class Combat {
     if (kind === 'hit' && el !== 'glacier') bolt.parryable = true
     // Steam: an attack thrown from the fog may miss.
     const miss = kind === 'hit' && this.fogUntil[caster] > now && Math.random() < STEAM_MISS
-    this.flying.push({ caster, target, el, shape, landAt, bolt, miss })
+    // Wear: the spell is weakened by its element's wear (a combo: the average of its two), then adds wear.
+    let wear = 1
+    if (kind !== 'counter') {
+      const els = el in COMBO_MIX ? COMBO_MIX[el] : el in ELEMENTS ? [el] : []
+      if (els.length) wear = els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length
+      for (const e of els) this.wear[caster][e] = { n: this.wearOf(caster, e, now) + (shape === 'line' ? 0.5 : 1), at: now }
+      if (wear < 1) bolt.power = wear
+    }
+    if (bolt.parryable) bolt.parryMs = parryMs(bolt)
+    this.flying.push({ caster, target, el, shape, landAt, bolt, miss, wear })
     this.update(now)
     return 'ok'
   }
@@ -573,23 +642,24 @@ export class Combat {
     }
     // The soonest parryable spell flying at `side`, inside the window.
     const f = this.flying
-      .filter((x) => x.target === side && x.caster !== side && x.bolt.parryable && x.landAt - now <= PARRY_WINDOW_MS)
+      .filter((x) => x.target === side && x.caster !== side && x.bolt.parryable && x.landAt - now <= parryMs(x.bolt))
       .sort((a, b) => a.landAt - b.landAt)[0]
     if (!f) {
-      this.fizzledUntil[side] = Math.max(this.fizzledUntil[side], now + PARRY_MISS_MS)
+      this.parryLockUntil[side] = Math.max(this.parryLockUntil[side], now + PARRY_MISS_MS)
       this.staggeredUntil[side] = now + PARRY_MISS_MS
       this.float(side, 'Parry missed', '#999', now)
       this.note(side, 'Parry missed', `staggered ${PARRY_MISS_MS / 1000} s`, '#999', false, now)
       return 'missed'
     }
     this.flying = this.flying.filter((x) => x !== f)
-    this.fizzledUntil[side] = Math.max(this.fizzledUntil[side], now + PARRY_HIT_MS)
+    this.parryLockUntil[side] = Math.max(this.parryLockUntil[side], now + PARRY_HIT_MS)
     f.bolt.kind = 'missed'
     f.bolt.parried = true
     const reflects = f.reflects ?? 0
     if (reflects >= REFLECT_POWER.length) {
-      this.float(side, 'Parried!', '#7fd8ff', now)
-      this.note(side, 'Parried!', `${f.bolt.name} fizzled out`, '#7fd8ff', true, now)
+      // The last parry of a chain: the spell is destroyed (nothing goes back).
+      this.float(side, 'Destroyed!', '#7fd8ff', now)
+      this.note(side, 'Destroyed!', `${f.bolt.name} broke apart`, '#7fd8ff', true, now)
       return 'ended'
     }
     const power = REFLECT_POWER[reflects]
@@ -597,7 +667,9 @@ export class Combat {
     back.parryable = true
     back.reflected = true
     back.power = power
-    this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, reflects: reflects + 1 })
+    back.fly = Math.round(back.fly / REFLECT_SPEED)
+    back.parryMs = PARRY_WINDOW_MS
+    this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, wear: f.wear, reflects: reflects + 1 })
     this.float(side, 'Reflected!', '#7fd8ff', now)
     this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%`, '#7fd8ff', true, now)
     return 'reflected'
@@ -625,7 +697,7 @@ export class Combat {
       // A combo (mixing or locked) needs a combo counterspell whose two elements beat both of its own.
       const c = this.charge[target]
       const mixed = isMixCounter(el)
-      const healing = shape === COUNTER && !mixed && (c?.el === 'H' || this.ticking.some((t) => t.side === target && t.amount > 0))
+      const healing = shape === COUNTER && !mixed && (c?.el === 'A' || this.ticking.some((t) => t.side === target && t.amount > 0))
       const caught = mixed ? !!c?.mix && mixBeats(el, c.mix) : !!c && !c.mix && beats(el, c.el)
       // Fire + Ice also shatters any Advancing Glacier the target has on its way.
       let shattered = false
@@ -650,12 +722,24 @@ export class Combat {
           this.note(target, 'Execute backfired!', `took ${back}`, ELEMENTS.U.color, false, now)
         }
         this.ticking = this.ticking.filter((t) => !(t.side === target && t.amount > 0))
-        this.silence(target, shape === COUNTER ? COUNTER_SILENCE_MS : QUICK_SILENCE_MS, now)
-        this.float(target, 'Interrupted!', color, now)
-        this.note(target, 'Interrupted!', `silenced for ${(shape === COUNTER ? COUNTER_SILENCE_MS : QUICK_SILENCE_MS) / 1000} s`, color, false, now)
+        if (shape === COUNTER) {
+          this.silence(target, COUNTER_SILENCE_MS, now, caster)
+          this.float(target, 'Countered!', color, now)
+          this.note(target, 'Countered!', 'stunned until their next hit', color, false, now)
+        } else {
+          // Interrupt: their spell fizzles and they're locked out for a moment.
+          this.lock(target, INTERRUPT_LOCK_MS, now)
+          this.float(target, 'Interrupted!', color, now)
+          this.note(target, 'Interrupted!', `spell fizzled, locked ${INTERRUPT_LOCK_MS / 1000} s`, color, false, now)
+        }
       } else if (!shattered) {
         bolt.kind = 'missed'
-        this.float(caster, 'Counter missed', '#999', now)
+        if (shape === QUICK) {
+          // A missed interrupt leaves you open.
+          this.lock(caster, WHIFF_MS, now)
+          this.float(caster, 'Whiffed!', '#999', now)
+          this.note(caster, 'Whiffed!', `interrupt missed, locked ${WHIFF_MS / 1000} s`, '#999', false, now)
+        } else this.float(caster, 'Counter missed', '#999', now)
       }
       return
     }
@@ -666,20 +750,28 @@ export class Combat {
       return
     }
 
-    if (el === 'H') {
-      // Grave: no Holy spell works on them (heals, Aegis, Mirror).
+    // A spell from whoever stunned them lands: the stun ends (before this spell's own effects, so a
+    // second Prison or Plasma stuns again).
+    if (this.stunBy[target] === caster && this.silencedUntil[target] > now) {
+      this.silencedUntil[target] = now
+      this.stunBy[target] = null
+    }
+
+    if (el === 'A') {
+      // Grave: no Angelic spell works on them (heals, Aegis, Mirror).
       if (this.noHealUntil[target] > now) {
-        this.float(target, 'Holy blocked (Grave)', COMBO_CHARGES.grave.color, now)
+        this.float(target, 'Angelic blocked (Grave)', COMBO_CHARGES.grave.color, now)
         return
       }
       // On yourself, or (team modes) on a teammate.
-      if (shape === 'star') this.changeHp(target, HEAL, color, now)
-      else if (shape === 'hourglass') this.ticking.push({ side: target, by: caster, amount: REGEN.amount, left: REGEN.ticks, next: now, color })
+      // Wear (landScale) weakens heals too.
+      if (shape === 'star') this.changeHp(target, Math.round(HEAL * this.landScale), color, now)
+      else if (shape === 'hourglass') this.ticking.push({ side: target, by: caster, amount: Math.round(REGEN.amount * this.landScale), left: REGEN.ticks, next: now, color })
       else if (shape === 'aegis') {
         // Armor doesn't stack or refresh: a new Aegis only takes once the old armor is gone.
         if (this.armor(target, now) > 0) this.float(target, 'Armor still up', color, now)
         else {
-          this.shield[target] = { hp: AEGIS_HP, at: now }
+          this.shield[target] = { hp: Math.round(AEGIS_HP * this.landScale), at: now }
           this.float(target, 'Aegis', color, now)
         }
       } else if (shape === 'mirror') {
@@ -699,8 +791,8 @@ export class Combat {
     const direct = !(el === 'U' && shape === 'scythe')
     if (direct && this.mirrorUntil[target] > now) {
       this.mirrorUntil[target] = 0
-      this.float(target, 'Reflected!', ELEMENTS.H.color, now)
-      this.note(target, 'Reflected!', `${spellName(el, shape)} sent back`, ELEMENTS.H.color, true, now)
+      this.float(target, 'Reflected!', ELEMENTS.A.color, now)
+      this.note(target, 'Reflected!', `${spellName(el, shape)} sent back`, ELEMENTS.A.color, true, now)
       const back = this.bolt(target, caster, spellName(el, shape), color, 'hit', now, el, shape)
       this.flying.push({ caster: target, target: caster, el, shape, landAt: now + back.fly, bolt: back })
       bolt.kind = 'missed'
@@ -743,13 +835,13 @@ export class Combat {
         this.burn(target, 18, 5, color, now)
         break
       case 'cage': // Frozen Prison: a short silence on any element
-        this.hit(target, 20, color, now)
-        this.silence(target, PRISON_SILENCE_MS, now)
+        this.hit(target, 24, color, now)
+        this.silence(target, PRISON_SILENCE_MS, now, caster)
         this.chillOn(target, PRISON_CHILL, now) // and chilled
         this.float(target, 'Frozen!', color, now)
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
-        this.hit(target, 22, color, now)
+        this.hit(target, 28, color, now)
         if (!this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
         break
       case 'battlements': // Earthquake: huge hit, knocks their charge off
@@ -762,7 +854,7 @@ export class Combat {
         break
       case 'spiral': // Tidal Wave: big hit, big heal
         this.hit(target, 25, color, now)
-        this.changeHp(caster, 22, color, now)
+        this.changeHp(caster, Math.round(TIDAL_HEAL * this.landScale), color, now)
         break
     }
   }
@@ -776,12 +868,11 @@ export class Combat {
         break
       case 'storm': // 5 s of damaging static; a throw in a pulse fizzles and gets zapped
         this.hit(target, STORM.hit, color, now)
-        this.static[target] = { start: now, on: 250, off: 600, count: STORM.count, dmg: STORM.pulse, zap: STORM.zap, hits: 0, by: caster }
+        this.static[target] = { start: now, on: 350, off: 600, count: STORM.count, dmg: STORM.pulse, zap: STORM.zap, hits: 0, by: caster }
         this.float(target, 'Storm!', color, now)
         break
       case 'glacier': // it took GLACIER_MS to get here
         this.hit(target, GLACIER_DMG, color, now)
-        this.float(target, 'Crushed!', color, now)
         break
       case 'twilight': // you take less, they take more
         this.guardUntil[caster] = now + TWILIGHT_MS
@@ -804,7 +895,7 @@ export class Combat {
       case 'plasma': // a burning stun
         this.hit(target, PLASMA.hit, color, now)
         this.burn(target, PLASMA.burn, 4, color, now)
-        this.silence(target, PLASMA.stun, now)
+        this.silence(target, PLASMA.stun, now, caster)
         this.float(target, 'Stunned!', color, now)
         break
       case 'sunfire': // a long burn that heals you
@@ -846,6 +937,8 @@ export class Combat {
     for (const s of this.ids) {
       if (this.silencedUntil[s]) this.silencedUntil[s] += ms
       this.fizzledUntil[s] += ms
+      this.parryLockUntil[s] += ms
+      this.lockedUntil[s] += ms
       this.staggeredUntil[s] += ms
       const c = this.charge[s]
       if (c) {
@@ -854,6 +947,7 @@ export class Combat {
       }
       const r = this.ready[s]
       if (r) r.at += ms
+      for (const w of Object.values(this.wear[s])) w.at += ms
       const ss = this.strokeStart[s]
       if (ss !== null) this.strokeStart[s] = ss + ms
       const st = this.static[s]
@@ -905,7 +999,7 @@ export class Combat {
     this.flying.sort((x, y) => x.landAt - y.landAt)
     while (this.flying.length && this.flying[0].landAt <= now && !this.winner) {
       const f = this.flying.shift()!
-      this.landScale = f.power ?? 1
+      this.landScale = (f.power ?? 1) * (f.wear ?? 1)
       this.by = f.caster
       this.pendingMiss = !!f.miss
       this.land(f.caster, f.target, f.el, f.shape, f.landAt, f.bolt)
@@ -956,6 +1050,7 @@ export class Combat {
       }),
       fizzled: per((s) => Math.max(0, this.fizzledUntil[s] - now)),
       staggered: per((s) => Math.max(0, (this.staggeredUntil[s] ?? 0) - now)),
+      locked: per((s) => Math.max(0, this.lockedUntil[s] - now)),
       shield: per((s) => Math.round(this.armor(s, now))),
       mirror: per((s) => Math.max(0, this.mirrorUntil[s] - now)),
       doom: per((s) => (this.doomAt[s] ? Math.max(0, this.doomAt[s] - now) : 0)),
@@ -964,6 +1059,7 @@ export class Combat {
       exposed: per((s) => Math.max(0, this.exposedUntil[s] - now)),
       fog: per((s) => Math.max(0, this.fogUntil[s] - now)),
       noHeal: per((s) => Math.max(0, this.noHealUntil[s] - now)),
+      wear: per((s) => Object.fromEntries(Object.keys(this.wear[s]).map((e) => [e, Math.floor(this.powerOf(s, e, now) * 100)] as const).filter(([, p]) => p < 100))),
       storm: per((s) => !!this.static[s]?.dmg && this.staticAt(s, now) !== null),
       glacier: per((s) => {
         const g = this.flying.filter((f) => f.target === s && f.el === 'glacier').map((f) => f.landAt - now)
@@ -998,6 +1094,7 @@ export function flipView(v: CombatView): CombatView {
     ready: f(v.ready),
     fizzled: f(v.fizzled),
     staggered: f(v.staggered),
+    locked: f(v.locked),
     shield: f(v.shield),
     mirror: f(v.mirror),
     doom: f(v.doom),
@@ -1006,6 +1103,7 @@ export function flipView(v: CombatView): CombatView {
     exposed: f(v.exposed),
     fog: f(v.fog),
     noHeal: f(v.noHeal),
+    wear: f(v.wear),
     glacier: f(v.glacier),
     storm: f(v.storm),
     notes: v.notes.map((n) => ({ ...n, side: o(n.side) })),

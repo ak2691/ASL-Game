@@ -28,7 +28,7 @@ export const SHAPE_PATHS: Record<string, string> = {
   battlements: 'M3 30 L3 14 L9 14 L9 30 L15 30 L15 14 L21 14 L21 30 L27 30 L27 14 L33 14 L33 30',
   circle: 'M20 6 A14 14 0 1 1 19.9 6',
   spiral: 'M20 20 A2 2 0 0 1 24 20 A4 4 0 0 1 16 20 A6 6 0 0 1 28 20 A8 8 0 0 1 12 20 A10 10 0 0 1 32 20 A12 12 0 0 1 8 20 A14 14 0 0 1 36 20',
-  // Holy
+  // Angelic
   aegis: 'M20 36 L20 5 L34 5 C34 20 29 29 20 36 C11 29 6 20 6 5 L20 5',
   mirror: 'M20 20 C25 11 37 11 37 20 C37 29 25 29 20 20 C15 11 3 11 3 20 C3 29 15 29 20 20',
   // Unholy
@@ -75,7 +75,17 @@ export const SHAPE_STARTS: Record<string, [number, number]> = {
 }
 
 /** Points along a shape's guide path, in drawing order (browser only: uses an SVG element). */
+const sampled = new Map<string, { x: number; y: number }[]>()
 export function samplePath(shape: string, n = 120): { x: number; y: number }[] {
+  // Measuring an SVG path is slow (one walk per point): each shape is measured once, then reused.
+  const key = `${shape}:${n}`
+  const hit = sampled.get(key)
+  if (hit) return hit.map((p) => ({ ...p }))
+  const pts = measurePath(shape, n)
+  sampled.set(key, pts)
+  return pts.map((p) => ({ ...p }))
+}
+function measurePath(shape: string, n: number): { x: number; y: number }[] {
   const el = document.createElementNS('http://www.w3.org/2000/svg', 'path')
   el.setAttribute('d', SHAPE_PATHS[shape])
   const L = el.getTotalLength()

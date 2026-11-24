@@ -282,6 +282,25 @@ export function bladeCurve(points: Pt[]) {
   return best
 }
 
+/** A complete H: each post reaches both the top and bottom fifth of the drawing, and a crossbar
+ *  crosses the middle. Posts = the left and right thirds; the crossbar = the middle third, between
+ *  30% and 70% of the height. */
+export function fullH(points: Pt[]) {
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  const w = x1 - x0 || 1
+  const h = y1 - y0 || 1
+  const at = (fx: (x: number) => boolean, fy: (y: number) => boolean) => points.some((p) => fx((p.x - x0) / w) && fy((p.y - y0) / h))
+  const left = (x: number) => x < 1 / 3
+  const right = (x: number) => x > 2 / 3
+  const top = (y: number) => y < 0.2
+  const bottom = (y: number) => y > 0.8
+  const posts = at(left, top) && at(left, bottom) && at(right, top) && at(right, bottom)
+  const bar = at((x) => x > 0.4 && x < 0.6, (y) => y > 0.3 && y < 0.7)
+  return posts && bar
+}
+
 /** 3x3 linear solve (Cramer's rule); null if singular. */
 function solve3(m: number[][], r: number[]): [number, number, number] | null {
   const det = (a: number[][]) =>
@@ -312,6 +331,8 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
   }
   // Plasma: exactly 3 petals, also counted by a rule.
   if (top[0].name === 'plasma' && plasmaPetals(points) !== 3) return { name: 'none', score: top[0].prob, top }
+  // Heavy (H): both posts must run the full height, with the crossbar between them (no half-drawn H).
+  if (top[0].name === 'h' && !fullH(points)) return { name: 'none', score: top[0].prob, top }
   // Doom: the blade has to curve. Straight lines with corners are never a scythe.
   if (top[0].name === 'scythe' && bladeCurve(points) < DOOM_CURVE) return { name: 'none', score: top[0].prob, top }
   return { name: top[0].name, score: top[0].prob, top }

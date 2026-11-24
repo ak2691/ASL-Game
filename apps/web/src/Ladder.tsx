@@ -8,16 +8,16 @@ const INFO: Record<Difficulty, { els: string[]; line: string }> = {
   pebble: { els: ['E', 'W'], line: 'A sleepy rock. Takes its time.' },
   ember: { els: ['F', 'L'], line: 'A jumpy spark. Never casts the same twice.' },
   frost: { els: ['I', 'F'], line: 'A chilly imp. Sometimes snaps back.' },
-  cleric: { els: ['W', 'H'], line: 'Heals a lot. Hides behind Aegis.' },
+  cleric: { els: ['W', 'A'], line: 'Heals a lot. Hides behind Aegis.' },
   hexer: { els: ['E', 'U'], line: 'Curses you with Doom and Shroud.' },
   tide: { els: ['W', 'I', 'L'], line: 'Rolls in with three elements.' },
-  zealot: { els: ['F', 'H', 'U'], line: 'Light and dark, back and forth.' },
+  zealot: { els: ['F', 'A', 'U'], line: 'Light and dark, back and forth.' },
   warden: { els: ['F', 'I', 'W', 'E', 'L'], line: 'Guards the tower door. Knows every element.' },
-  adept: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'A real wizard now.' },
-  magus: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'Reads your habits.' },
-  archmage: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'Fast, and dodges your counters.' },
-  lich: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'Fast, reads you, and knows every combo.' },
-  ascendant: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'The whole kit, used perfectly. Never makes a mistake.' },
+  adept: { els: ['F', 'I', 'W', 'E', 'L', 'A', 'U'], line: 'A real wizard now.' },
+  magus: { els: ['F', 'I', 'W', 'E', 'L', 'A', 'U'], line: 'Reads your habits.' },
+  archmage: { els: ['F', 'I', 'W', 'E', 'L', 'A', 'U'], line: 'Fast, and dodges your counters.' },
+  lich: { els: ['F', 'I', 'W', 'E', 'L', 'A', 'U'], line: 'Fast, reads you, and knows every combo.' },
+  ascendant: { els: ['F', 'I', 'W', 'E', 'L', 'A', 'U'], line: 'The whole kit, used perfectly. Never makes a mistake.' },
 }
 
 const C = (el: string) => ELEMENTS[el].color
