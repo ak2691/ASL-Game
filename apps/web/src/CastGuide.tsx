@@ -109,7 +109,7 @@ export function CastGuide() {
         element also stops a heal (an Angelic charge, or a regen still ticking).
       </p>
       <p>
-        <b>Interrupt</b> — sign the element that beats theirs and just push, no drawing. Faster to land but weaker: 0.5 s silence. It
+        <b>Interrupt</b> — sign the element that beats theirs and just push, no drawing. Faster to land; their spell fizzles and they're locked out for 0.75 s (a miss locks you out for 1 s). It
         can't stop heals. Angelic and Unholy have no interrupt, only the counterspell.
       </p>
       <p className="shape-note">Fast strokes are fine — just keep your hand in view.</p>

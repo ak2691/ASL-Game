@@ -78,6 +78,12 @@ function isPush(buf: PalmSample[]) {
   const each = 1 + (g - 1) * PUSH_EVEN
   return growth(buf, 's') >= g && growth(buf, 'w') >= each && growth(buf, 'l') >= each
 }
+/** All four fingers out (each tip well past its knuckle, from the wrist). Push samples are only compared
+ *  within one hand shape: opening a letter into a 5 spreads the knuckles and reads as the palm "growing". */
+function handOpen(h: NormalizedLandmark[], W: number, H: number) {
+  const d = (a: number, b: number) => Math.hypot((h[a].x - h[b].x) * W, (h[a].y - h[b].y) * H, (h[a].z - h[b].z) * W)
+  return [[8, 5], [12, 9], [16, 13], [20, 17]].every(([tip, mcp]) => d(tip, 0) > 1.45 * d(mcp, 0))
+}
 const PENCIL_FAST = 0.2 // drawing sound: this much fingertip travel per frame (palm units) is full volume
 // Parry (prototype, plans/parry.md): both hands push at once. The drawing hand must reach the same growth,
 // at most PARRY_SYNC_MS before or after the signing hand. Shape is never read, only size on screen.
@@ -442,6 +448,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         let fade: { pts: Pt[]; color: string; t: number } | null = null
         let lastUi = 0
         let sizes: PalmSample[] = [] // recent palm measurements (push detection)
+        let sizesOpen = false // whether those were taken with the hand open
         let wasSilenced = false
         let sentSign: { el: string; t: number } | null = null // last element sent, so it isn't resent every frame
         let lastCharge: string | null = null // to spot a new charge (see the push below)
@@ -766,6 +773,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           }
           // Recent hand sizes (for push detection), recorded every frame.
           if (lm && found) {
+            const open = handOpen(lm, W, H)
+            if (open !== sizesOpen) sizes = [] // the hand changed shape: start over from this one
+            sizesOpen = open
             sizes.push(palmSample(lm, W, H, now))
             while (sizes.length && now - sizes[0].t > PUSH_WINDOW_MS) sizes.shift()
           } else sizes = []
@@ -999,7 +1009,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     const cast = fight.running ? tf.casts?.[id] ?? null : null
     const out = fight.hp[id] <= 0
     return (
-      <div key={id} className={`team-card ally ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
+      <div key={id} data-fid={id} className={`team-card ally ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
         {fighterHead(id, nameOf(id))}
         <OppStatus fight={fight} id={id} cast={cast} />
         {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
@@ -1014,7 +1024,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     const shrouded = fight.shroud[id] > 0
     const out = fight.hp[id] <= 0
     return (
-      <div key={id} className={`team-card foe ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
+      <div key={id} data-fid={id} className={`team-card foe ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
         <EnemyCanvas cast={shrouded ? null : cast} />
         {cast?.phase === 'ready' && !shrouded && (
           <b className="team-spell" style={{ color: cast.color }}>
@@ -1107,7 +1117,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       )}
 
       <section className="duel">
-        <div className="duel-side you" ref={youRef}>
+        <div className="duel-side you" ref={youRef} data-fid="player">
           <div className="camera">
             <video ref={videoRef} playsInline muted />
             <canvas ref={canvasRef} />
@@ -1161,7 +1171,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         <div className="duel-side opp" ref={oppRef}>
           {isTeam && <div className="team-foes">{foes.map(foeCard)}</div>}
           {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
-          {!isTeam && mode !== 'tutorial' && fight.wear?.enemy && <WearRail wear={fight.wear.enemy} side="right" />}
+          {!isTeam && mode !== 'tutorial' && fight.wear?.enemy && <WearRail wear={fight.wear.enemy} />}
           {!isTeam && <div className="side-hud">
             {fighterHead('enemy')}
             <div className="hud-row">
@@ -1189,7 +1199,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {!isTeam && <Impacts side="enemy" bolts={fight.bolts} />}
         </div>
 
-        <BoltLayer bolts={fight.bolts} />
+        <BoltLayer bolts={fight.bolts} team={isTeam} />
         {showResult && <div className={`result-banner ${fight.over === 'player' ? 'won' : 'lost'}`}>{result}</div>}
         {mode !== 'tutorial' && <p className="privacy-note">Your camera stays on your device. Online, your opponent only sees your drawings and element.</p>}
       </section>
@@ -1325,20 +1335,20 @@ function chargePower(el: string | null, mix: string[], wear: Record<string, numb
 }
 
 const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
-/** Wear rail: every element down the edge of your half, its bar = its power now (full when fresh).
+/** Wear rail: every element in the bottom-left of a half, its bar = its power now (full when fresh).
  *  Each shows its % too, to judge whether a full-power throw is worth waiting for. */
-function WearRail({ wear, side = 'left' }: { wear: Record<string, number>; side?: 'left' | 'right' }) {
+function WearRail({ wear }: { wear: Record<string, number> }) {
   return (
-    <div className={`wear-rail ${side}`} aria-label="Element power">
+    <div className="wear-rail" aria-label="Element power">
       {WEAR_ORDER.map((e) => {
         const p = wear[e] ?? 100
         return (
-          <span key={e} className={`wear-pip ${p < 100 ? 'worn' : ''}`} style={{ color: ELEMENTS[e].color }} title={`${ELEMENTS[e].name} ${p}%`}>
-            <b>{e}</b>
+          <span key={e} className={`wear-pip ${p < 100 ? 'worn' : ''}`} style={{ '--el': ELEMENTS[e].color } as React.CSSProperties} title={`${ELEMENTS[e].name} ${p}%`}>
+            <em>{p}</em>
             <span className="wear-track">
-              <i style={{ height: `${p}%` }} />
+              <i style={{ width: `${p}%` }} />
             </span>
-            <em>{p}%</em>
+            <b>{e}</b>
           </span>
         )
       })}
@@ -1353,8 +1363,8 @@ function WearChips({ wear }: { wear: Record<string, number> }) {
   return (
     <div className="wear-chips" aria-label="Worn elements">
       {worn.map((e) => (
-        <span key={e} style={{ color: ELEMENTS[e].color }}>
-          <b>{e}</b> {wear[e]}%
+        <span key={e} style={{ '--el': ELEMENTS[e].color } as React.CSSProperties}>
+          {e} {wear[e]}%
         </span>
       ))}
     </div>

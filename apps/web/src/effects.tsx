@@ -1,6 +1,6 @@
 // Spell impact visuals: an element projectile flies across, then the target's half gets an element effect.
 // Strength sets the size: light (line) < heavy (H, counter, heal) < signature.
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
 import { DOOM_MS, INTERRUPT_LOCK_MS, WHIFF_MS, GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
 import { COMBO_MIX, isMixCounter } from './spells'
 
@@ -23,7 +23,7 @@ function rng(seed: number) {
 type Vars = CSSProperties & Record<`--${string}`, string | number>
 
 /** The flying spells, over both halves: an element projectile from your half to theirs. */
-export function BoltLayer({ bolts }: { bolts: Bolt[] }) {
+export function BoltLayer({ bolts, team = false }: { bolts: Bolt[]; team?: boolean }) {
   return (
     <div className="bolt-layer">
       {bolts.filter((b) => !b.parried).map((b) => (
@@ -38,7 +38,7 @@ export function BoltLayer({ bolts }: { bolts: Bolt[] }) {
             ))}
           </div>
         ) : (
-          <FlyingBolt key={b.id} b={b} />
+          <FlyingBolt key={b.id} b={b} team={team} />
         )
       ))}
     </div>
@@ -55,10 +55,32 @@ export const setLocalBoltClock = (on: boolean) => {
 /** ms since the throw, as of when this bolt first appears on screen (0 without a local clock). */
 const useSinceThrow = (b: Bolt) => useState(() => (localClock ? Math.max(0, Math.min(b.fly, performance.now() - b.t)) : 0))[0]
 
-function FlyingBolt({ b }: { b: Bolt }) {
+function FlyingBolt({ b, team }: { b: Bolt; team: boolean }) {
   const since = useSinceThrow(b)
+  const ref = useRef<HTMLDivElement>(null)
+  const [path, setPath] = useState<Vars | null>(null)
+  // 2v2: the spell flies from its caster's spot to its target's (each fighter's spot is marked data-fid),
+  // so a spell at your teammate never looks like it's coming at you. Measured once, when it appears.
+  useLayoutEffect(() => {
+    if (!team) return
+    const layer = ref.current?.parentElement
+    const duel = layer?.parentElement
+    const from = duel?.querySelector(`[data-fid="${b.by}"]`)
+    const to = duel?.querySelector(`[data-fid="${b.to}"]`)
+    if (!layer || !from || !to || from === to) return
+    const L = layer.getBoundingClientRect()
+    const mid = (el: Element) => {
+      const r = el.getBoundingClientRect()
+      return [r.left + r.width / 2 - L.left, r.top + r.height / 2 - L.top]
+    }
+    const [x0, y0] = mid(from)
+    const [x1, y1] = mid(to)
+    const deg = (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI
+    setPath({ '--x0': `${x0}px`, '--y0': `${y0}px`, '--x1': `${x1}px`, '--y1': `${y1}px`, '--turn': `${deg}deg`, '--up': `${-deg}deg` })
+  }, [team, b.by, b.to])
+  const aside = path && b.to !== 'player' && b.by !== 'player' // not yours, not at you: smaller, out of the way
   return (
-    <div className={`bolt from-${b.from} ${b.kind} tier-${b.tier} el-${b.el}`} style={{ color: b.color, '--fly': `${b.fly}ms`, animationDelay: `-${since}ms` } as Vars}>
+    <div ref={ref} className={`bolt from-${b.from} ${b.kind} tier-${b.tier} el-${b.el} ${path ? 'path' : ''} ${aside ? 'aside' : ''}`} style={{ color: b.color, '--fly': `${b.fly}ms`, animationDelay: `-${since}ms`, ...path } as Vars}>
       <Projectile b={b} />
     </div>
   )
@@ -342,13 +364,11 @@ function Projectile({ b }: { b: Bolt }) {
       <>
         {defs('#a05cd6', '#e6c2ff')}
         <path d="M0 50 Q20 30 40 34 L40 66 Q20 70 0 50 Z" fill={trail} filter={blur} />
-        <g className="upright">
         <rect x="24" y="16" width="70" height="68" rx="4" fill="#a05cd6" opacity="0.7" filter={blur} />
         <rect x="26" y="18" width="14" height="64" rx="2" fill="#6b4a32" />
         <rect x="40" y="22" width="50" height="56" fill="#cfc8e0" />
         <path d="M40 22 H90 V44 H40 Z" fill="#ece8f6" />
         <path d="M86 24 V76" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
-        </g>
       </>
     )
   else if (el === 'U')

@@ -168,25 +168,32 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .corner-bar { position: fixed; bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); z-index: 5; display: flex; gap: 8px; align-items: center; }
 .dealt-line { font-size: 13px; color: var(--sub); }
 .charge-power { font-size: 0.75em; opacity: 0.8; }
-/* Wear rail: every element down the left edge of your half; a bar drains as that element wears. */
-.wear-rail { position: absolute; left: 6px; top: 50%; transform: translateY(-40%); z-index: 3; display: flex; flex-direction: column; gap: 6px; pointer-events: none;
-  padding: 6px 4px; border-radius: 8px; background: rgba(0, 0, 0, 0.35); }
-.wear-pip { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; line-height: 1; text-shadow: 0 1px 2px #000; }
-.wear-pip b { width: 1em; text-align: center; }
-.wear-track { position: relative; display: block; width: 6px; height: 22px; border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
-.wear-track i { position: absolute; left: 0; right: 0; bottom: 0; background: currentColor; transition: height 0.3s linear; }
-.wear-rail.right { left: auto; right: 6px; }
-.wear-rail.right .wear-pip { flex-direction: row-reverse; }
-.wear-rail.right .wear-pip em { text-align: right; }
+/* Wear rail: every element in the bottom-left of each half: its % above a bar that drains as it wears,
+   the letter under it. Text is white with a dark outline (colors only on the bars), so it reads for everyone. */
+.wear-rail { position: absolute; left: 8px; bottom: 8px; z-index: 3; display: flex; gap: 4px; pointer-events: none;
+  padding: 5px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.45); }
+.wear-pip { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 36px; line-height: 1; font-weight: 800; color: #fff;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 3px #000; }
+.wear-pip em { font-style: normal; font-size: 12px; }
+.wear-pip b { font-size: 15px; }
+.wear-track { position: relative; display: block; width: 100%; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.wear-track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--el); transition: width 0.3s linear; }
+.wear-pip.worn em { color: #ffd24d; }
+/* Your spell messages ("Fizzled", "Parried") sit just above your rail. */
+.duel-side.you:has(> .wear-rail) > .stage-overlay { bottom: 70px; }
 .wear-chips { position: absolute; left: 6px; bottom: 6px; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; }
-.wear-chips span { padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); font-size: 13px; font-weight: 800; text-shadow: 0 1px 2px #000; }
-.wear-chips b { color: inherit; }
-.wear-pip em { font-style: normal; min-width: 2.6em; color: #fff; font-size: 0.95em; }
-.wear-pip.worn em { color: currentColor; }
+.wear-chips span { padding: 2px 6px; border-radius: 6px; border-left: 4px solid var(--el); background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 13px; font-weight: 800;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
 @media (max-width: 600px) {
-  .wear-rail { gap: 3px; padding: 4px 3px; transform: translateY(-25%); }
-  .wear-pip { font-size: 15px; }
-  .wear-track { width: 8px; height: 16px; }
+  .wear-rail { gap: 2px; padding: 4px; left: 6px; bottom: 6px; }
+  .wear-pip { width: 30px; }
+  .wear-pip em { font-size: 13px; }
+  .wear-pip b { font-size: 14px; }
+  /* The opponent's sits above the Menu/Home buttons; the privacy line gives way. */
+  .duel-side.opp > .wear-rail { bottom: 56px; }
+  .duel:has(> .duel-side.opp > .wear-rail) .privacy-note { display: none; }
+  /* Long charge names wrap to a second line instead of being cut off ("Advancin..."). */
+  html[data-theme] .status-strip .charge, html[data-theme] .hud-row .status-strip .charge { white-space: normal; overflow: visible; text-overflow: clip; font-size: 21px; line-height: 1.1; }
 }
 @keyframes wear-in { from { opacity: 0; } to { opacity: 1; } }
 .dealt-line b { color: var(--text); font-weight: 600; }
@@ -232,6 +239,14 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 @keyframes miss-left { 0% { left: 78%; opacity: 0; } 20% { opacity: 1; } 100% { left: 50%; top: 60%; opacity: 0; transform: translate(-50%, -50%) rotate(-8deg); } }
 .bolt.heal, .bolt.fizzle { display: none; }
 
+/* 2v2: from the caster's spot to the target's (FlyingBolt measures both). Turned to face its way; drawings
+   with an "up" stay upright. Spells between other fighters fly smaller. */
+.bolt-layer .bolt.path { animation-name: fly-path; }
+.bolt-layer .bolt.path .projectile { transform: rotate(var(--turn)); }
+.bolt-layer .bolt.path .upright { transform-box: fill-box; transform-origin: center; transform: rotate(var(--up)); }
+.bolt.path.aside .projectile { width: calc(var(--size) * 0.55); height: calc(var(--size) * 0.55); opacity: 0.85; }
+@keyframes fly-path { 0% { left: var(--x0); top: var(--y0); opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; }
+  100% { left: var(--x1); top: var(--y1); opacity: 0; transform: translate(-50%, -50%) scale(1.15); } }
 /* Where it lands. Every piece waits for the flight (--d) then plays for --t. */
 /* Parry ring (placeholder look): closes on your half as a spell flies at you; turns white inside the window. */
 .parry-ring { position: absolute; left: 50%; top: 46%; width: 34%; aspect-ratio: 1; z-index: 6; pointer-events: none; border-radius: 50%;
@@ -328,15 +343,15 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 /* Narrow (phone portrait): stacked. Your camera on top, near the phone's camera; spells fly up and down. */
 @media (max-width: 800px) and (orientation: portrait) {
   .duel { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-  .bolt { left: 50% !important; }
-  .bolt.from-player { animation-name: fly-down; }
-  .bolt.from-enemy { animation-name: fly-up; }
-  .bolt.from-player .projectile { transform: rotate(90deg); }
-  .bolt.from-enemy .projectile { transform: rotate(-90deg); }
+  .bolt:not(.path) { left: 50% !important; }
+  .bolt:not(.path).from-player { animation-name: fly-down; }
+  .bolt:not(.path).from-enemy { animation-name: fly-up; }
+  .bolt:not(.path).from-player .projectile { transform: rotate(90deg); }
+  .bolt:not(.path).from-enemy .projectile { transform: rotate(-90deg); }
   /* Things with a face or an up (the Doom skull, the ice cage) stay upright while the trail turns. */
-  .bolt .upright { transform-box: fill-box; transform-origin: center; }
-  .bolt.from-player .upright { transform: rotate(-90deg); }
-  .bolt.from-enemy .upright { transform: rotate(90deg); }
+  .bolt:not(.path) .upright { transform-box: fill-box; transform-origin: center; }
+  .bolt:not(.path).from-player .upright { transform: rotate(-90deg); }
+  .bolt:not(.path).from-enemy .upright { transform: rotate(90deg); }
   /* Tidal Wave crashes in from the caster's side: top or bottom. */
   .sig-wave { animation-name: wave-sweep-v; }
   .sig-wave.from-left { --wx: -110%; }
