@@ -4,7 +4,7 @@ import { COMBO, COMBOS_ON, COMBO_CHARGES, COMBO_MIX, COUNTER, ELEMENTS, FORMS, M
 
 export { isValidSpell }
 
-export const MAX_HP = 250
+export const MAX_HP = 350
 const TICK_MS = 500
 export const COUNTER_SILENCE_MS = 2500 // a landed counterspell
 export const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
@@ -35,8 +35,8 @@ export const THERMAL = { hit: 28, burn: 16, chill: 0.35 } // a hit, a burn and a
 export const PLASMA = { hit: 35, burn: 15, stun: 1750 }
 export const SUNFIRE: [number, number] = [15, 40] // hit, then a 6 s burn that heals you what it deals
 export const GRAVE = { hit: 30, ms: 10000 } // no healing (Water's mend included) and no Holy spells at all
-export const HEAL = 28 // Holy star: right away
-export const REGEN = { amount: 8, ticks: 5 } // Holy hourglass: every 0.5 s
+export const HEAL = 34 // Holy star: right away
+export const REGEN = { amount: 9, ticks: 5 } // Holy hourglass: every 0.5 s
 // Casting rules. The browser only reports what it recognized (a held letter, a finished shape, a
 // push); these decide what that does. Online, only the server runs them.
 /** A fizzle (failed drawing, or a readied spell that faded) locks all throws this long; the charge stays. */
@@ -414,10 +414,12 @@ export class Combat {
       c.active = now
       if (c.mix!.includes(el) || c.mix!.length >= 2) return false
       c.mix!.push(el)
+      // The second element locks the mix into its combo charge (no combo: it stays C, for a combo counterspell).
+      if (c.mix!.length === 2) this.charge[side] = { el: comboOf(c.mix!) ?? COMBO, since: now, active: now, mix: c.mix }
       return true
     }
-    // Still holding a letter of a locked combo's mix (e.g. E after C, U, E): the combo stays.
-    if (c?.el === el || c?.mix?.includes(el)) {
+    // Still holding a letter of a locked combo's mix (e.g. E after C, U, E), or C again: the combo stays.
+    if (c?.el === el || c?.mix?.includes(el) || (el === COMBO && c?.mix?.length === 2)) {
       c.active = now
       return false
     }
@@ -446,14 +448,6 @@ export class Combat {
     // A combo still being mixed (fewer than 2 elements) ignores drawing: the hand passing through a
     // pointing shape between two letters (W to L) must not drop it. Open your hand to drop it.
     if (c?.el === COMBO && c.mix!.length < 2) return false
-    // Starting to draw locks a combo in: its mix becomes the combo charge (or fizzles if it's no combo).
-    if (c?.el === COMBO && this.strokeStart[side] === null) {
-      const combo = comboOf(c.mix!)
-      // The mix stays counterable. No combo: only a combo counterspell (a circle) can come of it.
-      this.charge[side] = { el: combo ?? COMBO, since: now, active: now, mix: c.mix }
-      this.strokeStart[side] = now
-      return !!combo
-    }
     this.strokeStart[side] ??= now
     const r = this.ready[side]
     if (!r) return false

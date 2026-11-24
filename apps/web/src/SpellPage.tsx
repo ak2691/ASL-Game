@@ -10,14 +10,14 @@ import { CastGuide } from './CastGuide'
 import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
 import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName } from './spells'
 import { Tower } from './Ladder'
-import { DummyArena, PracticeArena, shapePoints, spellOf, type Arena, type Difficulty, type Snapshot } from './battle'
+import { DummyArena, PracticeArena, beaterOf, shapePoints, spellOf, type Arena, type Difficulty, type Snapshot } from './battle'
 import { BoltLayer, Impacts, ParryRings, SilenceLock, StatusFx, setLocalBoltClock, useShake } from './effects'
 import { PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
 import { VolumeSlider } from './VolumeSlider'
-import { DRAW_HAND_KEY, TWO_HANDS_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, loadTwoHands, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS } from './settings'
+import { DRAW_HAND_KEY, TWO_HANDS_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, loadTwoHands, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, loadDummyAids, saveDummyAids, type DummyAids } from './settings'
 import { PushSlider } from './PushSlider'
 import { DummySpells } from './DummySpells'
 import { GEAR, Icon } from './HomeCorner'
@@ -263,6 +263,12 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const setPace = (p: { castPct: number; gapMs: number }) => {
     saveDummyPace(p)
     setPaceState(p)
+  }
+  // Dummy aids: the counter hint and the parry timing rings (the tutorial always shows the rings).
+  const [aids, setAidsState] = useState(loadDummyAids)
+  const setAids = (a: DummyAids) => {
+    saveDummyAids(a)
+    setAidsState(a)
   }
   const setDummyPool = (pool: string[], second = false) => {
     if (second) {
@@ -726,7 +732,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               if (el !== holdLetter) {
                 holdLetter = el
                 holdSince = now
-              } else if (el && view.running && el !== myCharge && !(myCharge && COMBO_MIX[myCharge]?.includes(el)) && now - holdSince >= CHARGE_MS && (sentSign?.el !== el || now - sentSign.t > 300)) {
+              } else if (el && view.running && el !== myCharge && !(myCharge && COMBO_MIX[myCharge]?.includes(el)) && !view.mix.player.includes(el) && !(el === COMBO && view.mix.player.length === 2) && now - holdSince >= CHARGE_MS && (sentSign?.el !== el || now - sentSign.t > 300)) {
                 // Only in a fight (a running match, or the dummy): between matches and in lobbies
                 // nothing can be cast, so nothing charges and no guessed charge flashes up.
                 dropDot() // switching element: the dot drawn so far goes
@@ -998,7 +1004,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         {fight.floats
           .filter((f) => f.side === side)
           .map((f) => (
-            <span key={f.id} className="float" style={{ color: f.color }}>
+            <span key={f.id} className={/^[-+]\d/.test(f.text) ? 'float hp-num' : 'float'} style={{ color: f.color }}>
               {f.text}
             </span>
           ))}
@@ -1061,7 +1067,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         <div className="side-hud">
           {fighterHead(id, nameOf(id))}
           <div className="hud-row">
-            <OppStatus fight={fight} id={id} cast={cast} />
+            <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
             {mode === 'dummy' && id === foes[foes.length - 1] && dummyBar}
           </div>
         </div>
@@ -1080,10 +1086,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const signLeft = (twoHands ? (drawHand === 'right' ? 'left' : 'right') : hand) === 'left'
   const dummyBar = (
     <div className="dummy-bar">
-      <button className="small" onClick={() => setDummyAttacks(!dummyAttacks)} disabled={!dummyPool.length && !(twoFoes && dummyPool2.length) && !dummyAttacks}>
+      <button className={`small ${dummyAttacks ? 'btn-stop' : 'btn-go'}`} onClick={() => setDummyAttacks(!dummyAttacks)} disabled={!dummyPool.length && !(twoFoes && dummyPool2.length) && !dummyAttacks}>
         {dummyAttacks ? 'Stop attacks' : 'Start attacks'}
       </button>
-      <button className="small icon-btn" onClick={() => arena.current.reset?.()} aria-label="Reset" title="Reset">
+      <button className="small icon-btn btn-reset" onClick={() => arena.current.reset?.()} aria-label="Reset" title="Reset">
         <Icon d={RESET} />
       </button>
       <button className="small icon-btn" onClick={() => setMenu('dummy')} aria-label="Dummy settings" title="Dummy settings">
@@ -1179,7 +1185,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           )}
           <StatusFx side="player" view={fight} />
           <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />
-          {twoHands && (mode === 'dummy' || mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
+          {twoHands && (mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
           {isTeam && foes.length >= 2 && myR && fight.running && (
             <div className="aim-zones" style={{ '--aim': chargeInfo(myR.el).color, gridTemplateColumns: signLeft ? '1fr 2fr' : '2fr 1fr' } as React.CSSProperties}>
@@ -1198,7 +1204,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {!isTeam && <div className="side-hud">
             {fighterHead('enemy')}
             <div className="hud-row">
-              {mode !== 'dummy' && mode !== 'tutorial' && <OppStatus fight={fight} />}
+              {((mode !== 'dummy' && mode !== 'tutorial') || (mode === 'dummy' && aids.hint)) && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
               {mode === 'dummy' && dummyBar}
             </div>
           </div>}
@@ -1259,6 +1265,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               setPool={setDummyPool}
               pace={pace}
               setPace={setPace}
+              aids={aids}
+              setAids={setAids}
               onDone={() => setMenu(null)}
             />
           </div>
@@ -1338,11 +1346,13 @@ function chargeLabel(el: string | null, mix: string[]) {
 }
 
 /** What the opponent is doing, as text (same style as your own charge line). */
-function OppStatus({ fight, id = 'enemy', cast }: { fight: Snapshot; id?: Fid; cast?: Snapshot['enemyCast'] }) {
+function OppStatus({ fight, id = 'enemy', cast, hint: showHint }: { fight: Snapshot; id?: Fid; cast?: Snapshot['enemyCast']; hint?: boolean }) {
   const c = cast === undefined ? fight.enemyCast : cast
   const silenced = fight.running && fight.silenced[id] > 0
   // The fight's view shows a combo's mix as it grows.
   const el = fight.charge[id] ?? (c && c.el !== '?' ? c.el : null)
+  // Training dummy aid: the element that counters what it's charging (attacks only).
+  const hint = showHint && c && c.el in BEATS ? beaterOf(c.el) : null
   if (fight.shroud[id] > 0 && !silenced)
     // Shroud: you can't see what they're charging or drawing.
     return (
@@ -1359,9 +1369,9 @@ function OppStatus({ fight, id = 'enemy', cast }: { fight: Snapshot; id?: Fid; c
         {chargeLabel(el, fight.mix[id] ?? [])}
       </span>
       <span className="sub-line">{silenced ? 'Silenced!' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
-      {fight.hint && !silenced && (
-        <span className="sub-line" style={{ color: ELEMENTS[fight.hint].color }}>
-          Counter with {ELEMENTS[fight.hint].name}
+      {hint && !silenced && (
+        <span className="sub-line" style={{ color: ELEMENTS[hint].color }}>
+          Counter with {ELEMENTS[hint].name}
         </span>
       )}
     </div>
@@ -1526,8 +1536,8 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
 
 /** Training dummy settings: a second enemy on or off, and the spells each enemy casts. */
 type Pace = { castPct: number; gapMs: number }
-function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void; pools: [string[], string[]]; setPool: (pool: string[], second: boolean) => void; pace: Pace; setPace: (p: Pace) => void; onDone: () => void }) {
-  const { twoFoes, setTwoFoes, pools, setPool, pace, setPace, onDone } = props
+function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void; pools: [string[], string[]]; setPool: (pool: string[], second: boolean) => void; pace: Pace; setPace: (p: Pace) => void; aids: DummyAids; setAids: (a: DummyAids) => void; onDone: () => void }) {
+  const { twoFoes, setTwoFoes, pools, setPool, pace, setPace, aids, setAids, onDone } = props
   // What the cast time % means: the default times (charge + draw + ready) for a light, heavy and signature spell.
   const secs = (shape: string) => {
     const sp = spellOf('F', shape, pace.castPct / 100)
@@ -1552,6 +1562,14 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
           <input type="range" min={GAP_MS.min} max={GAP_MS.max} step={250} value={pace.gapMs} onChange={(e) => setPace({ ...pace, gapMs: Number(e.target.value) })} aria-label="Time between casts" />
           <b>{(pace.gapMs / 1000).toFixed(pace.gapMs % 1000 ? 2 : 0).replace(/0$/, '')} s</b>
         </label>
+      </div>
+      <div className="dummy-foes">
+        <button className={`small ${aids.hint ? 'on' : ''}`} aria-pressed={aids.hint} onClick={() => setAids({ ...aids, hint: !aids.hint })}>
+          Counter hint: {aids.hint ? 'on' : 'off'}
+        </button>
+        <button className={`small ${aids.parryTimer ? 'on' : ''}`} aria-pressed={aids.parryTimer} onClick={() => setAids({ ...aids, parryTimer: !aids.parryTimer })}>
+          Parry timer: {aids.parryTimer ? 'on' : 'off'}
+        </button>
       </div>
       <div className="dummy-foes">
         <button className={`small ${twoFoes ? 'on' : ''}`} aria-pressed={twoFoes} onClick={() => setTwoFoes(!twoFoes)}>

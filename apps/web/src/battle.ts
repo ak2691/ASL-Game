@@ -63,7 +63,8 @@ interface AiStyle {
   miss: number // share of counters that are mistakes (wrong element; vs a heal, a quick interrupt that can't stop it)
   capitalize: boolean // punishes a silence at once (biggest spell that's out before it ends); fast spells when you're low
   reroll: number // ms between extra counter rolls while you keep charging (0 = one roll only); long heavies get rolled again
-  spamCounter: number // chance it counters the same element charged 3x in a row (even easy punishes mashing)
+  spamCounter: number // chance it counters the same element charged spamAt times in a row (even easy punishes mashing)
+  spamAt?: number // how many in a row (counting the one you're charging now) count as spam (default 3)
   stun: number // chance its next attack is a stopper (Frozen Prison, Earthquake, Lightning) once you've
   // landed 2+ throws in a row while repeating yourself
   read: number // how well it reads you (0 = not at all, 1 = fully): same element 3x in a row, and light/heavy
@@ -94,20 +95,20 @@ const LIGHT_HEAVY = { line: 50, h: 50 }
 // Adept and up: each level is faster and thinks quicker; Magus and up punish a silence, read your
 // habits, and sometimes drop their own half-drawn spell to counter you.
 export const AI: Record<Difficulty, AiStyle> = {
-  pebble: { ...BOT, every: 4000, speed: 1.4, els: ['E', 'W'], moves: { h: 1 }, order: 'alternate', hintMs: 0 },
-  ember: { ...BOT, every: 3500, speed: 1.3, els: ['F', 'L'], moves: LIGHT_HEAVY, order: 'fresh', hintMs: 0 },
-  frost: { ...BOT, every: 3200, speed: 1.25, els: ['I', 'F'], moves: LIGHT_HEAVY, react: 0.15, hintMs: 0, combos: ['thermal'], comboRate: 0.12 },
-  cleric: { ...BOT, every: 3200, speed: 1.25, els: ['W'], moves: LIGHT_HEAVY, healBelow: 0.7, magic: ['aegis'], utility: 0.15, smart: 0.3, hintMs: 0 },
-  hexer: { ...BOT, every: 3000, speed: 1.2, els: ['E'], moves: LIGHT_HEAVY, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.15, reactMs: [1400, 1900], hintMs: 0, combos: ['grave'], comboRate: 0.12 },
-  tide: { ...BOT, every: 2800, speed: 1.15, els: ['W', 'I', 'L'], healBelow: 0.3, react: 0.25, reactMs: [1300, 1800], circle: 0.3, spamCounter: 0.3, hintMs: 900, combos: ['storm'], comboRate: 0.15 },
-  zealot: { ...BOT, every: 2600, speed: 1.1, els: ['F'], moves: LIGHT_HEAVY, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.25, reactMs: [1300, 1800], circle: 0.3, hintMs: 900, combos: ['sunfire', 'twilight'], comboRate: 0.15 },
+  pebble: { ...BOT, every: 4000, speed: 1.4, els: ['E', 'W'], moves: { h: 1 }, order: 'alternate' },
+  ember: { ...BOT, every: 3500, speed: 1.3, els: ['F', 'L'], moves: LIGHT_HEAVY, order: 'fresh' },
+  frost: { ...BOT, every: 3200, speed: 1.25, els: ['I', 'F'], moves: LIGHT_HEAVY, react: 0.15, combos: ['thermal'], comboRate: 0.12 },
+  cleric: { ...BOT, every: 3200, speed: 1.25, els: ['W'], moves: LIGHT_HEAVY, healBelow: 0.7, magic: ['aegis'], utility: 0.15, smart: 0.3 },
+  hexer: { ...BOT, every: 3000, speed: 1.2, els: ['E'], moves: LIGHT_HEAVY, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.15, reactMs: [1400, 1900], combos: ['grave'], comboRate: 0.12 },
+  tide: { ...BOT, every: 2800, speed: 1.15, els: ['W', 'I', 'L'], healBelow: 0.3, react: 0.25, reactMs: [1300, 1800], circle: 0.3, spamCounter: 0.3, combos: ['storm'], comboRate: 0.15 },
+  zealot: { ...BOT, every: 2600, speed: 1.1, els: ['F'], moves: LIGHT_HEAVY, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.25, reactMs: [1300, 1800], circle: 0.3, combos: ['sunfire', 'twilight'], comboRate: 0.15 },
   warden: { ...BOT, every: 2600, speed: 1.1, healBelow: 0.25, spamCounter: 0.3, stun: 0.15, magic: ALL_MAGIC, utility: 0.03, smart: 0.15, combos: ['magma', 'glacier'], comboRate: 0.12 },
-  adept: { every: 2354, speed: 1.049, ramp: false, healBelow: 0.25, react: 0, reactMs: [1295, 1766], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.45, stun: 0.27, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15, combos: ['magma', 'steam'], comboRate: 0.1 },
-  magus: { every: 1950, speed: 0.94, ramp: false, healBelow: 0.3, react: 0.2, reactMs: [1150, 1550], circle: 0.3, miss: 0.15, capitalize: true, reroll: 0, spamCounter: 0.6, stun: 0.32, read: 0.3, heal: 0.4, dodge: 0, healPunish: false, drop: 0.05, utility: 0.1, smart: 0.4, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.12, comboCounter: 0.2 },
-  archmage: { every: 1600, speed: 0.84, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [1000, 1350], circle: 0.4, miss: 0.12, capitalize: true, reroll: 2000, spamCounter: 0.72, stun: 0.4, read: 0.55, heal: 0.6, dodge: 0.12, healPunish: false, drop: 0.15, utility: 0.2, smart: 0.7, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.15, comboCounter: 0.5 },
-  lich: { every: 1300, speed: 0.74, ramp: true, healBelow: 0.4, react: 0.5, reactMs: [850, 1150], circle: 0.5, miss: 0.06, capitalize: true, reroll: 1600, spamCounter: 0.8, stun: 0.5, read: 0.85, heal: 0.78, dodge: 0.3, healPunish: true, drop: 0.3, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.18, comboCounter: 0.8 },
+  adept: { spamAt: 4, every: 2354, speed: 1.049, ramp: false, healBelow: 0.25, react: 0, reactMs: [1295, 1766], circle: 0.2, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.6, stun: 0.27, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15, combos: ['magma', 'steam'], comboRate: 0.1 },
+  magus: { spamAt: 3, every: 1950, speed: 0.94, ramp: false, healBelow: 0.3, react: 0.2, reactMs: [1150, 1550], circle: 0.3, miss: 0.15, capitalize: true, reroll: 0, spamCounter: 0.6, stun: 0.32, read: 0.3, heal: 0.4, dodge: 0, healPunish: false, drop: 0.05, utility: 0.1, smart: 0.4, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.12, comboCounter: 0.2 },
+  archmage: { spamAt: 3, every: 1600, speed: 0.84, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [1000, 1350], circle: 0.4, miss: 0.12, capitalize: true, reroll: 2000, spamCounter: 0.72, stun: 0.4, read: 0.55, heal: 0.6, dodge: 0.12, healPunish: false, drop: 0.15, utility: 0.2, smart: 0.7, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.15, comboCounter: 0.5 },
+  lich: { spamAt: 3, every: 1300, speed: 0.74, ramp: true, healBelow: 0.4, react: 0.5, reactMs: [850, 1150], circle: 0.5, miss: 0.06, capitalize: true, reroll: 1600, spamCounter: 0.8, stun: 0.5, read: 0.85, heal: 0.78, dodge: 0.3, healPunish: true, drop: 0.3, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.18, comboCounter: 0.8 },
   // The finale: the whole kit, used on purpose, no mistakes. A step above Lich in every number.
-  ascendant: { every: 1100, speed: 0.65, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [750, 950], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.85, stun: 0.55, read: 1, heal: 0.85, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.24, comboCounter: 1 },
+  ascendant: { spamAt: 3, every: 1100, speed: 0.65, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [750, 950], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.85, stun: 0.55, read: 1, heal: 0.85, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.24, comboCounter: 1 },
 }
 /** The practice ladder, in order. */
 export const LADDER: { id: Difficulty; name: string }[] = [
@@ -186,7 +187,7 @@ function predict(m: string[]): string | null {
   if (n >= 2 && at(1) === at(2)) return at(1)
   return null
 }
-const beaterOf = (el: string) => Object.keys(BEATS).find((k) => BEATS[k] === el)!
+export const beaterOf = (el: string) => Object.keys(BEATS).find((k) => BEATS[k] === el)!
 
 /** Corner points (any box; fitted to 0..1 later) for the straight-line shapes, in drawing order. */
 const SHAPE_CORNERS: Record<string, [number, number][]> = {
@@ -530,9 +531,10 @@ export class PracticeArena implements Arena {
       const combo = pc.el in COMBO_MIX
       // heals: any element's counterspell stops them; combos: only a combo counterspell
       const counterable = combo ? !!s.comboCounter : pc.el === 'H' || (pc.el in BEATS && this.own.includes(beaterOf(pc.el)))
-      // Spamming: the same element 3+ times in a row (counting this one) and it's ready for it.
+      // Spamming: the same element spamAt+ times in a row (counting this one) and it's ready for it.
       const h = this.history
-      const spam = s.spamCounter > 0 && h.length >= 3 && h.slice(-3).every((x) => x === pc.el)
+      const n = s.spamAt ?? 3
+      const spam = s.spamCounter > 0 && h.length >= n && h.slice(-n).every((x) => x === pc.el)
       // Its guess at what you're about to throw: light means interrupt fast, heavy means circle.
       const healing = pc.el === 'H'
       const guess = s.read && !healing ? predict(this.moves) : null
@@ -813,7 +815,7 @@ export class PracticeArena implements Arena {
         }
         const e0 = this.enemy
         while (e0?.signs?.length && now >= e0.signs[0].at) this.combat.sign('enemy', e0.signs.shift()!.el, now)
-        // Casting keeps its charge alive (a combo only starts drawing once its mix is in, which locks it).
+        // Casting keeps its charge alive (a combo only starts drawing once its mix is in and locked).
         if (e0 && !e0.signs?.length) this.combat.drawing('enemy', now)
         // A Mirror is up on you: it holds a direct hit until the Mirror is gone (if it reads you at all).
         if (e0 && now >= e0.ends && this.style.read > 0 && v.mirror.player > 0 && isDirect(e0.el, e0.shape)) e0.ends = now + 30

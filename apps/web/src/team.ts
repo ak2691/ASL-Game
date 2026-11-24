@@ -13,7 +13,7 @@ const SPECS: FighterSpec[] = [
   { id: 'enemy2', team: 'enemy', maxHp: Infinity },
 ]
 
-type BotCast = ReturnType<typeof spellOf> & { start: number; ends: number }
+type BotCast = ReturnType<typeof spellOf> & { start: number; ends: number; signs?: { at: number; el: string }[] }
 
 export interface TeamSnapshot extends Snapshot {
   casts: Record<Fid, OppCast | null> // each dummy's spell in progress

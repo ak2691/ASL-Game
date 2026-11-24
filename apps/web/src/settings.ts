@@ -116,3 +116,21 @@ export function saveDummyPace(p: { castPct: number; gapMs: number }) {
     /* not saved */
   }
 }
+
+// Training dummy aids: show the element that counters its charge, and the parry timing rings.
+const DUMMY_AIDS_KEY = 'spells-dummy-aids'
+export type DummyAids = { hint: boolean; parryTimer: boolean }
+export function loadDummyAids(): DummyAids {
+  try {
+    return { hint: false, parryTimer: true, ...JSON.parse(localStorage.getItem(DUMMY_AIDS_KEY) ?? '{}') }
+  } catch {
+    return { hint: false, parryTimer: true }
+  }
+}
+export function saveDummyAids(a: DummyAids) {
+  try {
+    localStorage.setItem(DUMMY_AIDS_KEY, JSON.stringify(a))
+  } catch {
+    /* not saved */
+  }
+}

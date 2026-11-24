@@ -129,6 +129,8 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
 .hp-text.idle { color: var(--sub); text-shadow: none; }
 .float { position: absolute; right: 8px; top: -4px; font-weight: bold; font-size: 18px; pointer-events: none; animation: float-up 1.2s ease-out forwards; text-shadow: 0 1px 3px #000; }
+/* HP changes (damage, heals, burn and static ticks): big and readable at a glance. */
+.float.hp-num { font-size: 30px; font-weight: 900; top: -14px; animation-duration: 1.6s; text-shadow: 0 0 4px #000, 0 2px 4px #000; }
 @keyframes float-up { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-36px); opacity: 0; } }
 .battle-start { display: flex; align-items: center; gap: 12px; align-self: center; }
 .enemy-canvas { position: relative; width: 140px; height: 140px; background: var(--sub-alt); border-radius: 10px; }
@@ -693,6 +695,13 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .hud-row > .status-strip { flex: 1 1 90px; min-width: 0; }
 .hud-row .status-strip .charge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dummy-bar button { white-space: nowrap; flex-shrink: 0; }
+/* Dummy controls each get their own color: start green, stop red, reset yellow (settings stays default). */
+html[data-theme] .dummy-bar button.btn-go, .dummy-bar button.btn-go { background: var(--you); color: var(--ink, #111); }
+html[data-theme] .dummy-bar button.btn-stop, .dummy-bar button.btn-stop { background: var(--foe); color: #fff; }
+html[data-theme] .dummy-bar button.btn-reset, .dummy-bar button.btn-reset { background: var(--main); color: var(--ink, #111); }
+html[data-theme] .dummy-bar button.btn-go:hover, .dummy-bar button.btn-go:hover { background: color-mix(in srgb, var(--you) 80%, #fff); }
+html[data-theme] .dummy-bar button.btn-stop:hover, .dummy-bar button.btn-stop:hover { background: color-mix(in srgb, var(--foe) 80%, #fff); }
+html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:hover { background: color-mix(in srgb, var(--main) 80%, #fff); }
 .hud-row { flex-wrap: wrap; }
 /* Narrow foe panels (two dummies on a phone): smaller dummy controls so they fit. */
 @container (max-width: 240px) {

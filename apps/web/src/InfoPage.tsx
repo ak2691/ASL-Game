@@ -148,7 +148,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
 
       <section className="info-card" hidden={!COMBOS_ON}>
         <h2>Combos</h2>
-        <p className="info-note">Sign C, then the two elements, then draw. Starting to draw locks the mix. To counter one, sign C and the two elements that beat it, then draw a circle.</p>
+        <p className="info-note">Sign C, then the two elements, then draw. The second element locks the mix. To counter one, sign C and the two elements that beat it, then draw a circle.</p>
         <table className="info-table">
           <thead>
             <tr>

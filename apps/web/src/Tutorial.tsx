@@ -28,7 +28,7 @@ const TIPS: Record<string, string> = {
   'U scythe': 'Doom: they must land a cast within 2.5 seconds or take a big hit.',
   'U veil': 'Shroud hides your charge and drawing from them.',
   'U blade': 'Execute hits harder the lower their health.',
-  'magma volcano': 'Combo: sign C, then F and E, then draw. Starting to draw locks the mix.',
+  'magma volcano': 'Combo: sign C, then F and E, then draw. The second element locks the mix.',
   'storm cloud': 'Five storm pulses. Throwing during one fizzles and hurts you.',
   'glacier iceberg': 'Takes 5 seconds to arrive. Only C, F, I and a circle stops it.',
   'twilight yinyang': 'You take half damage and they take 50% more for 6 seconds.',

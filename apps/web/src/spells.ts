@@ -39,7 +39,7 @@ export const SIGNATURE: Record<string, string> = { F: 'flame', I: 'cage', L: 'zi
 export const HOLY_SHAPES = ['star', 'hourglass', 'aegis'] // Mirror removed for now (code kept)
 export const UNHOLY_SHAPES = ['scythe', 'veil', 'blade']
 
-// ---- Combos: sign C, then the elements to mix. Starting to draw locks the mix into its combo charge.
+// ---- Combos: sign C, then the elements to mix. The second element locks the mix into its combo charge.
 export const COMBOS_ON = true
 export const COMBO = 'C'
 export const COMBO_INFO = { name: 'Combo', color: '#d9d9d9' }
