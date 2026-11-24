@@ -1,7 +1,7 @@
 // Spell impact visuals: an element projectile flies across, then the target's half gets an element effect.
 // Strength sets the size: light (line) < heavy (H, counter, heal) < signature.
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
-import { GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
+import { DOOM_MS, GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
 import { COMBO_MIX, isMixCounter } from './spells'
 
 const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
@@ -511,27 +511,6 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
   )
 }
 
-/** Silence, shown on the health bar: a lock badge with the seconds left, and stripes over the bar
- *  that shrink as the silence runs out. */
-export function SilenceLock({ ms }: { ms: number }) {
-  const longest = useRef(0) // how long this silence was at its start
-  if (ms <= 0) longest.current = 0
-  else if (ms > longest.current) longest.current = ms
-  if (ms <= 0) return null
-  return (
-    <div className="hp-lock">
-      <div className="hp-lock-stripes" style={{ width: `${(100 * ms) / (longest.current || 1)}%` }} />
-      <span className="lock-badge">
-        <svg viewBox="0 0 16 18" aria-hidden>
-          <path d="M4 8V5.5a4 4 0 0 1 8 0V8" fill="none" stroke="currentColor" strokeWidth="2.4" />
-          <rect x="1.5" y="8" width="13" height="9" rx="2" fill="currentColor" />
-        </svg>
-        {(ms / 1000).toFixed(1)}
-      </span>
-    </div>
-  )
-}
-
 /** Ongoing effects on one half: silence greys it out, static crackles the edges, chill frosts them,
  *  burn flickers from below, regen pulses green, and a knock-off drops rubble. */
 export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
@@ -563,11 +542,7 @@ export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
           )}
         </div>
       )}
-      {view.doom[side] > 0 && (
-        <div className="st-doom">
-          <b>{(view.doom[side] / 1000).toFixed(1)}</b>
-        </div>
-      )}
+      {view.doom[side] > 0 && <div className="st-doom" />}
       <Timers view={view} side={side} />
       {st && (
         <div className={`st-static ${st}`}>
@@ -716,9 +691,15 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
   }
 }
 
-/** Buffs with a clock: how much is left, as a label and a bar that runs down. */
+/** Every effect with a clock, in one row of pills: a label with the seconds left and a bar that runs down. */
 function Timers({ view, side }: { view: CombatView; side: Fid }) {
+  const silenced = view.silenced[side]
+  const longest = useRef(0) // how long this silence was at its start (silences vary in length)
+  if (silenced <= 0) longest.current = 0
+  else if (silenced > longest.current) longest.current = silenced
   const items = [
+    view.doom[side] > 0 && { k: 'doom', label: `Doom ${(view.doom[side] / 1000).toFixed(1)} s`, f: view.doom[side] / DOOM_MS },
+    silenced > 0 && { k: 'silence', label: `Silenced ${(silenced / 1000).toFixed(1)} s`, f: silenced / (longest.current || 1) },
     // Aegis armor isn't listed: the health bar already shows it (+N and the armor segment).
     view.mirror[side] > 0 && { k: 'mirror', label: `Mirror ${(view.mirror[side] / 1000).toFixed(1)} s`, f: view.mirror[side] / MIRROR_MS },
     view.shroud[side] > 0 && { k: 'shroud', label: `Shroud ${(view.shroud[side] / 1000).toFixed(1)} s`, f: view.shroud[side] / SHROUD_MS },

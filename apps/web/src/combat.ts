@@ -26,15 +26,16 @@ export const MAGMA: [number, number] = [35, 35] // hit, then burn over 5 s
 export const STORM = { hit: 18, pulse: 8, zap: 12, count: 5 } // 0.25 s on / 0.6 s off; a throw in a pulse fizzles and takes `zap`
 export const GLACIER_MS = 5000 // Advancing Glacier: creeps this long, then crushes...
 export const GLACIER_DMG = 70 // ...for this. Only a Fire + Ice combo counterspell stops it.
-export const TWILIGHT_MS = 7000 // you take 50% less, they take 50% more (stacks with chill)
-export const TWILIGHT_PCT = 0.5
+export const TWILIGHT_MS = 7000 // you take 50% less, they take 100% more (stacks with chill)
+export const TWILIGHT_GUARD = 0.5 // you take this much less
+export const TWILIGHT_EXPOSE = 1 // they take this much more (Nov 23 buff: was 0.5)
 export const STEAM_MS = 6000 // their screen fogs and their attacks may miss
 export const STEAM_MISS = 0.5
 export const STEAM_HIT = 22
 export const THERMAL = { hit: 28, burn: 16, chill: 0.35 } // a hit, a burn and a chill
-export const PLASMA = { hit: 35, burn: 15, stun: 1750 }
+export const PLASMA = { hit: 35, burn: 15, stun: 2000 } // stun = a silence (Nov 23 buff: was 1.75 s)
 export const SUNFIRE: [number, number] = [15, 40] // hit, then a 6 s burn that heals you what it deals
-export const GRAVE = { hit: 30, ms: 10000 } // no healing (Water's mend included) and no Holy spells at all
+export const GRAVE = { hit: 30, ms: 10000 } // no healing (Water's mend included) and no Holy spells (a Holy counterspell still works)
 export const HEAL = 34 // Holy star: right away
 export const REGEN = { amount: 9, ticks: 5 } // Holy hourglass: every 0.5 s
 // Casting rules. The browser only reports what it recognized (a held letter, a finished shape, a
@@ -50,6 +51,7 @@ const MIN_DRAW_MS = 100
 // Too early, too late or with nothing coming: a stagger (no throws and no parries for PARRY_MISS_MS).
 export const PARRY_WINDOW_MS = 100
 export const PARRY_MISS_MS = 1000
+export const PARRY_HIT_MS = 500 // a landed parry: no throws for this long (getting your bearings back)
 const REFLECT_POWER = [1, 0.75, 0.5]
 
 // Attack damage per element: [light, heavy]. Numbers are a first guess, to tune in playtests.
@@ -119,6 +121,7 @@ export interface Bolt {
   landed?: boolean // set when it arrives (a counter's result is only known then)
   parryable?: boolean // a spell flying at someone that a parry can send back
   parried?: boolean // sent back (or ended) by a parry before it landed
+  reflected?: boolean // this bolt is a parry's reflection (not a fresh throw)
   power?: number // share of its damage (1, or less once reflected)
   t: number
 }
@@ -344,8 +347,8 @@ export class Combat {
       amount = Math.round(amount * (1 + c.pct))
       this.chill[target] = null
     }
-    if (amount > 0 && this.exposedUntil[target] > now) amount = Math.round(amount * (1 + TWILIGHT_PCT))
-    if (amount > 0 && this.guardUntil[target] > now) amount = Math.round(amount * (1 - TWILIGHT_PCT))
+    if (amount > 0 && this.exposedUntil[target] > now) amount = Math.round(amount * (1 + TWILIGHT_EXPOSE))
+    if (amount > 0 && this.guardUntil[target] > now) amount = Math.round(amount * (1 - TWILIGHT_GUARD))
     const armor = this.armor(target, now)
     if (armor > 0 && amount > 0) {
       const soak = Math.min(Math.floor(armor), amount)
@@ -580,6 +583,7 @@ export class Combat {
       return 'missed'
     }
     this.flying = this.flying.filter((x) => x !== f)
+    this.fizzledUntil[side] = Math.max(this.fizzledUntil[side], now + PARRY_HIT_MS)
     f.bolt.kind = 'missed'
     f.bolt.parried = true
     const reflects = f.reflects ?? 0
@@ -591,6 +595,7 @@ export class Combat {
     const power = REFLECT_POWER[reflects]
     const back = this.bolt(side, f.caster, f.bolt.name, f.bolt.color, 'hit', now, f.el, f.shape)
     back.parryable = true
+    back.reflected = true
     back.power = power
     this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, reflects: reflects + 1 })
     this.float(side, 'Reflected!', '#7fd8ff', now)

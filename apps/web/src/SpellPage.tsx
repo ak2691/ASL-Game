@@ -11,13 +11,13 @@ import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } fr
 import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName } from './spells'
 import { Tower } from './Ladder'
 import { DummyArena, PracticeArena, beaterOf, shapePoints, spellOf, type Arena, type Difficulty, type Snapshot } from './battle'
-import { BoltLayer, Impacts, ParryRings, SilenceLock, StatusFx, setLocalBoltClock, useShake } from './effects'
+import { BoltLayer, Impacts, ParryRings, StatusFx, setLocalBoltClock, useShake } from './effects'
 import { PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
 import { VolumeSlider } from './VolumeSlider'
-import { DRAW_HAND_KEY, TWO_HANDS_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, loadTwoHands, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, loadDummyAids, saveDummyAids, type DummyAids } from './settings'
+import { DRAW_HAND_KEY, TWO_HANDS_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, loadTwoHands, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids } from './settings'
 import { PushSlider } from './PushSlider'
 import { DummySpells } from './DummySpells'
 import { GEAR, Icon } from './HomeCorner'
@@ -260,7 +260,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [pace, setPaceState] = useState(loadDummyPace)
   dummy.current.castPct = team.castPct = pace.castPct
   dummy.current.gapMs = team.gapMs = pace.gapMs
-  const setPace = (p: { castPct: number; gapMs: number }) => {
+  dummy.current.parryPct = team.parryPct = pace.parryPct
+  const setPace = (p: Pace) => {
     saveDummyPace(p)
     setPaceState(p)
   }
@@ -286,6 +287,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     setDummyAttacksState(on)
   }
   const practice = useRef(new PracticeArena())
+  practice.current.playerTwoHands = twoHands // it only parries when you can parry back
   const online = useRef<OnlineArena | null>(null)
   const [aimZone, setAimZone] = useState<Zone>('left')
   const arena = useRef<Arena>(mode === 'practice' ? practice.current : twoFoes ? team : dummy.current)
@@ -509,8 +511,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             return
           }
           const m = recognizeShape(shapeModel, pts)
-          // Meteor: its 4 spikes are checked by a counting rule (shapes.ts), so the normal bar is enough.
-          const need = STRICT_SHAPES.has(m.name) && m.name !== 'flame' ? SIGNATURE_SCORE : MATCH_SCORE
+          const need = STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
           const shape = m.score >= need && m.name !== 'none' ? m.name : null
           const el = fightRef.current.charge.player
           if (DEBUG) {
@@ -1000,7 +1001,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {fight.maxHp[side] === Infinity ? '∞' : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
           {fight.shield[side] > 0 && <b className="armor-text">+{fight.shield[side]}</b>}
         </span>
-        <SilenceLock ms={fight.running ? fight.silenced[side] : 0} />
         {fight.floats
           .filter((f) => f.side === side)
           .map((f) => (
@@ -1535,7 +1535,7 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
 }
 
 /** Training dummy settings: a second enemy on or off, and the spells each enemy casts. */
-type Pace = { castPct: number; gapMs: number }
+type Pace = DummyPace
 function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void; pools: [string[], string[]]; setPool: (pool: string[], second: boolean) => void; pace: Pace; setPace: (p: Pace) => void; aids: DummyAids; setAids: (a: DummyAids) => void; onDone: () => void }) {
   const { twoFoes, setTwoFoes, pools, setPool, pace, setPace, aids, setAids, onDone } = props
   // What the cast time % means: the default times (charge + draw + ready) for a light, heavy and signature spell.
@@ -1561,6 +1561,11 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
           <span>Time between casts</span>
           <input type="range" min={GAP_MS.min} max={GAP_MS.max} step={250} value={pace.gapMs} onChange={(e) => setPace({ ...pace, gapMs: Number(e.target.value) })} aria-label="Time between casts" />
           <b>{(pace.gapMs / 1000).toFixed(pace.gapMs % 1000 ? 2 : 0).replace(/0$/, '')} s</b>
+        </label>
+        <label className="pace-row">
+          <span>Parry chance</span>
+          <input type="range" min={0} max={100} step={5} value={pace.parryPct} onChange={(e) => setPace({ ...pace, parryPct: Number(e.target.value) })} aria-label="Parry chance" />
+          <b>{pace.parryPct}%</b>
         </label>
       </div>
       <div className="dummy-foes">

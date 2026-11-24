@@ -1,6 +1,6 @@
 // Arenas: what the Spells page fights in. Practice = an AI enemy in the browser; online = a real
 // opponent through the server (online.ts). Both give the page the same Snapshot to draw.
-import { Combat, FIZZLE_LOCK_MS, MAX_HP, type CombatView } from './combat'
+import { Combat, FIZZLE_LOCK_MS, MAX_HP, type CombatView, type Fid } from './combat'
 import { BEATS, canQuick, chargeInfo, COMBOS_ON, COMBO_MIX, COMBO_SHAPE, COUNTER, QUICK, SIGNATURE, mixCounter, signsFor, spellName } from './spells'
 import { samplePath } from './shapePaths'
 import { spiralPoints } from './shapes'
@@ -85,6 +85,10 @@ interface AiStyle {
   combos?: string[] // combos it casts
   comboRate?: number // chance a cast is one of them
   comboCounter?: number // chance it answers your locked combo (and your Glacier) with a combo counterspell
+  // Parry (plans/parry.md, "AI parry"): only when you play two-handed, so you can parry back.
+  parry?: number // chance it tries to parry a spell you throw at it (half vs lights)
+  parryAim?: number // chance a try lands in the window (else it mistimes and is staggered)
+  reparry?: number // chance it tries to parry a spell you parried back at it
 }
 const ALL_COMBOS = Object.keys(COMBO_SHAPE)
 const ALL_MAGIC = ['aegis', 'scythe', 'veil', 'blade']
@@ -104,11 +108,11 @@ export const AI: Record<Difficulty, AiStyle> = {
   zealot: { ...BOT, every: 2600, speed: 1.1, els: ['F'], moves: LIGHT_HEAVY, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.25, reactMs: [1300, 1800], circle: 0.3, combos: ['sunfire', 'twilight'], comboRate: 0.15 },
   warden: { ...BOT, every: 2600, speed: 1.1, healBelow: 0.25, spamCounter: 0.3, stun: 0.15, magic: ALL_MAGIC, utility: 0.03, smart: 0.15, combos: ['magma', 'glacier'], comboRate: 0.12 },
   adept: { spamAt: 4, every: 2354, speed: 1.049, ramp: false, healBelow: 0.25, react: 0, reactMs: [1295, 1766], circle: 0.2, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.6, stun: 0.27, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15, combos: ['magma', 'steam'], comboRate: 0.1 },
-  magus: { spamAt: 3, every: 1950, speed: 0.94, ramp: false, healBelow: 0.3, react: 0.2, reactMs: [1150, 1550], circle: 0.3, miss: 0.15, capitalize: true, reroll: 0, spamCounter: 0.6, stun: 0.32, read: 0.3, heal: 0.4, dodge: 0, healPunish: false, drop: 0.05, utility: 0.1, smart: 0.4, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.12, comboCounter: 0.2 },
-  archmage: { spamAt: 3, every: 1600, speed: 0.84, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [1000, 1350], circle: 0.4, miss: 0.12, capitalize: true, reroll: 2000, spamCounter: 0.72, stun: 0.4, read: 0.55, heal: 0.6, dodge: 0.12, healPunish: false, drop: 0.15, utility: 0.2, smart: 0.7, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.15, comboCounter: 0.5 },
-  lich: { spamAt: 3, every: 1300, speed: 0.74, ramp: true, healBelow: 0.4, react: 0.5, reactMs: [850, 1150], circle: 0.5, miss: 0.06, capitalize: true, reroll: 1600, spamCounter: 0.8, stun: 0.5, read: 0.85, heal: 0.78, dodge: 0.3, healPunish: true, drop: 0.3, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.18, comboCounter: 0.8 },
+  magus: { parry: 0.15, parryAim: 0.55, reparry: 0.04, spamAt: 3, every: 1950, speed: 0.94, ramp: false, healBelow: 0.3, react: 0.2, reactMs: [1150, 1550], circle: 0.3, miss: 0.15, capitalize: true, reroll: 0, spamCounter: 0.6, stun: 0.32, read: 0.3, heal: 0.4, dodge: 0, healPunish: false, drop: 0.05, utility: 0.1, smart: 0.4, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.12, comboCounter: 0.2 },
+  archmage: { parry: 0.2, parryAim: 0.65, reparry: 0.08, spamAt: 3, every: 1600, speed: 0.84, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [1000, 1350], circle: 0.4, miss: 0.12, capitalize: true, reroll: 2000, spamCounter: 0.72, stun: 0.4, read: 0.55, heal: 0.6, dodge: 0.12, healPunish: false, drop: 0.15, utility: 0.2, smart: 0.7, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.15, comboCounter: 0.5 },
+  lich: { parry: 0.25, parryAim: 0.75, reparry: 0.12, spamAt: 3, every: 1300, speed: 0.74, ramp: true, healBelow: 0.4, react: 0.5, reactMs: [850, 1150], circle: 0.5, miss: 0.06, capitalize: true, reroll: 1600, spamCounter: 0.8, stun: 0.5, read: 0.85, heal: 0.78, dodge: 0.3, healPunish: true, drop: 0.3, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.18, comboCounter: 0.8 },
   // The finale: the whole kit, used on purpose, no mistakes. A step above Lich in every number.
-  ascendant: { spamAt: 3, every: 1100, speed: 0.65, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [750, 950], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.85, stun: 0.55, read: 1, heal: 0.85, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.24, comboCounter: 1 },
+  ascendant: { parry: 0.3, parryAim: 0.85, reparry: 0.15, spamAt: 3, every: 1100, speed: 0.65, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [750, 950], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.85, stun: 0.55, read: 1, heal: 0.85, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.24, comboCounter: 1 },
 }
 /** The practice ladder, in order. */
 export const LADDER: { id: Difficulty; name: string }[] = [
@@ -298,6 +302,9 @@ export class PracticeArena implements Arena {
   private lastPlayerSilence = 0 // your silence left, last update (a jump = you were just silenced)
   private lastCombo = '' // never the same combo twice in a row
   private glacierRolled = false // already decided whether to break the Glacier coming at it
+  playerTwoHands = false // set by the page: it only parries when you can parry back
+  private parrySeen = new Set<number>() // bolts it already decided on
+  private parryAt: number | null = null // when it pushes for a parry it decided to try
 
   start(now: number, difficulty: Difficulty = 'pebble') {
     this.combat = new Combat()
@@ -330,6 +337,8 @@ export class PracticeArena implements Arena {
     this.waitedArmor = 0
     this.lastCombo = ''
     this.glacierRolled = false
+    this.parrySeen.clear()
+    this.parryAt = null
   }
 
   /** End the match early (no winner). */
@@ -685,6 +694,36 @@ export class PracticeArena implements Arena {
 
   /** Hard/insane: you were just silenced. Unless it's already drawing, it casts the biggest spell
    *  that's thrown before you could counter it (silence left + reaction slack). */
+  /** Parry: once per spell you throw at it, it may try; a try is timed into the window or mistimed (too early). */
+  private parryCheck(now: number) {
+    const s = this.style
+    if (!this.playerTwoHands || !(s.parry || s.reparry)) return
+    for (const b of this.combat.view(now).bolts) {
+      if (b.to !== 'enemy' || !b.parryable || b.parried || b.landed || this.parrySeen.has(b.id)) continue
+      this.parrySeen.add(b.id)
+      if (this.parryAt !== null) continue // already set to parry something
+      const lands = b.t + b.fly
+      let chance = b.reflected ? s.reparry ?? 0 : s.parry ?? 0
+      if (b.tier === 'light') chance /= 2 // too fast to see coming
+      // Smart ones won't throw away their own big spell that's nearly out.
+      const e = this.enemy
+      if (e && !e.counter && s.smart >= 0.7 && e.shape === SIGNATURE[e.el] && now - e.start > e.chargeMs) chance = 0
+      // Its counter will be out before your spell lands: it throws that instead of parrying.
+      if (e?.counter && e.ends <= lands) chance = 0
+      if (Math.random() >= chance) continue
+      this.parryAt = Math.random() < (s.parryAim ?? 0) ? lands - 30 - Math.random() * 50 : lands - 200 - Math.random() * 200
+      this.parryAt = Math.max(now, this.parryAt)
+    }
+    if (this.parryAt !== null && now >= this.parryAt) {
+      this.parryAt = null
+      // Win or lose, a parry gives up its own cast (same rule as yours).
+      if (this.enemy) this.nextEnemyAt = Math.max(this.nextEnemyAt, now + 500)
+      this.enemy = null
+      this.reactAt = null
+      this.combat.parry('enemy', now)
+    }
+  }
+
   private punish(now: number, silenceLeft: number) {
     const e = this.enemy
     if (e && (e.counter || now - e.start >= e.chargeMs)) return // a counter, or already drawing: let it finish
@@ -751,6 +790,7 @@ export class PracticeArena implements Arena {
   update(now: number): Snapshot {
     if (this.running) {
       this.combat.update(now)
+      this.parryCheck(now)
       // Your charge, as the fight sees it: the AI may react to a new one.
       // A combo still being mixed isn't a target yet; once it locks in, it reads as the combo itself
       // (only a combo counterspell stops it).
@@ -849,6 +889,16 @@ export class PracticeArena implements Arena {
 // either), so you can practice parries and counters without a real fight. ------------------------
 export const DUMMY_EVERY_MS = 2600 // default time between its casts
 /** A dummy's next spell from its pool. While Shrouded it attacks (no second Shroud), if it has anything else. */
+/** Training dummy parry: a spell about to hit a dummy is parried back (always on time) at this % chance.
+ *  Rolled once per spell, so a back-and-forth chain goes on while each roll succeeds. */
+export function dummyParry(combat: Combat, ids: Fid[], pct: number, seen: Set<number>, now: number) {
+  if (pct <= 0) return
+  for (const b of combat.view(now).bolts) {
+    if (!ids.includes(b.to) || !b.parryable || b.parried || b.landed || seen.has(b.id) || b.t + b.fly - now > 60) continue
+    seen.add(b.id)
+    if (Math.random() * 100 < pct) combat.parry(b.to, now)
+  }
+}
 export function dummyPick(pool: string[], shrouded: boolean): [string, string] {
   const attacks = shrouded ? pool.filter((k) => !k.endsWith(':veil')) : pool
   const from = attacks.length ? attacks : pool
@@ -860,6 +910,8 @@ export class DummyArena implements Arena {
   castPct = 100 // cast time, as a share of the default (charge + draw + ready); 50 = twice as fast
   gapMs = DUMMY_EVERY_MS // time between casts
   pool: string[] = [] // spells it may throw, as "element:shape" (set by the page)
+  parryPct = 0 // chance it parries a spell thrown at it (always on time)
+  private parrySeen = new Set<number>()
   private enemy: EnemyCast | null = null
   private nextEnemyAt = 0
 
@@ -896,6 +948,7 @@ export class DummyArena implements Arena {
   }
   update(now: number): Snapshot {
     this.combat.update(now)
+    dummyParry(this.combat, ['enemy'], this.parryPct, this.parrySeen, now)
     if (this.attacking) {
       // Interrupted (or knocked down): its spell is gone; it starts over after the silence.
       if (this.enemy && (this.combat.isSilenced('enemy', now) || !this.combat.chargeOf('enemy'))) {

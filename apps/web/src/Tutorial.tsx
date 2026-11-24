@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
+import { DOOM_MS, GLACIER_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 
 interface Step {
@@ -12,6 +13,10 @@ interface Step {
   tip?: string
 }
 
+const secs = (ms: number) => `${ms / 1000} seconds`
+const pct = (f: number) => `${Math.round(f * 100)}%`
+
+// Numbers come from combat.ts so the tips never go stale.
 const TIPS: Record<string, string> = {
   'F line': 'Hold F until it charges, keep holding it while you trace a line, then open all five fingers and push toward the camera.',
   'I w': 'Keep holding I for the whole W. Opening your hand early ends the drawing.',
@@ -25,18 +30,18 @@ const TIPS: Record<string, string> = {
   'H hourglass': 'Regen heals a little at a time.',
   'H aegis': 'Aegis soaks the next hits for a few seconds.',
   'H mirror': 'Mirror sends their next hit back at them.',
-  'U scythe': 'Doom: they must land a cast within 2.5 seconds or take a big hit.',
+  'U scythe': `Doom: they must land a cast within ${secs(DOOM_MS)} or take a big hit.`,
   'U veil': 'Shroud hides your charge and drawing from them.',
   'U blade': 'Execute hits harder the lower their health.',
   'magma volcano': 'Combo: sign C, then F and E, then draw. The second element locks the mix.',
-  'storm cloud': 'Five storm pulses. Throwing during one fizzles and hurts you.',
-  'glacier iceberg': 'Takes 5 seconds to arrive. Only C, F, I and a circle stops it.',
-  'twilight yinyang': 'You take half damage and they take 50% more for 6 seconds.',
-  'steam puff': 'Their attacks have a 50% chance to miss for 5 seconds.',
+  'storm cloud': `${STORM.count} storm pulses, ${STORM.pulse} damage each. Throwing during one fizzles and costs you ${STORM.zap}.`,
+  'glacier iceberg': `Takes ${secs(GLACIER_MS)} to arrive. Only C, F, I and a circle stops it.`,
+  'twilight yinyang': `You take ${pct(TWILIGHT_GUARD)} less damage and they take ${pct(TWILIGHT_EXPOSE)} more for ${secs(TWILIGHT_MS)}.`,
+  'steam puff': `Their attacks have a ${pct(STEAM_MISS)} chance to miss for ${secs(STEAM_MS)}.`,
   'thermal thermo': 'Hits, burns and chills them at once.',
-  'plasma plasma': 'Stuns them for 1.5 seconds and burns.',
+  'plasma plasma': `Stuns them for ${secs(PLASMA.stun)} and burns.`,
   'sunfire sun': 'A long burn that heals you.',
-  'grave tomb': 'They cannot heal for 9 seconds.',
+  'grave tomb': `For ${secs(GRAVE.ms)} they cannot heal or use Holy spells. A Holy counterspell still works.`,
   'W circle': 'Counterspell: use the element that beats theirs. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.',
   'W jab': 'Interrupt: sign and push, no drawing. Faster but weaker. It only stops a plain element charge, not a heal or a combo.',
   'H circle': 'Holy beats Unholy. A counterspell of any element also stops a heal charge or a regen still ticking.',

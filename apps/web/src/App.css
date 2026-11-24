@@ -384,14 +384,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tut-tip { max-width: 360px; margin: 0; color: var(--text, #ddd); }
 .tut-hint { display: block; color: var(--sub); font-size: 0.8rem; max-width: 170px; }
 
-/* Silence: lock on the health bar */
-.hp-lock { position: absolute; inset: 0; pointer-events: none; }
-.hp-lock-stripes { position: absolute; top: 0; bottom: 0; left: 0; border-radius: inherit; transition: width 0.1s linear;
-  background: repeating-linear-gradient(-45deg, rgba(255, 179, 193, 0.75) 0 6px, rgba(90, 35, 48, 0.75) 6px 12px); }
-.lock-badge { position: absolute; left: -6px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px;
-  padding: 2px 8px 2px 6px; border-radius: 999px; background: #5a2330; color: #ffb3c1; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.lock-badge svg { width: 12px; height: 14px; }
-
 /* Tutorial layout: checklist beside a step card (header bar in the element's color) */
 .tutorial { flex-direction: row; flex-wrap: wrap; align-items: safe center; gap: 20px; }
 .tut-card { display: flex; flex-direction: column; max-width: 420px; background: var(--bg); border-radius: 14px; overflow: hidden; }
@@ -466,7 +458,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 @keyframes mirror-glint { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 .st-eclipse { background: radial-gradient(circle at 50% 50%, transparent 25%, rgba(10, 4, 20, 0.75) 70%); }
 .st-doom { display: flex; align-items: flex-start; justify-content: center; box-shadow: inset 0 0 70px 14px rgba(160, 92, 214, 0.55); animation: regen-pulse 1s ease-in-out infinite; }
-.st-doom b { margin-top: 6%; font-size: min(10cqw, 56px); color: #e7c8ff; text-shadow: 0 2px 8px #000; }
 
 .tut-signs { display: flex; gap: 6px; }
 .tut-signs img + img { width: 96px !important; height: 96px !important; align-self: center; }
@@ -487,6 +478,8 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .st-timer.aegis { color: #b9ffcb; }
 .st-timer.mirror { color: #ffffff; }
 .st-timer.shroud { color: #e7c8ff; }
+.st-timer.doom { color: #c78bff; }
+.st-timer.silence { color: #ffb3c1; }
 
 :root { --armor-hp: #3d8bff; }
 .armor-fill { position: absolute; top: 0; height: 100%; border-radius: 6px; background: repeating-linear-gradient(135deg, #8cc4ff 0 6px, #5aa6ff 6px 12px); box-shadow: 0 0 8px #5aa6ff; transition: left 0.2s, width 0.2s; }
@@ -611,20 +604,20 @@ html[data-theme] button.cta:hover, button.cta:hover { background: color-mix(in s
 .st-timer.glacier { color: #bfe9ff; }
 
 /* Tutorial progress: one colored bar, pinned to the bottom (it never moves with the card) */
-.tutorial { padding-bottom: 96px; }
+.tutorial { padding-bottom: 96px; padding-top: 132px; } /* top: room for the opponent's timer pills */
 .tut-bar { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); width: min(640px, calc(100% - 24px)); box-sizing: border-box; display: flex; gap: 3px; padding: 4px; overflow-x: auto; scrollbar-width: thin; z-index: 3; }
 .tut-bar .tut-seg { flex: 1 0 12px; height: 12px; min-width: 12px; padding: 0 !important; border: none; border-radius: 4px; background: currentColor; opacity: 0.3; box-shadow: none; touch-action: manipulation; }
 .tut-bar .tut-seg.done { opacity: 1; }
 .tut-bar .tut-seg[aria-current] { opacity: 1; outline: 2px solid #fff; outline-offset: 1px; }
 
 /* Every tutorial card is the same size: Next stays in one place */
-.tutorial .tut-card { height: min(520px, calc(100cqh - 70px)); min-height: 0; }
+.tutorial .tut-card { height: min(520px, calc(100cqh - 240px)); min-height: 0; }
 .tut-body { overflow: hidden; }
-.tut-demo { flex-wrap: nowrap !important; height: 245px; flex-shrink: 0; align-items: flex-start; }
+.tut-demo { flex-wrap: nowrap !important; min-height: 245px; flex-shrink: 0; align-items: flex-start; } /* grows for a long hint, so it never runs into the tip */
 .tut-signs.multi { flex-direction: column; gap: 4px; }
 .tut-signs.multi img, .tut-signs.multi img + img { width: 52px !important; height: 52px !important; padding: 3px; }
 html[data-theme='cartoon'] .tut-signs.multi img { border-width: 3px; box-shadow: 0 3px 0 var(--ink); border-radius: 12px; }
-.tut-tip { min-height: 4.2em; margin: 0; font-size: 0.92rem; line-height: 1.35; }
+.tut-tip { margin: 0; font-size: 0.92rem; line-height: 1.35; }
 .tut-head .tut-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .tut-mini { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 85%, transparent); color: var(--text); white-space: nowrap; }

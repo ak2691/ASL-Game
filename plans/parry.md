@@ -17,7 +17,7 @@ A core game feature, not a spell. Mirror is dropped.
 ## Outcomes
 - **Any parry, hit or miss, gives up your own cast:** the drawing in progress, the readied spell and the charge are all dropped. You can't parry and still throw.
 - Drawing pauses for ~500 ms after a parry, so the hand coming back doesn't start a line.
-- **Hit:** the spell reflects at 100%, then 75%, then 50% of its power; a fourth parry just ends it. No stun.
+- **Hit:** the spell reflects at 100%, then 75%, then 50% of its power; a fourth parry just ends it. No stun, but no throws for 0.5 s (`PARRY_HIT_MS`).
 - **Miss:** a 1 s stagger: no throws and no parries.
 
 ## Practice
@@ -26,3 +26,17 @@ A core game feature, not a spell. Mirror is dropped.
 ## Related settings
 - Push size button (Tiny 1.08×, Small 1.14×, Medium 1.25× default, Big 1.4×), shared by throw and parry, in home settings and the Esc menu. The parry's "drawing hand already pushing" wait scales with it (halfway to the size).
 - Sign hold 50 ms, pen switch 50 ms (two fight ticks). Dropping a charge with an open hand stays 150 ms.
+
+## AI parry (practice, Magus and up)
+- Only when the player has two hands on (so they can parry back).
+- Once per spell thrown at it: a chance to try (half vs lights), then a chance the push lands in the window; a mistimed push is early and staggers it.
+- Re-parry: a lower chance vs a spell parried back at it. The chain still ends on the 4th parry.
+- Win or lose it gives up its own cast. Archmage and up won't parry while their own signature is drawing.
+- It never parries when its own counter would be thrown before your spell lands.
+
+| Tier | Tries | Times it right | Re-parry |
+|---|---|---|---|
+| Magus | 15% | 55% | 4% |
+| Archmage | 20% | 65% | 8% |
+| Lich | 25% | 75% | 12% |
+| Ascendant | 30% | 85% | 15% |

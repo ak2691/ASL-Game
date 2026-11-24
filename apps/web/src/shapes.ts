@@ -301,7 +301,7 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
   // at least leans Meteor) is a Meteor even if the drawing is wobbly; any other count never is.
   const flame = top.find((t) => t.name === 'flame')!.prob
   if (top[0].name === 'flame' || flame >= 0.3) {
-    if (spikeCount(points) === 4) return { name: 'flame', score: Math.max(0.7, flame), top }
+    if (spikeCount(points) === 4) return { name: 'flame', score: flame, top }
     if (top[0].name === 'flame') return { name: 'none', score: top[0].prob, top }
   }
   // Sunfire: exactly 8 points, counted by a rule (the network can't count 7 vs 8 vs 9 reliably).

@@ -157,8 +157,6 @@
 [data-theme='pixel'] .tut-push { font-size: 22px; animation-timing-function: steps(2, end) !important; }
 [data-theme='pixel'] .tut-count { font-family: var(--title); font-size: 10px; }
 [data-theme='pixel'] .asl-mini { border: 2px solid var(--edge); }
-[data-theme='pixel'] .hp-lock-stripes { background: repeating-linear-gradient(90deg, #b13e53 0 6px, #5d275d 6px 12px); }
-[data-theme='pixel'] .lock-badge { background: #b13e53; color: #f4f4f4; border: 2px solid var(--edge); font-family: var(--title); font-size: 9px; font-weight: normal; }
 [data-theme='pixel'] .tut-card { border: 3px solid var(--edge); box-shadow: 6px 6px 0 var(--edge); }
 [data-theme='pixel'] .tut-head .tut-title { font-size: 14px; text-shadow: none !important; }
 [data-theme='pixel'] .tut-list { border: 3px solid var(--edge); }

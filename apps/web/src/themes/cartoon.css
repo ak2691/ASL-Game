@@ -160,9 +160,6 @@
 [data-theme='cartoon'] .tut-tip { font-size: 17px; }
 [data-theme='cartoon'] .asl-mini { border: 2px solid var(--ink); border-radius: 8px; }
 [data-theme='cartoon'] .tut-demo svg circle { fill: var(--ink); }
-[data-theme='cartoon'] .hp-lock-stripes { background: repeating-linear-gradient(-45deg, #ffb3c1 0 8px, #ff5470 8px 16px); opacity: 0.85; }
-[data-theme='cartoon'] .lock-badge { left: -10px; background: #ff5470; color: #fff; border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); font-family: var(--title); font-weight: normal; font-size: 15px; padding: 2px 10px 2px 8px; animation: toon-in 0.35s var(--bounce); }
-[data-theme='cartoon'] .lock-badge svg { width: 14px; height: 16px; }
 [data-theme='cartoon'] .tut-card { border: 4px solid var(--ink); border-radius: 24px; box-shadow: 0 8px 0 var(--ink); background: var(--sub-alt); }
 [data-theme='cartoon'] .tut-head { border-bottom: 4px solid var(--ink); padding: 10px 18px; }
 [data-theme='cartoon'] .tut-head .tut-title { color: #fff; font-size: 30px; transform: none; }

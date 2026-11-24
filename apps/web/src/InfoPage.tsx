@@ -29,14 +29,14 @@ const UNHOLY = [
 
 const COMBO_ROWS = [
   { c: 'magma', mix: 'C, F, E', draw: 'Volcano with a base', dmg: `${MAGMA[0]}`, effect: `+${MAGMA[1]} burn over 5 s.` },
-  { c: 'storm', mix: 'C, W, L', draw: 'Cloud with a bolt', dmg: `${STORM.hit}`, effect: `${STORM.count} damaging static pulses. A throw in a pulse fizzles and takes ${STORM.zap}.` },
+  { c: 'storm', mix: 'C, W, L', draw: 'Cloud with a bolt', dmg: `${STORM.hit}`, effect: `${STORM.count} static pulses, ${STORM.pulse} damage each. A throw in a pulse fizzles and takes ${STORM.zap}.` },
   { c: 'glacier', mix: 'C, I, E', draw: 'Iceberg', dmg: `${GLACIER_DMG}`, effect: `Takes ${s(GLACIER_MS)} to arrive. Only a Fire + Ice combo counterspell stops it.` },
-  { c: 'twilight', mix: 'C, H, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take 50% more.` },
+  { c: 'twilight', mix: 'C, H, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take double damage.` },
   { c: 'steam', mix: 'C, F, W', draw: 'Puffy cloud', dmg: `${STEAM_HIT}`, effect: `For ${s(STEAM_MS)} their attacks have a 50% chance to miss.` },
   { c: 'thermal', mix: 'C, F, I', draw: 'Thermometer with a crack', dmg: `${THERMAL.hit}`, effect: `+${THERMAL.burn} burn, and chills them: their next hit does +${THERMAL.chill * 100}%.` },
   { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Stuns ${s(PLASMA.stun)} and burns +${PLASMA.burn}.` },
   { c: 'sunfire', mix: 'C, H, F', draw: 'Sun', dmg: `${SUNFIRE[0]}`, effect: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
-  { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `For ${s(GRAVE.ms)} they can't heal or use any Holy spell.` },
+  { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `For ${s(GRAVE.ms)} they can't heal or use any Holy spell. A Holy counterspell still works.` },
 ]
 
 export function InfoPage({ onHome }: { onHome: () => void }) {

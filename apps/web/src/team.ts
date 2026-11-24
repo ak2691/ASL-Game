@@ -2,7 +2,7 @@
 // its own spells. Nobody can be hurt. The fight engine supports teams; this is the first use of it.
 import { signsFor } from './spells'
 import { Combat, type Fid, type FighterSpec } from './combat'
-import { DUMMY_EVERY_MS, dummyPick, spellOf, type Arena, type OppCast, type Pt01, type Snapshot } from './battle'
+import { DUMMY_EVERY_MS, dummyParry, dummyPick, spellOf, type Arena, type OppCast, type Pt01, type Snapshot } from './battle'
 
 export const FOES: Fid[] = ['enemy', 'enemy2'] // left, right
 const JITTER = 0.2
@@ -25,6 +25,8 @@ export class TeamArena implements Arena {
   castPct = 100 // cast time, as a share of the default (same setting as the single dummy)
   gapMs = DUMMY_EVERY_MS // time between casts
   pools: Record<Fid, string[]> = { enemy: [], enemy2: [] } // spells each may throw, as "element:shape"
+  parryPct = 0 // chance a dummy parries a spell thrown at it (always on time)
+  private parrySeen = new Set<number>()
   private casts: Record<Fid, BotCast | null> = {}
   private nextAt: Record<Fid, number> = {}
   private knockedSeen: Record<Fid, number> = {}
@@ -122,6 +124,7 @@ export class TeamArena implements Arena {
 
   update(now: number): TeamSnapshot {
     this.combat.update(now)
+    dummyParry(this.combat, FOES, this.parryPct, this.parrySeen, now)
     if (this.attacking) for (const id of FOES) this.bot(id, now)
     const casts: Record<Fid, OppCast | null> = {}
     for (const id of FOES) casts[id] = this.attacking ? this.castView(id, now) : null

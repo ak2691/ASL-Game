@@ -99,17 +99,18 @@ export function saveDummyTwo(on: boolean) {
 const DUMMY_PACE_KEY = 'spells-dummy-pace'
 export const CAST_PCT = { min: 50, max: 200 }
 export const GAP_MS = { min: 500, max: 8000, def: 2600 }
-export function loadDummyPace(): { castPct: number; gapMs: number } {
+export type DummyPace = { castPct: number; gapMs: number; parryPct: number }
+export function loadDummyPace(): DummyPace {
   try {
     const v = JSON.parse(localStorage.getItem(DUMMY_PACE_KEY) ?? 'null')
     if (v && typeof v.castPct === 'number' && typeof v.gapMs === 'number')
-      return { castPct: Math.min(CAST_PCT.max, Math.max(CAST_PCT.min, v.castPct)), gapMs: Math.min(GAP_MS.max, Math.max(GAP_MS.min, v.gapMs)) }
+      return { castPct: Math.min(CAST_PCT.max, Math.max(CAST_PCT.min, v.castPct)), gapMs: Math.min(GAP_MS.max, Math.max(GAP_MS.min, v.gapMs)), parryPct: typeof v.parryPct === 'number' ? Math.min(100, Math.max(0, v.parryPct)) : 0 }
   } catch {
     /* fall through */
   }
-  return { castPct: 100, gapMs: GAP_MS.def }
+  return { castPct: 100, gapMs: GAP_MS.def, parryPct: 0 }
 }
-export function saveDummyPace(p: { castPct: number; gapMs: number }) {
+export function saveDummyPace(p: DummyPace) {
   try {
     localStorage.setItem(DUMMY_PACE_KEY, JSON.stringify(p))
   } catch {

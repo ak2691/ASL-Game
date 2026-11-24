@@ -328,6 +328,49 @@ class Gen:
     def cage(self):
         return self.finish(self.walk("cage_walks"), rot=10)
 
+    COMBOS = ["volcano", "cloud", "yinyang", "iceberg", "puff", "thermo", "plasma", "sun", "tomb"]
+
+    def bad_combo(self, c=None, strength=None):
+        """A combo with every feature present but drawn badly (Nov 23, 2026): a big, uneven warp of the
+        whole drawing, or one part shoved well out of place. Far past the hand wobble that good ones get."""
+        c = c or self.r.choice(self.COMBOS)
+        self.raw = True
+        try:
+            p = np.asarray(getattr(self, c)(), float)
+        finally:
+            self.raw = False
+        size = np.ptp(p, 0).max() or 1
+        n = len(p)
+        if self.r.random() < 0.6:
+            amt = strength if strength is not None else self.u(0.10, 0.16)
+            w = np.cumsum(self.r.normal(0, 1, (n, 2)), 0)
+            k = np.ones(max(5, n // 8)) / max(5, n // 8)
+            w = np.stack([np.convolve(w[:, 0], k, "same"), np.convolve(w[:, 1], k, "same")], 1)
+            w -= w.mean(0)
+            w *= amt * size / (np.abs(w).max() or 1)
+            p = p + w
+        else:
+            a = int(self.r.integers(0, n // 2)); b = min(n, a + int(n * self.u(0.2, 0.4)))
+            shift = self.r.normal(0, 1, 2); shift *= (strength or self.u(0.22, 0.32)) * size / np.linalg.norm(shift)
+            ramp = np.ones(b - a); e = max(1, (b - a) // 6)
+            ramp[:e] = np.linspace(0, 1, e); ramp[-e:] = np.linspace(1, 0, e)
+            p[a:b] += np.outer(ramp, shift)
+        return self.finish(p, rot=12)
+
+    def bad_cage(self):
+        """A mangled cage: corners far off (not a box any more) or one corner caved in toward the middle."""
+        if not hasattr(self, "cage_walks"):
+            self._setup()
+        wk = self.cage_walks[self.r.integers(len(self.cage_walks))]
+        cs = np.array(self.CAGE_V, float) * [self.u(0.8, 1.25), 1]
+        if self.r.random() < 0.5:
+            cs = cs + self.r.normal(0, self.u(0.17, 0.24), cs.shape)
+        else:
+            k = self.r.integers(4)
+            cs[k] = cs[k] + (cs.mean(0) - cs[k]) * self.u(0.4, 0.65)
+            cs = self.jv(cs, 0.04)
+        return self.finish(dense([cs[i] for i in wk]), rot=10)
+
     def battlements(self, n=3, flip=False, slant=0.0, round_tops=False):
         widths = self.r.uniform(0.7, 1.3, 2 * n - 1)
         xs = np.concatenate([[0], np.cumsum(widths)])
@@ -709,6 +752,10 @@ class Gen:
     # ---------------------------------------------------------- near-misses
     def none(self):
         r = self.r
+        if r.random() < 0.05:
+            return self.bad_cage()
+        if r.random() < 0.12:
+            return self.bad_combo()
         if r.random() < 0.35:
             return self.none_new()
         c = r.integers(31)
