@@ -33,7 +33,7 @@ const TIPS: Record<string, string> = {
   'glacier iceberg': 'Takes 5 seconds to arrive. Only C, F, I and a circle stops it.',
   'twilight yinyang': 'You take half damage and they take 50% more for 6 seconds.',
   'steam puff': 'Their attacks have a 50% chance to miss for 5 seconds.',
-  'thermal thermo': 'Sets off any burn or chill already on them.',
+  'thermal thermo': 'Hits, burns and chills them at once.',
   'plasma plasma': 'Stuns them for 1.5 seconds and burns.',
   'sunfire sun': 'A long burn that heals you.',
   'grave tomb': 'They cannot heal for 9 seconds.',

@@ -1,6 +1,6 @@
 // Spell info: every spell's damage and effects. Attack numbers come straight from combat.ts;
 // signature and heal numbers are written here (keep them in sync with land() in combat.ts).
-import { AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
+import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 
 const s = (ms: number) => `${ms / 1000} s`
@@ -14,11 +14,11 @@ const ATTACK_EFFECT: Record<string, string> = {
 }
 
 const SIGNATURES = [
-  { el: 'F', name: 'Meteor', draw: 'Circle with 4 spikes', dmg: '30', effect: '+15 burn over 2.5 s. The most total damage.' },
-  { el: 'I', name: 'Frozen Prison', draw: 'Square + both diagonals', dmg: '10', effect: `Silences them for ${s(PRISON_SILENCE_MS)}, whatever their element, and chills them: their next hit within ${s(CHILL_MS)} does +${PRISON_CHILL * 100}%.` },
-  { el: 'W', name: 'Tidal Wave', draw: 'Spiral', dmg: '22', effect: 'You heal 20.' },
-  { el: 'E', name: 'Earthquake', draw: '3 towers', dmg: '35', effect: 'Knocks off their charge and readied spell.' },
-  { el: 'L', name: 'Thunderbolt', draw: '7 zigzag lines', dmg: '18', effect: 'Three fast static pulses where their throws fizzle.' },
+  { el: 'F', name: 'Meteor', draw: 'Circle with 4 spikes', dmg: '32', effect: '+18 burn over 2.5 s. The most total damage.' },
+  { el: 'I', name: 'Frozen Prison', draw: 'Square + both diagonals', dmg: '20', effect: `Silences them for ${s(PRISON_SILENCE_MS)}, whatever their element, and chills them: their next hit within ${s(CHILL_MS)} does +${PRISON_CHILL * 100}%.` },
+  { el: 'W', name: 'Tidal Wave', draw: 'Spiral', dmg: '25', effect: 'You heal 22.' },
+  { el: 'E', name: 'Earthquake', draw: '3 towers', dmg: '38', effect: 'Knocks off their charge and readied spell.' },
+  { el: 'L', name: 'Thunderbolt', draw: '7 zigzag lines', dmg: '22', effect: 'Three fast static pulses where their throws fizzle.' },
 ]
 
 const UNHOLY = [
@@ -33,10 +33,10 @@ const COMBO_ROWS = [
   { c: 'glacier', mix: 'C, I, E', draw: 'Iceberg', dmg: `${GLACIER_DMG}`, effect: `Takes ${s(GLACIER_MS)} to arrive. Only a Fire + Ice combo counterspell stops it.` },
   { c: 'twilight', mix: 'C, H, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take 50% more.` },
   { c: 'steam', mix: 'C, F, W', draw: 'Puffy cloud', dmg: `${STEAM_HIT}`, effect: `For ${s(STEAM_MS)} their attacks have a 50% chance to miss.` },
-  { c: 'thermal', mix: 'C, F, I', draw: 'Thermometer with a crack', dmg: `${THERMAL.hit}`, effect: `Burns and chills. Sets off burn or chill already on them for +${THERMAL.burst} each.` },
+  { c: 'thermal', mix: 'C, F, I', draw: 'Thermometer with a crack', dmg: `${THERMAL.hit}`, effect: `+${THERMAL.burn} burn, and chills them: their next hit does +${THERMAL.chill * 100}%.` },
   { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Stuns ${s(PLASMA.stun)} and burns +${PLASMA.burn}.` },
   { c: 'sunfire', mix: 'C, H, F', draw: 'Sun', dmg: `${SUNFIRE[0]}`, effect: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
-  { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `They can't heal for ${s(GRAVE.ms)}.` },
+  { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `For ${s(GRAVE.ms)} they can't heal or use any Holy spell.` },
 ]
 
 export function InfoPage({ onHome }: { onHome: () => void }) {
@@ -113,12 +113,12 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
             <tr>
               <td>Heal</td>
               <td>Star</td>
-              <td>+20 HP right away</td>
+              <td>+{HEAL} HP right away</td>
             </tr>
             <tr>
               <td>Regen</td>
               <td>Hourglass</td>
-              <td>+30 HP over 2.5 s (6 every 0.5 s)</td>
+              <td>+{REGEN.amount * REGEN.ticks} HP over 2.5 s ({REGEN.amount} every 0.5 s)</td>
             </tr>
             <tr>
               <td>Aegis</td>

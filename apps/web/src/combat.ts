@@ -10,30 +10,33 @@ export const COUNTER_SILENCE_MS = 2500 // a landed counterspell
 export const QUICK_SILENCE_MS = 500 // a landed quick interrupt (charge + push, no drawing)
 export const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
 export const CHILL_MS = 4000
-export const PRISON_CHILL = 0.35 // Frozen Prison also chills: +35% on the next hit they take within CHILL_MS
+export const PRISON_CHILL = 0.45 // Frozen Prison also chills: +45% on the next hit they take within CHILL_MS
 // Holy buffs, Unholy curses, combos. First guesses, to tune in playtests.
-export const AEGIS_HP = 40 // Aegis: armor that soaks direct-hit damage...
+export const AEGIS_HP = 45 // Aegis: armor that soaks direct-hit damage...
 export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be recast while any is left.
 export const MIRROR_MS = 4000 // Mirror: the next direct-damage spell within this time flies back
 export const DOOM_MS = 2500 // Doom: land a cast within this time...
 export const DOOM_DMG = 30 // ...or take this
-export const SHROUD_MS = 4000 // Shroud: they can't see your charge or your drawing
+export const SHROUD_MS = 5000 // Shroud: they can't see your charge or your drawing
 export const EXECUTE: [number, number, number] = [15, 0.3, 60] // Execute: base + share of their missing HP, capped
 // (a readied Execute hit by a counterspell backfires: the caster takes half of what it would do to them)
 // Combos (plans/combos.md). First guesses, to tune in playtests.
-export const MAGMA: [number, number] = [30, 30] // hit, then burn over 5 s
-export const STORM = { hit: 10, pulse: 5, zap: 8, count: 5 } // 0.5 s on / 0.5 s off for 5 s; a throw in a pulse fizzles and takes `zap`
+// Nov 23 buff: a combo (C + 2 letters + a hard drawing) takes ~2-3x a heavy, so each should be worth ~2x one.
+export const MAGMA: [number, number] = [35, 35] // hit, then burn over 5 s
+export const STORM = { hit: 18, pulse: 8, zap: 12, count: 5 } // 0.25 s on / 0.6 s off; a throw in a pulse fizzles and takes `zap`
 export const GLACIER_MS = 5000 // Advancing Glacier: creeps this long, then crushes...
-export const GLACIER_DMG = 60 // ...for this. Only a Fire + Ice combo counterspell stops it.
-export const TWILIGHT_MS = 6000 // you take 50% less, they take 50% more (stacks with chill)
+export const GLACIER_DMG = 70 // ...for this. Only a Fire + Ice combo counterspell stops it.
+export const TWILIGHT_MS = 7000 // you take 50% less, they take 50% more (stacks with chill)
 export const TWILIGHT_PCT = 0.5
-export const STEAM_MS = 5000 // their screen fogs and their attacks may miss
+export const STEAM_MS = 6000 // their screen fogs and their attacks may miss
 export const STEAM_MISS = 0.5
-export const STEAM_HIT = 10
-export const THERMAL = { hit: 15, burn: 10, chill: 0.25, burst: 20 } // burst per status (burn, chill) already on them
-export const PLASMA = { hit: 15, burn: 12, stun: 1500 }
-export const SUNFIRE: [number, number] = [10, 36] // hit, then a 6 s burn that heals you what it deals
-export const GRAVE = { hit: 15, ms: 9000 } // no healing for them
+export const STEAM_HIT = 22
+export const THERMAL = { hit: 28, burn: 16, chill: 0.35 } // a hit, a burn and a chill
+export const PLASMA = { hit: 35, burn: 15, stun: 1750 }
+export const SUNFIRE: [number, number] = [15, 40] // hit, then a 6 s burn that heals you what it deals
+export const GRAVE = { hit: 30, ms: 10000 } // no healing (Water's mend included) and no Holy spells at all
+export const HEAL = 28 // Holy star: right away
+export const REGEN = { amount: 8, ticks: 5 } // Holy hourglass: every 0.5 s
 // Casting rules. The browser only reports what it recognized (a held letter, a finished shape, a
 // push); these decide what that does. Online, only the server runs them.
 /** A fizzle (failed drawing, or a readied spell that faded) locks all throws this long; the charge stays. */
@@ -51,19 +54,19 @@ const REFLECT_POWER = [1, 0.75, 0.5]
 
 // Attack damage per element: [light, heavy]. Numbers are a first guess, to tune in playtests.
 export const PUNCH: Record<string, [number, number]> = {
-  E: [10, 30], // hardest direct hits
-  F: [7, 22], // + burn
-  W: [6, 18], // + mend
-  L: [5, 15], // + static
-  I: [5, 15], // + chill
+  E: [10, 22], // hardest direct hits
+  F: [7, 17], // + burn
+  W: [6, 15], // + mend
+  L: [5, 13], // + static
+  I: [5, 11], // + chill
 }
-export const BURN: [number, number] = [4, 11] // Fire: extra damage over ~1.5 s
-export const CHILL: [number, number] = [0.25, 0.4] // Ice (light, heavy): the next hit they take does this much more
-export const STATIC_PULSES: [number, number] = [1, 2] // Lightning: pulses of 0.5 s, 0.75 s gaps
+export const BURN: [number, number] = [4, 8] // Fire: extra damage over ~1.5 s
+export const CHILL: [number, number] = [0.25, 0.35] // Ice (light, heavy): the next hit they take does this much more
+export const STATIC_PULSES: [number, number] = [1, 2] // Lightning: pulses of 0.25 s, 1 s gaps
 
 // Static pulse patterns: throws fizzle during "on".
-const PUNCH_STATIC = { on: 500, off: 750 }
-const THUNDERBOLT_STATIC = { on: 500, off: 500, count: 3 } // tighter rhythm, more pulses
+const PUNCH_STATIC = { on: 250, off: 1000 }
+const THUNDERBOLT_STATIC = { on: 250, off: 800, count: 3 } // tighter rhythm, more pulses
 
 /** A team. In 1v1 each team has one fighter, whose id is the team's name. */
 export type Side = 'player' | 'enemy'
@@ -665,9 +668,14 @@ export class Combat {
     }
 
     if (el === 'H') {
+      // Grave: no Holy spell works on them (heals, Aegis, Mirror).
+      if (this.noHealUntil[target] > now) {
+        this.float(target, 'Holy blocked (Grave)', COMBO_CHARGES.grave.color, now)
+        return
+      }
       // On yourself, or (team modes) on a teammate.
-      if (shape === 'star') this.changeHp(target, 20, color, now)
-      else if (shape === 'hourglass') this.ticking.push({ side: target, by: caster, amount: 6, left: 5, next: now, color })
+      if (shape === 'star') this.changeHp(target, HEAL, color, now)
+      else if (shape === 'hourglass') this.ticking.push({ side: target, by: caster, amount: REGEN.amount, left: REGEN.ticks, next: now, color })
       else if (shape === 'aegis') {
         // Armor doesn't stack or refresh: a new Aegis only takes once the old armor is gone.
         if (this.armor(target, now) > 0) this.float(target, 'Armor still up', color, now)
@@ -732,21 +740,21 @@ export class Combat {
     // Signatures.
     switch (shape) {
       case 'flame': // Meteor: the biggest total damage
-        this.hit(target, 30, color, now)
-        this.burn(target, 15, 5, color, now)
+        this.hit(target, 32, color, now)
+        this.burn(target, 18, 5, color, now)
         break
       case 'cage': // Frozen Prison: a short silence on any element
-        this.hit(target, 10, color, now)
+        this.hit(target, 20, color, now)
         this.silence(target, PRISON_SILENCE_MS, now)
         this.chillOn(target, PRISON_CHILL, now) // and chilled
         this.float(target, 'Frozen!', color, now)
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
-        this.hit(target, 18, color, now)
+        this.hit(target, 22, color, now)
         if (!this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
         break
       case 'battlements': // Earthquake: huge hit, knocks their charge off
-        this.hit(target, 35, color, now)
+        this.hit(target, 38, color, now)
         this.charge[target] = null
         this.ready[target] = null
         this.knocked[target]++
@@ -754,8 +762,8 @@ export class Combat {
         this.float(target, 'Knocked down!', color, now)
         break
       case 'spiral': // Tidal Wave: big hit, big heal
-        this.hit(target, 22, color, now)
-        this.changeHp(caster, 20, color, now)
+        this.hit(target, 25, color, now)
+        this.changeHp(caster, 22, color, now)
         break
     }
   }
@@ -769,7 +777,7 @@ export class Combat {
         break
       case 'storm': // 5 s of damaging static; a throw in a pulse fizzles and gets zapped
         this.hit(target, STORM.hit, color, now)
-        this.static[target] = { start: now, on: 500, off: 500, count: STORM.count, dmg: STORM.pulse, zap: STORM.zap, hits: 0, by: caster }
+        this.static[target] = { start: now, on: 250, off: 600, count: STORM.count, dmg: STORM.pulse, zap: STORM.zap, hits: 0, by: caster }
         this.float(target, 'Storm!', color, now)
         break
       case 'glacier': // it took GLACIER_MS to get here
@@ -788,22 +796,7 @@ export class Combat {
         this.float(target, 'Fogged!', color, now)
         break
       case 'thermal': {
-        // Sets off any burn and chill already on them, then burns and chills them again.
-        let burst = 0
-        const burning = this.ticking.filter((t) => t.side === target && t.amount < 0)
-        if (burning.length) {
-          burst += THERMAL.burst + burning.reduce((a, t) => a - t.amount * t.left, 0)
-          this.ticking = this.ticking.filter((t) => !burning.includes(t))
-        }
-        const ch = this.chill[target]
-        if (ch && ch.until > now) {
-          burst += THERMAL.burst
-          this.chill[target] = null
-        }
-        if (burst) {
-          this.changeHp(target, -Math.round(burst * this.landScale), color, now)
-          this.float(target, 'Shattered!', color, now)
-        }
+        // Hot and cold at once: a hit, then a burn and a chill.
         this.hit(target, THERMAL.hit, color, now)
         this.burn(target, THERMAL.burn, 4, color, now)
         this.chillOn(target, THERMAL.chill, now)

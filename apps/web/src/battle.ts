@@ -103,11 +103,11 @@ export const AI: Record<Difficulty, AiStyle> = {
   zealot: { ...BOT, every: 2600, speed: 1.1, els: ['F'], moves: LIGHT_HEAVY, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.25, reactMs: [1300, 1800], circle: 0.3, hintMs: 900, combos: ['sunfire', 'twilight'], comboRate: 0.15 },
   warden: { ...BOT, every: 2600, speed: 1.1, healBelow: 0.25, spamCounter: 0.3, stun: 0.15, magic: ALL_MAGIC, utility: 0.03, smart: 0.15, combos: ['magma', 'glacier'], comboRate: 0.12 },
   adept: { every: 2354, speed: 1.049, ramp: false, healBelow: 0.25, react: 0, reactMs: [1295, 1766], circle: 0, miss: 0, capitalize: false, reroll: 0, spamCounter: 0.45, stun: 0.27, read: 0, heal: 0, dodge: 0, healPunish: false, drop: 0, utility: 0.05, smart: 0.15, combos: ['magma', 'steam'], comboRate: 0.1 },
-  magus: { every: 1412, speed: 0.816, ramp: true, healBelow: 0.35, react: 0.32, reactMs: [883, 1236], circle: 0.41, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.77, stun: 0.36, read: 0.45, heal: 0.59, dodge: 0, healPunish: false, drop: 0.09, utility: 0.15, smart: 0.5, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.12, comboCounter: 0.3 },
-  archmage: { every: 942, speed: 0.7, ramp: true, healBelow: 0.4, react: 0.52, reactMs: [647, 1000], circle: 0.45, miss: 0.12, capitalize: true, reroll: 1800, spamCounter: 0.81, stun: 0.45, read: 0.54, heal: 0.72, dodge: 0.18, healPunish: false, drop: 0.18, utility: 0.22, smart: 0.75, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.15, comboCounter: 0.6 },
-  lich: { every: 706, speed: 0.53, ramp: true, healBelow: 0.4, react: 0.54, reactMs: [530, 824], circle: 0.54, miss: 0.05, capitalize: true, reroll: 1400, spamCounter: 0.81, stun: 0.54, read: 0.9, heal: 0.81, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.28, smart: 1, combos: ALL_COMBOS, comboRate: 0.18, comboCounter: 0.8 },
-  // The finale: the whole kit, used on purpose, no mistakes. A little slower than Lich so it's beatable.
-  ascendant: { every: 720, speed: 0.56, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [560, 820], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.85, stun: 0.55, read: 1, heal: 0.85, dodge: 0.4, healPunish: true, drop: 0.4, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.24, comboCounter: 1 },
+  magus: { every: 1950, speed: 0.94, ramp: false, healBelow: 0.3, react: 0.2, reactMs: [1150, 1550], circle: 0.3, miss: 0.15, capitalize: true, reroll: 0, spamCounter: 0.6, stun: 0.32, read: 0.3, heal: 0.4, dodge: 0, healPunish: false, drop: 0.05, utility: 0.1, smart: 0.4, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.12, comboCounter: 0.2 },
+  archmage: { every: 1600, speed: 0.84, ramp: true, healBelow: 0.35, react: 0.35, reactMs: [1000, 1350], circle: 0.4, miss: 0.12, capitalize: true, reroll: 2000, spamCounter: 0.72, stun: 0.4, read: 0.55, heal: 0.6, dodge: 0.12, healPunish: false, drop: 0.15, utility: 0.2, smart: 0.7, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.15, comboCounter: 0.5 },
+  lich: { every: 1300, speed: 0.74, ramp: true, healBelow: 0.4, react: 0.5, reactMs: [850, 1150], circle: 0.5, miss: 0.06, capitalize: true, reroll: 1600, spamCounter: 0.8, stun: 0.5, read: 0.85, heal: 0.78, dodge: 0.3, healPunish: true, drop: 0.3, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.18, comboCounter: 0.8 },
+  // The finale: the whole kit, used on purpose, no mistakes. A step above Lich in every number.
+  ascendant: { every: 1100, speed: 0.65, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [750, 950], circle: 0.6, miss: 0, capitalize: true, reroll: 1400, spamCounter: 0.85, stun: 0.55, read: 1, heal: 0.85, dodge: 0.36, healPunish: true, drop: 0.36, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.24, comboCounter: 1 },
 }
 /** The practice ladder, in order. */
 export const LADDER: { id: Difficulty; name: string }[] = [
@@ -133,6 +133,7 @@ const COUNTER_HOLD_MS = 350 // a counter's charge before it throws, at speed 1 (
 // Punishing a silence: its spell must be out before you can react once the silence ends
 // (sign a counter SIGN_HOLD_MS + push + the counter's flight).
 const SIGN_HOLD_MS = 50 // holding a letter this long signs it (same as the player)
+const LETTER_GAP_MS = 100 // the fastest it may sign one letter after another (a combo's C, then its two letters)
 const PUNISH_SLACK_MS = 300
 // How long the AI takes to draw each shape: longer shapes take longer, so they're easier to counter.
 const DRAW_MS: Record<string, number> = {
@@ -245,6 +246,8 @@ function pick<T>(items: { w: number; v: T }[]) {
 }
 
 export function spellOf(el: string, shape: string, speed: number, chargeMs = CHARGE_MS * speed) {
+  // Every letter takes at least LETTER_GAP_MS to sign, like a player's: a combo (C + two letters) can't be signed in an instant.
+  chargeMs = Math.max(chargeMs, signsFor(el).length * LETTER_GAP_MS)
   const drawMs = DRAW_MS[shape] * speed
   // Placed like a player's drawing on a 16:9 camera frame: centered, kept square, 75% of the height.
   const points = shape === 'jab' ? [] : shapePoints(shape).map((p) => ({ x: 0.5 + (p.x - 0.5) * 0.75 * (9 / 16), y: 0.5 + (p.y - 0.5) * 0.75 }))
@@ -686,8 +689,10 @@ export class PracticeArena implements Arena {
     const el = this.anyEl()
     const window = silenceLeft + PUNISH_SLACK_MS
     const sp = this.speed(now)
-    for (const shape of [SIGNATURE[el], 'h', 'line']) {
-      const s = { ...spellOf(el, shape, sp), readyMs: 100 } // no waiting around: throw as soon as it's drawn
+    // Lower tiers don't always go for the biggest spell; it's drawn at its normal pace.
+    const shapes = Math.random() < lerp(0.3, 1, this.style.smart) ? [SIGNATURE[el], 'h', 'line'] : ['h', 'line']
+    for (const shape of shapes) {
+      const s = spellOf(el, shape, sp)
       // Nothing fits (a short interrupt silence): still hit back at once with a light attack.
       if (s.chargeMs + s.drawMs + s.readyMs > window && shape !== 'line') continue
       this.enemy = { ...s, start: now, ends: now + s.chargeMs + s.drawMs + s.readyMs }
@@ -819,8 +824,8 @@ export class PracticeArena implements Arena {
           this.enemy = null
           const gap = this.style.every * (this.speed(now) / this.style.speed)
           this.nextEnemyAt = now + gap * (1 + (Math.random() * 2 - 1) * ENEMY_JITTER)
-          // A counter doesn't use up its turn: it follows up with an attack right away.
-          if (e.counter) this.nextEnemyAt = Math.min(this.nextEnemyAt, now + 250 + Math.random() * 250)
+          // A counter doesn't use up its turn: it follows up sooner than usual (not instantly).
+          if (e.counter) this.nextEnemyAt = Math.min(this.nextEnemyAt, now + gap * (0.4 + Math.random() * 0.2))
           // The same rules as yours: draw (unless it's a quick interrupt), then push.
           if (e.shape !== QUICK) this.combat.drew('enemy', e.shape, now)
           if (this.combat.push('enemy', now) === 'ok' && e.shape === 'veil') {
@@ -841,6 +846,12 @@ export class PracticeArena implements Arena {
 // ---- Training dummy: infinite health. Attacks on: it throws random spells at you (you can't be hurt
 // either), so you can practice parries and counters without a real fight. ------------------------
 export const DUMMY_EVERY_MS = 2600 // default time between its casts
+/** A dummy's next spell from its pool. While Shrouded it attacks (no second Shroud), if it has anything else. */
+export function dummyPick(pool: string[], shrouded: boolean): [string, string] {
+  const attacks = shrouded ? pool.filter((k) => !k.endsWith(':veil')) : pool
+  const from = attacks.length ? attacks : pool
+  return from[Math.floor(Math.random() * from.length)].split(':') as [string, string]
+}
 export class DummyArena implements Arena {
   private combat = new Combat({ dummy: true, trainee: true })
   attacking = false
@@ -890,12 +901,14 @@ export class DummyArena implements Arena {
         this.nextEnemyAt = now + this.gapMs / 2
       }
       if (!this.enemy && this.pool.length && now >= this.nextEnemyAt && !this.combat.isSilenced('enemy', now)) {
-        const [el, shape] = this.pool[Math.floor(Math.random() * this.pool.length)].split(':')
+        const [el, shape] = dummyPick(this.pool, this.combat.view(now).shroud.enemy > 0)
         const sp = spellOf(el, shape, this.castPct / 100)
-        this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs }
-        for (const l of signsFor(el)) this.combat.sign('enemy', l, now) // a combo: C, then its two letters
+        const signs = signsFor(el) // a combo: C, then its two letters, spread over the charge
+        this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, signs: signs.slice(1).map((l, i) => ({ at: now + (sp.chargeMs * (i + 1)) / signs.length, el: l })) }
+        this.combat.sign('enemy', signs[0], now)
       }
       const e = this.enemy
+      while (e?.signs?.length && now >= e.signs[0].at) this.combat.sign('enemy', e.signs.shift()!.el, now)
       if (e) this.combat.drawing('enemy', now)
       if (e && now >= e.ends) {
         this.enemy = null
