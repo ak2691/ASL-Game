@@ -23,7 +23,8 @@ export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be rec
 export const MIRROR_MS = 4000 // Mirror: the next direct-damage spell within this time flies back
 export const DOOM_MS = 2500 // Doom: land a cast within this time...
 export const DOOM_DMG = 30 // ...or take this
-export const SHROUD_MS = 5000 // Shroud: they can't see your charge or your drawing
+export const SHROUD_MS = 6000 // Shroud: they can't see your charge or your drawing (Nov 24: was 5 s; now worn by wear)
+export const SHROUD_MIN_MS = 3000 // a worn Shroud never drops below this
 export const EXECUTE: [number, number, number] = [15, 0.3, 60] // Execute: base + share of their missing HP, capped
 // (a readied Execute hit by a counterspell backfires: the caster takes half of what it would do to them)
 // Combos (plans/combos.md). First guesses, to tune in playtests.
@@ -72,6 +73,11 @@ const REFLECT_POWER = [0.5, 0.35]
 export const WEAR_STEP = 0.3
 export const WEAR_FLOOR = 0.3 // Nov 24: was 0.4
 export const WEAR_DECAY_MS = 5000
+// Wear also shrinks effects (Nov 24): chill %, stun and silence lengths (never below STUN_MIN_MS), timed
+// effects (Twilight, fog, no-heal, Shroud), Doom and Storm damage. Lightning is the exception: below
+// STATIC_CUTOFF power its hits still land but add no static. Earthquake's knockdown and Doom's timer don't change.
+export const STATIC_CUTOFF = 0.6
+export const STUN_MIN_MS = 500
 
 // Attack damage per element: [light, heavy]. Numbers are a first guess, to tune in playtests.
 export const PUNCH: Record<string, [number, number]> = {
@@ -246,6 +252,8 @@ export class Combat {
   private staggeredUntil: Record<Fid, number> = {} // a missed parry: no parrying again until then
   private pendingMiss = false // the spell landing right now was thrown from Steam's fog: it misses
   private landScale = 1 // the power of the spell landing right now (a reflected one hits softer)
+  private landWear = 1 // just the wear part of landScale (Lightning's static cutoff)
+  private doomScale: Record<Fid, number> = {} // a Doom's power when it landed
   private by: Fid | null = null // who caused the damage being dealt right now
   floats: Float[] = []
   bolts: Bolt[] = []
@@ -417,9 +425,15 @@ export class Combat {
   /** Chill doesn't stack: one at a time. A stronger (or equal) chill replaces it and restarts the clock;
    *  a weaker one changes nothing. */
   private chillOn(side: Fid, pct: number, now: number) {
+    pct *= this.landScale
     const c = this.chill[side]
     if (c && c.until > now && c.pct > pct) return
     this.chill[side] = { pct, until: now + CHILL_MS }
+  }
+
+  /** An effect's length, shrunk by the landing spell's power (wear), never below `min`. */
+  private dur(ms: number, min = 0) {
+    return Math.max(min, Math.round(ms * this.landScale))
   }
 
   /** Interrupted or whiffed: no signing, drawing or throwing. */
@@ -779,7 +793,7 @@ export class Combat {
     }
 
     if (shape === 'veil') {
-      this.shroudUntil[caster] = now + SHROUD_MS
+      this.shroudUntil[caster] = now + this.dur(SHROUD_MS, SHROUD_MIN_MS)
       this.float(caster, 'Shrouded', color, now)
       return
     }
@@ -800,6 +814,7 @@ export class Combat {
       if (shape === 'scythe') {
         this.doomAt[target] = now + DOOM_MS
         this.doomBy[target] = caster
+        this.doomScale[target] = this.landScale
         this.float(target, 'Doomed!', color, now)
         this.note(target, 'Doomed!', `throw a spell within ${DOOM_MS / 1000} s`, color, false, now)
       } else if (shape === 'blade') {
@@ -821,7 +836,7 @@ export class Combat {
       if (el === 'W') this.changeHp(caster, Math.floor(dealt / 2), color, now)
       if (el === 'I') this.chillOn(target, CHILL[p], now)
       // Static doesn't chain: a hit while it's still running does damage but doesn't restart it.
-      if (el === 'L' && !this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
+      if (el === 'L' && this.landWear >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
       return
     }
 
@@ -833,13 +848,13 @@ export class Combat {
         break
       case 'cage': // Frozen Prison: a short silence on any element
         this.hit(target, 24, color, now)
-        this.silence(target, PRISON_SILENCE_MS, now, caster)
+        this.silence(target, this.dur(PRISON_SILENCE_MS, STUN_MIN_MS), now, caster)
         this.chillOn(target, PRISON_CHILL, now) // and chilled
         this.float(target, 'Frozen!', color, now)
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
         this.hit(target, 28, color, now)
-        if (!this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
+        if (this.landWear >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
         break
       case 'battlements': // Earthquake: huge hit, knocks their charge off
         this.hit(target, 38, color, now)
@@ -865,21 +880,21 @@ export class Combat {
         break
       case 'storm': // 5 s of damaging static; a throw in a pulse fizzles and gets zapped
         this.hit(target, STORM.hit, color, now)
-        this.static[target] = { start: now, on: 350, off: 600, count: STORM.count, dmg: STORM.pulse, zap: STORM.zap, hits: 0, by: caster }
+        this.static[target] = { start: now, on: 350, off: 600, count: STORM.count, dmg: Math.round(STORM.pulse * this.landScale), zap: Math.round(STORM.zap * this.landScale), hits: 0, by: caster }
         this.float(target, 'Storm!', color, now)
         break
       case 'glacier': // it took GLACIER_MS to get here
         this.hit(target, GLACIER_DMG, color, now)
         break
       case 'twilight': // you take less, they take more
-        this.guardUntil[caster] = now + TWILIGHT_MS
-        this.exposedUntil[target] = now + TWILIGHT_MS
+        this.guardUntil[caster] = now + this.dur(TWILIGHT_MS)
+        this.exposedUntil[target] = now + this.dur(TWILIGHT_MS)
         this.float(target, 'Exposed!', color, now)
         this.float(caster, 'Guarded', color, now)
         break
       case 'steam': // fog: their attacks may miss
         this.hit(target, STEAM_HIT, color, now)
-        this.fogUntil[target] = now + STEAM_MS
+        this.fogUntil[target] = now + this.dur(STEAM_MS)
         this.float(target, 'Fogged!', color, now)
         break
       case 'thermal': {
@@ -892,7 +907,7 @@ export class Combat {
       case 'plasma': // a burning stun
         this.hit(target, PLASMA.hit, color, now)
         this.burn(target, PLASMA.burn, 4, color, now)
-        this.silence(target, PLASMA.stun, now, caster)
+        this.silence(target, this.dur(PLASMA.stun, STUN_MIN_MS), now, caster)
         this.float(target, 'Stunned!', color, now)
         break
       case 'sunfire': // a long burn that heals you
@@ -901,7 +916,7 @@ export class Combat {
         break
       case 'grave': // no healing for a while
         this.hit(target, GRAVE.hit, color, now)
-        this.noHealUntil[target] = now + GRAVE.ms
+        this.noHealUntil[target] = now + this.dur(GRAVE.ms)
         this.float(target, 'No healing!', color, now)
         break
     }
@@ -975,7 +990,9 @@ export class Combat {
         this.doomAt[s] = 0
         this.note(s, 'Doom!', `no spell thrown in ${DOOM_MS / 1000} s`, ELEMENTS.U.color, false, now)
         this.by = this.doomBy[s] ?? null
+        this.landScale = this.doomScale[s] ?? 1
         this.hit(s, DOOM_DMG, ELEMENTS.U.color, now)
+        this.landScale = 1
         this.by = null
       }
       if (this.shield[s] && this.armor(s, now) < 1) this.shield[s] = null
@@ -997,12 +1014,14 @@ export class Combat {
     while (this.flying.length && this.flying[0].landAt <= now && !this.winner) {
       const f = this.flying.shift()!
       this.landScale = (f.power ?? 1) * (f.wear ?? 1)
+      this.landWear = f.wear ?? 1
       this.by = f.caster
       this.pendingMiss = !!f.miss
       this.land(f.caster, f.target, f.el, f.shape, f.landAt, f.bolt)
       this.pendingMiss = false
       this.by = null
       this.landScale = 1
+      this.landWear = 1
     }
     if (this.winner) this.flying = []
     for (const t of this.ticking) {

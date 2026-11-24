@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
-import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
+import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 
 interface Step {
@@ -97,6 +97,7 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two' }[] = [
     title: 'Wear',
     points: [
       `Every throw wears its element: ${pct(WEAR_STEP)} less damage per stack, down to ${pct(WEAR_FLOOR)}. A light counts half.`,
+      `Worn spells are weaker all round: smaller chills, shorter stuns and effects. Lightning worn below ${pct(STATIC_CUTOFF)} adds no static.`,
       `A stack fades every ${secs(WEAR_DECAY_MS)}. Rotate elements to stay at full power.`,
       "A worn element shows under your health with its power (like I 62%). Your opponent's show under theirs: their fresh elements are what they'll want to throw.",
     ],
@@ -105,20 +106,20 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two' }[] = [
     title: 'Parry',
     try: 'parry',
     points: [
-      `Push both hands toward the camera just before a spell hits you: the last ${PARRY_WINDOWS.light / 1000} s for a light, ${PARRY_WINDOWS.heavy / 1000} s for a heavy, ${PARRY_WINDOWS.signature / 1000} s for a signature.`,
-      'It flies back at the caster at 50%. Parried again: 35%. A third parry just ends it.',
-      `Too early, too late, or nothing coming: staggered for ${secs(PARRY_MISS_MS)} (no throws, no parries). A good parry still costs ${secs(PARRY_HIT_MS)} before you can throw.`,
-      "Parrying drops your own charge and readied spell. Counterspells and the Advancing Glacier can't be parried.",
+      `Push both hands at the camera as a spell hits: within ${PARRY_WINDOWS.light / 1000} s (light) to ${PARRY_WINDOWS.signature / 1000} s (signature).`,
+      'It flies back at 50%, then 35%. A third parry ends it.',
+      `Mistimed: staggered ${secs(PARRY_MISS_MS)}. A good parry: no throws for ${secs(PARRY_HIT_MS)}.`,
+      "It drops your own charge. Counterspells and the Glacier can't be parried.",
     ],
   },
   {
     title: 'Two opponents',
     try: 'two',
     points: [
-      'While a spell is ready, your signing hand aims: the side of the screen it\'s on picks the enemy.',
-      'Heals and buffs always go to you (or your most hurt teammate).',
-      'Not aiming? Attacks go to whoever last hit you, else the enemy with the least health.',
-      '"Aiming at you" marks the enemy whose spell is coming your way. Practise it in Two dummies.',
+      "With a spell ready, your signing hand aims: the side of the screen it's on picks the enemy.",
+      'Heals with a teammate: your hand on its own side heals you, across heals them.',
+      'Not aiming? It goes to whoever last hit you, else the weakest enemy.',
+      '"Aiming at you" marks a spell coming your way.',
     ],
   },
 ]
@@ -344,7 +345,7 @@ function ProgressBar({ at, done, onPick }: { at: number; done: Set<number>; onPi
           key={i}
           className={`tut-seg ${done.has(i) ? 'done' : ''}`}
           style={{ color: s.color }}
-          {...press(() => onPick(i))}
+          onClick={() => onPick(i)} // a click, not a press: swiping the bar sideways never jumps
           aria-label={`${s.name}${done.has(i) ? ' (done)' : ''}`}
           aria-current={i === at ? 'step' : undefined}
         />

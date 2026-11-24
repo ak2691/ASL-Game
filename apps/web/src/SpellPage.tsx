@@ -390,11 +390,19 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   useEffect(() => {
     if (mode === 'online') goOnline()
   }, [])
-  // Two enemies: the zone your signing hand is in, as a target. Heals and buffs go to the default (the most
-  // hurt on your team).
+  // Aiming with the zone your signing hand is in. Two enemies: left zone the left one, right zone the right one.
+  // With a teammate, heals and buffs: your signing hand's own side is you, the other side your teammate.
+  // (Read from a ref: the camera loop keeps the closure of an earlier render.)
+  const sidesRef = useRef<{ foes: Fid[]; allies: Fid[] }>({ foes: [], allies: [] })
   const zoneTarget = (z: Zone, el: string | null, shape: string): Fid | null => {
     if (!el || shape === 'veil') return null
-    if (el === 'A' && shape !== COUNTER) return null // heals and buffs: on you
+    const { foes: fs, allies: al } = sidesRef.current
+    if (el === 'A' && shape !== COUNTER) {
+      if (!al.length) return null // no teammate: on you
+      const own: Zone = drawHandRef.current === 'right' ? 'left' : 'right'
+      return z === own ? 'player' : al[0]
+    }
+    if (fs.length < 2) return null
     return z === 'left' ? 'enemy' : 'enemy2'
   }
   // ?debug: cast a spell without the camera (for testing online play with two tabs).
@@ -965,8 +973,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     <div className="fighter">
       <div className="fighter-name">
         {name ?? (side === 'player' ? 'You' : oppName)}
-        {fight.static[side] && <span className={`tag static ${fight.static[side]}`}>⚡ {fight.static[side] === 'on' ? 'static' : 'gap'}</span>}
-        {fight.chill[side] > 0 && <span className="tag chill">chilled +{fight.chill[side]}%</span>}
+        {/* Icons only, so the row never changes width (static lit while it's on, dim in its gap). */}
+        {fight.static[side] && <span className={`tag static ${fight.static[side]}`} title={fight.static[side] === 'on' ? 'Static: throws fizzle' : 'Static gap: throw now'}>⚡</span>}
+        {fight.chill[side] > 0 && <span className="tag chill" title={`Chilled: their next hit does +${fight.chill[side]}%`}>❄ +{fight.chill[side]}%</span>}
       </div>
       <div className="hp-bar">
         <div
@@ -994,7 +1003,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const isTeam = ((mode === 'dummy' || mode === 'tutorial') && twoFoes) || online2
   const foes = isTeam ? fight.fighters.filter((f) => f.team === 'enemy').map((f) => f.id) : []
   const allies = isTeam ? fight.fighters.filter((f) => f.team === 'player' && f.id !== 'player').map((f) => f.id) : []
-  aimOnRef.current = foes.length >= 2
+  sidesRef.current = { foes, allies }
+  aimOnRef.current = foes.length >= 2 || allies.length > 0
   const nameOf = (id: Fid) => {
     if (id === 'player') return 'You'
     if (id.startsWith('ally')) return 'Teammate'
@@ -1003,11 +1013,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   const myR = fight.ready.player
   /** Where your ready spell would go. Online, worked out here the same way the server does (minus "who
-   *  hit you last"): your zone's foe, else the foe with the least HP; heals go to the most hurt teammate. */
+   *  hit you last"): your zone's foe, else the foe with the least HP; heals go by zone (you or your teammate). */
   const targetFor = (el: string, shape: string): Fid | null => {
     if (!online2) return team.targetFor(el, shape)
     const alive = (id: Fid) => fight.hp[id] > 0
     if (el === 'A' && shape !== COUNTER) {
+      const zt = zoneTarget(aimZone, el, shape) // with a teammate: your side you, the other side them
+      if (zt && alive(zt)) return zt
       const share = (id: Fid) => (fight.maxHp[id] === Infinity ? 1 : fight.hp[id] / fight.maxHp[id])
       return ['player', ...allies].filter(alive).sort((a, b) => share(a) - share(b))[0] ?? 'player'
     }
@@ -1083,18 +1095,16 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
   const showLobby = mode === 'online' && (!lobby || (lobby.phase === 'over' ? clock - overAt.current > RESULT_MS : lobby.phase !== 'countdown' && lobby.phase !== 'fighting'))
-  // Home goes home at once; only a running online match asks first (leaving it counts as leaving your team).
-  const homeNow = () => (mode === 'online' && lobby?.phase === 'fighting' ? setMenu('leave') : goHome())
 
   return (
     <main className="page duel-page">
       <div className="corner-bar">
         {mode === 'online' && lobby && !showLobby && <OnlineChip lobby={lobby} clock={clock} arena={online.current} />}
-        <button className="small" onClick={() => setMenu('main')} title="Menu (Esc)">
-          Menu
-        </button>
-        <button className="small" onClick={homeNow}>
-          Home
+        {/* One small round button (Home is inside the menu): the corner stays clear of the fight. */}
+        <button className="small icon-btn menu-btn" onClick={() => setMenu('main')} title="Menu (Esc)" aria-label="Menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+          </svg>
         </button>
       </div>
 
@@ -1162,7 +1172,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />
           {(mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
-          {isTeam && foes.length >= 2 && myR && fight.running && (
+          {isTeam && myR && fight.running && zoneTarget('left', myR.el, myR.shape) !== null && (
             <div className="aim-zones" style={{ '--aim': chargeInfo(myR.el).color, gridTemplateColumns: signLeft ? '1fr 2fr' : '2fr 1fr' } as React.CSSProperties}>
               {(['left', 'right'] as Zone[]).map((z) => (
                 <div key={z} className={z === aimZone ? 'on' : ''}>

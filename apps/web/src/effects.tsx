@@ -602,11 +602,13 @@ export function StatusFx({ side, view, detail }: { side: Fid; view: CombatView; 
       {silenced > 0 && <div className="st-silence" />}
       {left > 0 && (
         <div className="st-locked">
-          <b>{lockKind.current}</b>
-          {detail && <small>{detail}</small>}
-          <span className="lock-bar">
-            <i style={{ width: `${Math.min(100, (left / lockPeak.current) * 100)}%` }} />
-          </span>
+          <div className="lock-card">
+            <b>{lockKind.current}</b>
+            {detail && <small>{detail}</small>}
+            <span className="lock-bar">
+              <i style={{ width: `${Math.min(100, (left / lockPeak.current) * 100)}%` }} />
+            </span>
+          </div>
         </div>
       )}
       {knockId !== null && (
