@@ -886,6 +886,20 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               ctx.fill()
               ctx.shadowBlur = 0
               ctx.globalAlpha = 1
+              // "PUSH" in the glow: where you're looking, instead of a line of text up top. The canvas is
+              // mirrored on screen, so flip the text back.
+              ctx.save()
+              ctx.translate(cx, cy)
+              ctx.scale(-1, 1)
+              ctx.font = `900 ${Math.round(0.045 * W)}px sans-serif`
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'middle'
+              ctx.lineWidth = Math.max(3, 0.008 * W)
+              ctx.strokeStyle = '#000'
+              ctx.strokeText('PUSH', 0, 0)
+              ctx.fillStyle = '#fff'
+              ctx.fillText('PUSH', 0, 0)
+              ctx.restore()
             }
           }
 
@@ -1032,7 +1046,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {fighterHead(id, nameOf(id))}
           <div className="hud-row">
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
-            {mode === 'dummy' && id === foes[foes.length - 1] && dummyBar}
           </div>
           {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
           {mode === 'dummy' && id === foes[foes.length - 1] && <span className="dealt-line">Damage dealt <b>{fight.dealt.player}</b></span>}
@@ -1130,7 +1143,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                 {fight.running && fight.silenced.player > 0
                   ? '' // the Silenced timer says it
                   : readyName
-                    ? `Push to throw ${readyName}`
+                    ? '' // "PUSH" shows on your hand
                     : drawing
                       ? 'drawing…'
                       : `seeing: ${seeing}`}
@@ -1162,12 +1175,12 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
         <div className="duel-side opp" ref={oppRef}>
           {isTeam && <div className="team-foes">{foes.map(foeCard)}</div>}
+          {mode === 'dummy' && <div className="dummy-dock">{dummyBar}</div>}
           {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
           {!isTeam && <div className="side-hud">
             {fighterHead('enemy')}
             <div className="hud-row">
               {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
-              {mode === 'dummy' && dummyBar}
             </div>
             {mode !== 'tutorial' && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
             {mode === 'dummy' && <span className="dealt-line">Damage dealt <b>{fight.dealt.player}</b></span>}

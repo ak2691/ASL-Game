@@ -793,16 +793,18 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   html[data-theme] .home .home-privacy { margin-top: 2px; font-size: 11px; }
 }
 
-/* Phones are held at arm's length: bigger in-fight text and bars so charges and health read at a glance. */
+/* Phones: a compact HUD. Slim health bars, one size for the charge, so the camera keeps the room. Bold
+   outlined text keeps it readable at arm's length without making it big. */
 @media (max-width: 600px) {
-  html[data-theme] .status-strip .charge { font-size: 24px; }
-  html[data-theme] .team-card.foe .status-strip .charge { font-size: 20px; }
-  html[data-theme] .team-card.ally .status-strip .charge { font-size: 18px; }
-  html[data-theme] .hp-bar { height: 30px; }
-  html[data-theme] .hp-text { font-size: 16px; font-weight: 700; }
-  html[data-theme] .st-timer { font-size: 15px; padding: 4px 12px 7px; }
-    html[data-theme] .tag { font-size: 13px; }
-  html[data-theme] .dealt-line, html[data-theme] .note-line { font-size: 15px; }
+  html[data-theme] .status-strip .charge { font-size: 19px; }
+  html[data-theme] .team-card.foe .status-strip .charge { font-size: 16px; }
+  html[data-theme] .team-card.ally .status-strip .charge { font-size: 15px; }
+  html[data-theme] .fighter-name { font-size: 15px; }
+  html[data-theme] .hp-bar { height: 18px; }
+  html[data-theme] .hp-text { font-size: 12px; font-weight: 700; }
+  html[data-theme] .st-timer { font-size: 13px; padding: 3px 10px 6px; }
+  html[data-theme] .tag { font-size: 12px; }
+  html[data-theme] .dealt-line, html[data-theme] .note-line { font-size: 13px; }
   html[data-theme] .tier-light .impact-name { font-size: clamp(18px, 5cqw, 24px); }
   html[data-theme] .tier-heavy .impact-name { font-size: clamp(22px, 6.5cqw, 32px); }
 }
@@ -836,3 +838,7 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   html[data-theme] .duel .side-hud { padding: 8px 10px 12px; gap: 5px; }
   .duel .privacy-note { display: none; }
 }
+
+/* Training dummy controls: one fixed spot, bottom-left of the dummy half (Menu/Home are bottom-right), never
+   over a dummy's status. */
+.dummy-dock { position: absolute; left: 10px; bottom: 10px; z-index: 4; pointer-events: auto; }

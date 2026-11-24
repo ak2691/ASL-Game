@@ -109,7 +109,7 @@
 [data-theme='cartoon'] .code-input { border: 3px solid var(--ink); border-radius: 12px; font-family: var(--title); background: #fff; color: var(--ink); }
 
 /* Bars: fat rounded tubes with an outline and a shiny stripe. */
-[data-theme='cartoon'] .hp-bar { height: 28px; }
+[data-theme='cartoon'] .hp-bar { height: 22px; }
 [data-theme='cartoon'] .hp-bar,
 [data-theme='cartoon'] .cast-bar { background: var(--ink); border: 3px solid var(--ink); border-radius: 999px; }
 [data-theme='cartoon'] .hp-fill,
