@@ -342,7 +342,7 @@ class Gen:
         size = np.ptp(p, 0).max() or 1
         n = len(p)
         if self.r.random() < 0.6:
-            amt = strength if strength is not None else self.u(0.10, 0.16)
+            amt = strength if strength is not None else self.u(0.14, 0.20)
             w = np.cumsum(self.r.normal(0, 1, (n, 2)), 0)
             k = np.ones(max(5, n // 8)) / max(5, n // 8)
             w = np.stack([np.convolve(w[:, 0], k, "same"), np.convolve(w[:, 1], k, "same")], 1)
@@ -351,7 +351,7 @@ class Gen:
             p = p + w
         else:
             a = int(self.r.integers(0, n // 2)); b = min(n, a + int(n * self.u(0.2, 0.4)))
-            shift = self.r.normal(0, 1, 2); shift *= (strength or self.u(0.22, 0.32)) * size / np.linalg.norm(shift)
+            shift = self.r.normal(0, 1, 2); shift *= (strength or self.u(0.30, 0.40)) * size / np.linalg.norm(shift)
             ramp = np.ones(b - a); e = max(1, (b - a) // 6)
             ramp[:e] = np.linspace(0, 1, e); ramp[-e:] = np.linspace(1, 0, e)
             p[a:b] += np.outer(ramp, shift)
@@ -754,7 +754,7 @@ class Gen:
         r = self.r
         if r.random() < 0.05:
             return self.bad_cage()
-        if r.random() < 0.12:
+        if r.random() < 0.08:
             return self.bad_combo()
         if r.random() < 0.35:
             return self.none_new()
