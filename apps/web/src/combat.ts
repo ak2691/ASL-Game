@@ -188,6 +188,7 @@ export interface CombatView {
   silenced: Record<Fid, number> // ms of silence left (0 = free)
   static: Record<Fid, 'on' | 'gap' | null> // a Lightning static pattern on that side
   chill: Record<Fid, number> // pending Ice chill on their next hit taken, in % (0 = none)
+  chillMs: Record<Fid, number> // ms that chill lasts (if no hit takes it first)
   burning: Record<Fid, boolean> // Fire burn ticks still to come
   regen: Record<Fid, boolean> // hourglass heal ticks still to come
   knocked: Record<Fid, number> // counts Earthquake knock-offs (a change = drop your charge)
@@ -197,6 +198,7 @@ export interface CombatView {
   fizzled: Record<Fid, number> // ms of fizzle lockout left (no throws)
   staggered: Record<Fid, number> // ms left of a missed parry's stagger (no parrying)
   locked: Record<Fid, number> // ms left of an interrupt or whiff lockout (no signing, drawing or throwing)
+  recover: Record<Fid, number> // ms left of a parry's recovery (no throws), a landed or a missed one
   shield: Record<Fid, number> // Aegis armor left (0 = none)
   mirror: Record<Fid, number> // ms of Mirror left
   doom: Record<Fid, number> // ms until Doom hits (0 = none)
@@ -1055,6 +1057,7 @@ export class Combat {
       silenced: per((s) => Math.max(0, this.silencedUntil[s] - now)),
       static: per((s) => this.staticAt(s, now)),
       chill: per(chill),
+      chillMs: per((s) => (chill(s) ? Math.max(0, this.chill[s]!.until - now) : 0)),
       burning: per((s) => tick(s, -1)),
       regen: per((s) => tick(s, 1)),
       knocked: { ...this.knocked },
@@ -1067,6 +1070,7 @@ export class Combat {
       fizzled: per((s) => Math.max(0, this.fizzledUntil[s] - now)),
       staggered: per((s) => Math.max(0, (this.staggeredUntil[s] ?? 0) - now)),
       locked: per((s) => Math.max(0, this.lockedUntil[s] - now)),
+      recover: per((s) => Math.max(0, (this.parryLockUntil[s] ?? 0) - now)),
       shield: per((s) => Math.round(this.armor(s, now))),
       mirror: per((s) => Math.max(0, this.mirrorUntil[s] - now)),
       doom: per((s) => (this.doomAt[s] ? Math.max(0, this.doomAt[s] - now) : 0)),
@@ -1102,6 +1106,7 @@ export function flipView(v: CombatView): CombatView {
     silenced: f(v.silenced),
     static: f(v.static),
     chill: f(v.chill),
+    chillMs: f(v.chillMs),
     burning: f(v.burning),
     regen: f(v.regen),
     knocked: f(v.knocked),
@@ -1111,6 +1116,7 @@ export function flipView(v: CombatView): CombatView {
     fizzled: f(v.fizzled),
     staggered: f(v.staggered),
     locked: f(v.locked),
+    recover: f(v.recover),
     shield: f(v.shield),
     mirror: f(v.mirror),
     doom: f(v.doom),

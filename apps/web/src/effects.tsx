@@ -1,8 +1,9 @@
 // Spell impact visuals: an element projectile flies across, then the target's half gets an element effect.
 // Strength sets the size: light (line) < heavy (H, counter, heal) < signature.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
-import { DOOM_MS, INTERRUPT_LOCK_MS, GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
+import { INTERRUPT_LOCK_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
 import { COMBO_MIX, isMixCounter } from './spells'
+import { ICON_NAMES, iconPath, type HandState, type RowIcon } from './statusIcons'
 
 const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
 const COUNT = { light: 6, heavy: 14, signature: 30 }
@@ -543,22 +544,8 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
 
 /** Ongoing effects on one half: silence greys it out, static crackles the edges, chill frosts them,
  *  burn flickers from below, regen pulses green, and a knock-off drops rubble. */
-export function StatusFx({ side, view, detail }: { side: Fid; view: CombatView; detail?: string }) {
+export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
   const silenced = view.silenced[side]
-  // Can't act for a moment (one indicator for all of them): interrupted or whiffed, a missed parry's
-  // stagger, or a fizzle. The label is decided when it starts, and the bar drains from that length.
-  const locked = view.locked?.[side] ?? 0
-  const staggered = view.staggered?.[side] ?? 0
-  const fizzled = view.fizzled[side] ?? 0
-  const left = locked || staggered || fizzled
-  const lockKind = useRef('Fizzled')
-  const lockPeak = useRef(1)
-  const wasLeft = useRef(0)
-  if (left > wasLeft.current + 60) {
-    lockKind.current = locked ? (locked > INTERRUPT_LOCK_MS ? 'Whiffed' : 'Interrupted') : staggered ? 'Staggered' : 'Fizzled'
-    lockPeak.current = left
-  }
-  wasLeft.current = left
   const knocks = view.knocked[side]
   const seenKnocks = useRef(knocks)
   const [knockId, setKnockId] = useState<number | null>(null)
@@ -587,7 +574,6 @@ export function StatusFx({ side, view, detail }: { side: Fid; view: CombatView; 
         </div>
       )}
       {view.doom[side] > 0 && <div className="st-doom" />}
-      <Timers view={view} side={side} />
       {st && (
         <div className={`st-static ${st}`}>
           {st === 'on' &&
@@ -600,17 +586,6 @@ export function StatusFx({ side, view, detail }: { side: Fid; view: CombatView; 
         </div>
       )}
       {silenced > 0 && <div className="st-silence" />}
-      {left > 0 && (
-        <div className="st-locked">
-          <div className="lock-card">
-            <b>{lockKind.current}</b>
-            {detail && <small>{detail}</small>}
-            <span className="lock-bar">
-              <i style={{ width: `${Math.min(100, (left / lockPeak.current) * 100)}%` }} />
-            </span>
-          </div>
-        </div>
-      )}
       {knockId !== null && (
         <div key={knockId} className="st-knock" onAnimationEnd={() => setKnockId(null)}>
           {Array.from({ length: 10 }, (_, i) => (
@@ -746,33 +721,82 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
   }
 }
 
-/** Every effect with a clock, in one row of pills: a label with the seconds left and a bar that runs down. */
-function Timers({ view, side }: { view: CombatView; side: Fid }) {
-  const silenced = view.silenced[side]
-  const longest = useRef(0) // how long this silence was at its start (silences vary in length)
-  if (silenced <= 0) longest.current = 0
-  else if (silenced > longest.current) longest.current = silenced
-  const items = [
-    view.doom[side] > 0 && { k: 'doom', label: `Doom ${(view.doom[side] / 1000).toFixed(1)} s`, f: view.doom[side] / DOOM_MS },
-    silenced > 0 && { k: 'silence', label: `Silenced ${(silenced / 1000).toFixed(1)} s`, f: silenced / (longest.current || 1) },
-    // Aegis armor isn't listed: the health bar already shows it (+N and the armor segment).
-    view.mirror[side] > 0 && { k: 'mirror', label: `Mirror ${(view.mirror[side] / 1000).toFixed(1)} s`, f: view.mirror[side] / MIRROR_MS },
-    view.shroud[side] > 0 && { k: 'shroud', label: `Shroud ${(view.shroud[side] / 1000).toFixed(1)} s`, f: view.shroud[side] / SHROUD_MS },
-    view.guard[side] > 0 && { k: 'guard', label: `Guarded ${(view.guard[side] / 1000).toFixed(1)} s`, f: view.guard[side] / TWILIGHT_MS },
-    view.exposed[side] > 0 && { k: 'exposed', label: `Exposed ${(view.exposed[side] / 1000).toFixed(1)} s`, f: view.exposed[side] / TWILIGHT_MS },
-    view.fog[side] > 0 && { k: 'fog', label: `Steam ${(view.fog[side] / 1000).toFixed(1)} s`, f: view.fog[side] / STEAM_MS },
-    view.noHeal[side] > 0 && { k: 'noheal', label: `No healing ${(view.noHeal[side] / 1000).toFixed(1)} s`, f: view.noHeal[side] / GRAVE.ms },
-    view.glacier[side] > 0 && { k: 'glacier', label: `Glacier ${(view.glacier[side] / 1000).toFixed(1)} s`, f: view.glacier[side] / GLACIER_MS },
-  ].filter((x): x is { k: string; label: string; f: number } => !!x)
+/** Every status on a fighter, as one row of same-size icons under its health bar: debuffs edged red, buffs
+ *  green, a bar under each that drains with its time (sized from when it started, so wear or early ends never
+ *  confuse it). A number where it matters: chill's bonus, Doom's seconds. `hand`: your own "can't act"
+ *  states are drawn on your hand instead, so they're left out here. */
+export function StatusRow({ view, side, hand = false }: { view: CombatView; side: Fid; hand?: boolean }) {
+  const peaks = useRef<Record<string, number>>({})
+  type It = { k: RowIcon; ms?: number; n?: string | number; good?: boolean; dim?: boolean }
+  const st = view.static[side]
+  const lk = view.locked?.[side] ?? 0
+  const whiff = useRef(false) // a lockout's kind is decided when it starts (a whiff is the longer one)
+  const lastLk = useRef(0)
+  if (lk > lastLk.current + 60) whiff.current = lk > INTERRUPT_LOCK_MS
+  lastLk.current = lk
+  const can = !hand && canActState(view, side, whiff.current)
+  const items = ([
+    can && { k: can.k, ms: can.ms },
+    view.doom[side] > 0 && { k: 'doom', ms: view.doom[side], n: Math.ceil(view.doom[side] / 1000) },
+    view.chill[side] > 0 && { k: 'chill', ms: view.chillMs?.[side], n: view.chill[side] },
+    st && { k: view.storm[side] ? 'storm' : 'static', dim: st === 'gap' },
+    view.burning[side] && { k: 'burn' },
+    view.exposed[side] > 0 && { k: 'exposed', ms: view.exposed[side] },
+    view.fog[side] > 0 && { k: 'fog', ms: view.fog[side] },
+    view.noHeal[side] > 0 && { k: 'noHeal', ms: view.noHeal[side] },
+    view.glacier[side] > 0 && { k: 'glacier', ms: view.glacier[side] },
+    view.regen[side] && { k: 'regen', good: true },
+    view.mirror[side] > 0 && { k: 'mirror', ms: view.mirror[side], good: true },
+    view.shroud[side] > 0 && { k: 'shroud', ms: view.shroud[side], good: true },
+    view.guard[side] > 0 && { k: 'guard', ms: view.guard[side], good: true },
+  ] as (It | false | null | undefined)[]).filter((x): x is It => !!x)
+  // Each timer's length = its value when it first showed (or grew).
+  const seen = new Set(items.map((t) => t.k))
+  for (const k of Object.keys(peaks.current)) if (!seen.has(k as RowIcon)) delete peaks.current[k]
+  for (const t of items) if (t.ms !== undefined && t.ms > (peaks.current[t.k] ?? 0)) peaks.current[t.k] = t.ms
   if (!items.length) return null
   return (
-    <div className={`st-timers ${side === 'player' ? 'mine' : ''}`}>
+    <div className="status-row">
       {items.map((t) => (
-        <span key={t.k} className={`st-timer ${t.k}`}>
-          <i style={{ width: `${Math.min(1, t.f) * 100}%` }} />
-          <span>{t.label}</span>
+        <span key={t.k} className={`st-icon ${t.good ? 'good' : 'bad'} ${t.dim ? 'dim' : ''}`} title={ICON_NAMES[t.k]}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d={iconPath(t.k)} />
+          </svg>
+          {t.n !== undefined && <b>{t.n}</b>}
+          {t.ms !== undefined && (
+            <i style={{ width: `${Math.min(1, t.ms / (peaks.current[t.k] || 1)) * 100}%` }} />
+          )}
         </span>
       ))}
     </div>
+  )
+}
+
+/** Why a fighter can't act right now, and for how long (null = free). Your own shows on your hand. */
+export function canActState(view: CombatView, side: Fid, whiff = false): { k: HandState; ms: number } | null {
+  const locked = view.locked?.[side] ?? 0
+  if (locked > 0) return { k: whiff ? 'whiffed' : 'interrupted', ms: locked }
+  if (view.silenced[side] > 0) return { k: 'silenced', ms: view.silenced[side] }
+  if ((view.staggered?.[side] ?? 0) > 0) return { k: 'staggered', ms: view.staggered[side] }
+  if (view.fizzled[side] > 0) return { k: 'fizzled', ms: view.fizzled[side] }
+  if ((view.recover?.[side] ?? 0) > 0) return { k: 'recover', ms: view.recover[side] }
+  return null
+}
+
+/** The icons and what they mean (Info page, tutorial). `hand`: drawn as on your hand (red ring). */
+export function IconLegend({ keys }: { keys: RowIcon[] }) {
+  return (
+    <ul className="icon-legend">
+      {keys.map((k) => (
+        <li key={k}>
+          <span className={`st-icon ${k === 'regen' || k === 'mirror' || k === 'shroud' || k === 'guard' || k === 'recover' ? 'good' : 'bad'}`}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={iconPath(k)} />
+            </svg>
+          </span>
+          <span>{ICON_NAMES[k]}</span>
+        </li>
+      ))}
+    </ul>
   )
 }

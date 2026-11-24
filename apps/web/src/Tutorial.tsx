@@ -6,6 +6,8 @@ import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
 import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
+import { IconLegend } from './effects'
+import { HAND_ICONS, type RowIcon } from './statusIcons'
 
 interface Step {
   el: string
@@ -92,7 +94,15 @@ const BASICS: { title: string; points: string[] }[] = [
 ]
 
 /** Read-only cards after the spells: things you can't practise on the dummy. */
-const END: { title: string; points: string[]; try?: 'parry' | 'two' }[] = [
+const END: { title: string; points: string[]; try?: 'parry' | 'two'; icons?: RowIcon[] }[] = [
+  {
+    title: 'Status',
+    points: [
+      "Can't act? Your hand shows why, with a ring that runs down:",
+      'Other effects show as icons under the health bar. Red: bad. Green: good. The full list is on the Info page.',
+    ],
+    icons: Object.keys(HAND_ICONS) as RowIcon[],
+  },
   {
     title: 'Wear',
     points: [
@@ -242,10 +252,18 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
           </div>
           <div className="tut-body">
             <ul className="tut-basics">
-              {b.points.map((p) => (
+              {(b.icons ? b.points.slice(0, 1) : b.points).map((p) => (
                 <li key={p}>{p}</li>
               ))}
             </ul>
+            {b.icons && <IconLegend keys={b.icons} />}
+            {b.icons && (
+              <ul className="tut-basics">
+                {b.points.slice(1).map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            )}
             {b.try && (
               <button className="tut-try" {...press(() => tryIt(b.try!))}>
                 Try it

@@ -11,8 +11,9 @@ import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } fr
 import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
 import { Tower } from './Ladder'
 import { DummyArena, PracticeArena, beaterOf, dummyTimes, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
-import { BoltLayer, Impacts, ParryRings, StatusFx, setLocalBoltClock, useShake } from './effects'
-import { PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
+import { HAND_ICONS } from './statusIcons'
+import { BoltLayer, Impacts, ParryRings, StatusFx, StatusRow, canActState, setLocalBoltClock, useShake } from './effects'
+import { INTERRUPT_LOCK_MS, PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
@@ -454,6 +455,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         let lastUi = 0
         let sizes: PalmSample[] = [] // recent palm measurements (push detection)
         let sizesOpen = false // whether those were taken with the hand open
+        let handLock: { k: string; peak: number } | null = null // what's on your hand now, and its full length
+        let lastLocked = 0
+        let lockWhiff = false // the lockout's kind, decided when it starts (a whiff is the longer one)
         let wasSilenced = false
         let sentSign: { el: string; t: number } | null = null // last element sent, so it isn't resent every frame
         let lastCharge: string | null = null // to spot a new charge (see the push below)
@@ -659,15 +663,56 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             if (pointing) ctx.fill()
             else ctx.stroke()
           }
+          {
+            const lk = view.locked?.player ?? 0
+            if (lk > lastLocked + 60) lockWhiff = lk > INTERRUPT_LOCK_MS
+            lastLocked = lk
+            const cs = canActState(view, 'player', lockWhiff)
+            if (!cs) handLock = null
+            else if (!handLock || handLock.k !== cs.k || cs.ms > handLock.peak) handLock = { k: cs.k, peak: Math.max(cs.ms, handLock?.k === cs.k ? handLock.peak : 0) }
+          }
           let letter = ''
           if (lm && pred) {
             // Fizzle lockout: the hand goes dim and grey until you can throw again.
             const staggered = (view.staggered?.player ?? 0) > 0
             const locked = (view.locked?.player ?? 0) > 0 // interrupted or whiffed
-            const dim = view.fizzled.player > 0 || staggered || locked
+            const dim = view.fizzled.player > 0 || staggered || locked || view.silenced.player > 0
             if (dim) ctx.globalAlpha = 0.3
             drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: dim ? '#888' : myCharge ? chargeInfo(myCharge).color : '#e2b714', lineWidth: 3 })
             ctx.globalAlpha = 1
+            // Can't act (fizzled, staggered, interrupted, whiffed, silenced, recovering from a parry): a ring on
+            // the palm drains as the timer, with the cause's symbol in the middle. The timer runs in the fight,
+            // so if the hand leaves the frame it's still counting when it comes back.
+            const cs = canActState(view, 'player', lockWhiff)
+            if (cs) {
+              const cx = ((lm[0].x + lm[9].x) / 2) * W
+              const cy = ((lm[0].y + lm[9].y) / 2) * H
+              const r = 0.065 * W
+              ctx.save()
+              ctx.translate(cx, cy)
+              ctx.scale(-1, 1) // the canvas is mirrored on screen
+              ctx.fillStyle = 'rgba(20, 16, 40, 0.72)'
+              ctx.beginPath()
+              ctx.arc(0, 0, r, 0, 2 * Math.PI)
+              ctx.fill()
+              ctx.lineWidth = Math.max(4, 0.012 * W)
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)'
+              ctx.stroke()
+              const f = Math.min(1, cs.ms / (handLock?.peak || cs.ms))
+              ctx.strokeStyle = cs.k === 'recover' ? '#6be38a' : '#ff6b6b'
+              ctx.lineCap = 'round'
+              ctx.beginPath()
+              ctx.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + f * 2 * Math.PI)
+              ctx.stroke()
+              const k = (r * 1.15) / 24
+              ctx.scale(k, k)
+              ctx.translate(-12, -12)
+              ctx.lineWidth = 2.4
+              ctx.lineJoin = 'round'
+              ctx.strokeStyle = '#fff'
+              ctx.stroke(new Path2D(HAND_ICONS[cs.k]))
+              ctx.restore()
+            }
             // A parry just landed: "Reflected" or "Destroyed" on the hand, where you're looking.
             const pf = parryFlash.current
             const flash = !dim && pf && now - pf.t < PARRY_FLASH_MS ? pf.text : null
@@ -973,9 +1018,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     <div className="fighter">
       <div className="fighter-name">
         {name ?? (side === 'player' ? 'You' : oppName)}
-        {/* Icons only, so the row never changes width (static lit while it's on, dim in its gap). */}
-        {fight.static[side] && <span className={`tag static ${fight.static[side]}`} title={fight.static[side] === 'on' ? 'Static: throws fizzle' : 'Static gap: throw now'}>⚡</span>}
-        {fight.chill[side] > 0 && <span className="tag chill" title={`Chilled: their next hit does +${fight.chill[side]}%`}>❄ +{fight.chill[side]}%</span>}
       </div>
       <div className="hp-bar">
         <div
@@ -995,6 +1037,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             </span>
           ))}
       </div>
+      {/* Every status, one row of icons, the same on every fighter. Your "can't act" ones are on your hand. */}
+      <StatusRow view={fight} side={side} hand={side === 'player'} />
     </div>
   )
   // Team modes.
@@ -1168,7 +1212,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               <span>{latest.detail}</span>
             </div>
           )}
-          <StatusFx side="player" view={fight} detail={latest && LOCK_NOTES.has(latest.name) && clock - latest.t < 1500 ? latest.detail : undefined} />
+          <StatusFx side="player" view={fight} />
           <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />
           {(mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
@@ -1343,8 +1387,9 @@ function closedLoop(pts: Pt[]) {
 
 /** Your charge's power when worn (an element, or a combo: the average of its two), else null. */
 
-/** Notes for "can't act" moments: the lockout overlay on that half says it (once), not the message line. */
-const LOCK_NOTES = new Set(['Fizzle', 'Parry missed', 'Interrupted!', 'Whiffed!'])
+/** Notes for "can't act" moments: the symbol on your hand says it, not the message line. (A fizzle keeps its
+ *  line: it says why the drawing failed.) */
+const LOCK_NOTES = new Set(['Parry missed', 'Interrupted!', 'Whiffed!'])
 
 const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
 /** Wear: only the worn elements, as "I 62%" chips under the status (fresh ones aren't shown). Same on every side. */

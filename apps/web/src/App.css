@@ -854,3 +854,31 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 
 .corner-bar .menu-btn { width: 44px; height: 44px; min-width: 0; padding: 0 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .corner-bar .menu-btn svg { width: 22px; height: 22px; }
+
+/* Status row: every effect on a fighter as a same-size icon under its health bar. Red edge = bad for them,
+   green = good. The bar under each drains with its time; a small number where it matters (chill %, Doom s). */
+.status-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; min-height: 0; }
+.st-icon { position: relative; width: 28px; height: 28px; box-sizing: border-box; border-radius: 7px; border: 2px solid; display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55); color: #fff; overflow: hidden; }
+.st-icon.bad { border-color: #ff6b6b; }
+.st-icon.good { border-color: #6be38a; }
+.st-icon.dim { opacity: 0.45; }
+.st-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.st-icon b { position: absolute; right: 1px; bottom: 2px; font-size: 10px; line-height: 1; font-weight: 900; color: #fff;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+.st-icon i { position: absolute; left: 0; bottom: 0; height: 3px; background: currentColor; transition: width 0.1s linear; }
+.st-icon.bad i { background: #ff6b6b; }
+.st-icon.good i { background: #6be38a; }
+.team-card .st-icon { width: 24px; height: 24px; }
+.team-card .st-icon svg { width: 15px; height: 15px; }
+/* Whole-half tints: silence is on the hand / status row now (no grey takeover). On phones the camera stays
+   clear: only Steam's fog (it's the spell's effect) and the knock-down rubble remain. */
+.status-fx > .st-silence { display: none; }
+@media (max-width: 600px) {
+  .status-fx > :is(.st-burn, .st-regen, .st-chill, .st-doom, .st-static, .st-aegis, .st-mirror, .st-shroud) { display: none; }
+}
+.icon-legend { list-style: none; margin: 6px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 12px; text-align: left; }
+.icon-legend li { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.icon-legend .st-icon { flex: none; }
+.tut-body .icon-legend { grid-template-columns: 1fr 1fr; gap: 4px 8px; width: 100%; }
+.tut-body .icon-legend li { font-size: 12px; }
