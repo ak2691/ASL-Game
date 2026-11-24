@@ -581,7 +581,6 @@ export class Combat {
     if (this.fizzledUntil[caster] > now || this.parryLockUntil[caster] > now || this.isLocked(caster, now)) return 'fizzled'
     if (this.staticAt(caster, now) === 'on') {
       // Lightning static: the throw fizzles. The spell and the charge are lost.
-      this.float(caster, 'Fizzled (static)', ELEMENTS.L.color, now)
       this.bolt(caster, caster, 'Fizzled', ELEMENTS.L.color, 'fizzle', now, 'L')
       this.note(caster, 'Fizzled (static)', 'Wait for the gap', ELEMENTS.L.color, false, now)
       const st = this.static[caster]
@@ -729,7 +728,6 @@ export class Combat {
         } else {
           // Interrupt: their spell fizzles and they're locked out for a moment.
           this.lock(target, INTERRUPT_LOCK_MS, now)
-          this.float(target, 'Interrupted!', color, now)
           this.note(target, 'Interrupted!', `spell fizzled, locked ${INTERRUPT_LOCK_MS / 1000} s`, color, false, now)
         }
       } else if (!shattered) {
@@ -737,7 +735,6 @@ export class Combat {
         if (shape === QUICK) {
           // A missed interrupt leaves you open.
           this.lock(caster, WHIFF_MS, now)
-          this.float(caster, 'Whiffed!', '#999', now)
           this.note(caster, 'Whiffed!', `interrupt missed, locked ${WHIFF_MS / 1000} s`, '#999', false, now)
         } else this.float(caster, 'Counter missed', '#999', now)
       }

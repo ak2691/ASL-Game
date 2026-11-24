@@ -167,34 +167,11 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .dummy-bar .icon-btn svg { width: 18px; height: 18px; flex: none; }
 .corner-bar { position: fixed; bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); z-index: 5; display: flex; gap: 8px; align-items: center; }
 .dealt-line { font-size: 13px; color: var(--sub); }
-.charge-power { font-size: 0.75em; opacity: 0.8; }
-/* Wear rail: every element in the bottom-left of each half: its % above a bar that drains as it wears,
-   the letter under it. Text is white with a dark outline (colors only on the bars), so it reads for everyone. */
-.wear-rail { position: absolute; left: 8px; bottom: 8px; z-index: 3; display: flex; gap: 4px; pointer-events: none;
-  padding: 5px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.45); }
-.wear-pip { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 36px; line-height: 1; font-weight: 800; color: #fff;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 3px #000; }
-.wear-pip em { font-style: normal; font-size: 12px; }
-.wear-pip b { font-size: 15px; }
-.wear-track { position: relative; display: block; width: 100%; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
-.wear-track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--el); transition: width 0.3s linear; }
-.wear-pip.worn em { color: #ffd24d; }
-/* Your spell messages ("Fizzled", "Parried") sit just above your rail. */
-.duel-side.you:has(> .wear-rail) > .stage-overlay { bottom: 70px; }
-.wear-chips { position: absolute; left: 6px; bottom: 6px; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; }
-.wear-chips span { padding: 2px 6px; border-radius: 6px; border-left: 4px solid var(--el); background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 13px; font-weight: 800;
+/* Wear: worn elements only, as small chips under a fighter's status. White outlined text; the element's
+   color is the chip's edge, so it reads for everyone. */
+.wear-chips { display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; animation: wear-in 0.25s ease-out; }
+.wear-chips span { padding: 2px 7px; border-radius: 6px; border-left: 4px solid var(--el); background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 14px; font-weight: 800;
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
-@media (max-width: 600px) {
-  .wear-rail { gap: 2px; padding: 4px; left: 6px; bottom: 6px; }
-  .wear-pip { width: 30px; }
-  .wear-pip em { font-size: 13px; }
-  .wear-pip b { font-size: 14px; }
-  /* The opponent's sits above the Menu/Home buttons; the privacy line gives way. */
-  .duel-side.opp > .wear-rail { bottom: 56px; }
-  .duel:has(> .duel-side.opp > .wear-rail) .privacy-note { display: none; }
-  /* Long charge names wrap to a second line instead of being cut off ("Advancin..."). */
-  html[data-theme] .status-strip .charge, html[data-theme] .hud-row .status-strip .charge { white-space: normal; overflow: visible; text-overflow: clip; font-size: 21px; line-height: 1.1; }
-}
 @keyframes wear-in { from { opacity: 0; } to { opacity: 1; } }
 .dealt-line b { color: var(--text); font-weight: 600; }
 .dummy-spells { display: flex; flex-direction: column; gap: 12px; }
@@ -724,7 +701,7 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .hud-row { display: flex; align-items: center; gap: 10px; }
 .hud-row > .dummy-bar { margin-left: auto; pointer-events: auto; }
 .hud-row > .status-strip { flex: 1 1 90px; min-width: 0; }
-.hud-row .status-strip .charge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-row .status-strip .charge { white-space: normal; line-height: 1.1; }
 .dummy-bar button { white-space: nowrap; flex-shrink: 0; }
 /* Dummy controls each get their own color: start green, stop red, reset yellow (settings stays default). */
 html[data-theme] .dummy-bar button.btn-go, .dummy-bar button.btn-go { background: var(--you); color: var(--ink, #111); }
@@ -733,7 +710,9 @@ html[data-theme] .dummy-bar button.btn-reset, .dummy-bar button.btn-reset { back
 html[data-theme] .dummy-bar button.btn-go:hover, .dummy-bar button.btn-go:hover { background: color-mix(in srgb, var(--you) 80%, #fff); }
 html[data-theme] .dummy-bar button.btn-stop:hover, .dummy-bar button.btn-stop:hover { background: color-mix(in srgb, var(--foe) 80%, #fff); }
 html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:hover { background: color-mix(in srgb, var(--main) 80%, #fff); }
-.hud-row { flex-wrap: wrap; }
+/* The dummy's buttons stay put: the status beside them wraps its own text instead of pushing them around. */
+.hud-row { flex-wrap: nowrap; align-items: flex-start; }
+.hud-row > .dummy-bar { flex: none; }
 /* Narrow foe panels (two dummies on a phone): smaller dummy controls so they fit. */
 @container (max-width: 240px) {
   html[data-theme] .dummy-bar { gap: 4px; }
@@ -847,5 +826,13 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 .st-locked b { font-size: clamp(22px, 7cqw, 40px); font-weight: 900; color: #fff; text-shadow: 0 0 12px #ff9a3d, 0 2px 6px #000; text-transform: uppercase; }
 .st-locked .lock-bar { width: min(50cqw, 220px); height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
 .st-locked .lock-bar i { display: block; height: 100%; background: #ff9a3d; transition: width 0.1s linear; }
+.st-locked small { font-size: 15px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #000; }
 .team-card .st-locked b { font-size: 16px; }
+.impact.fizzle .impact-name { display: none; } /* the lockout overlay says "Fizzled" */
 @keyframes lock-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+/* Phones: the camera gets the room. A slimmer HUD, and the privacy line stays on the home screen only. */
+@media (max-width: 600px) {
+  html[data-theme] .duel .side-hud { padding: 8px 10px 12px; gap: 5px; }
+  .duel .privacy-note { display: none; }
+}

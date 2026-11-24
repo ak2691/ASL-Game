@@ -98,7 +98,7 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two' }[] = [
     points: [
       `Every throw wears its element: ${pct(WEAR_STEP)} less damage per stack, down to ${pct(WEAR_FLOOR)}. A light counts half.`,
       `A stack fades every ${secs(WEAR_DECAY_MS)}. Rotate elements to stay at full power.`,
-      "The bars down the edge of your half show each element's power. Your opponent's are on their side: their freshest element is what they'll want to throw.",
+      "A worn element shows under your health with its power (like I 62%). Your opponent's show under theirs: their fresh elements are what they'll want to throw.",
     ],
   },
   {

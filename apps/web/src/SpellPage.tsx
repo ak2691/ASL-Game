@@ -300,7 +300,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const readyName = fight.ready.player && spellName(fight.ready.player.el, fight.ready.player.shape)
   const seenNotes = useRef(new Set<number>())
   const parryFlash = useRef<{ text: string; t: number } | null>(null) // your last landed parry, shown on your hand
-  const lockLabel = useRef('Interrupted') // why you're locked out (shown on your hand)
   // Shake the half a spell lands on (see effects.tsx).
   const youRef = useRef<HTMLDivElement>(null)
   const oppRef = useRef<HTMLDivElement>(null)
@@ -337,8 +336,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       seenNotes.current = new Set(snap.notes.map((n) => n.id))
       const pr = fresh.find((n) => n.name === 'Reflected!' || n.name === 'Destroyed!')
       if (pr) parryFlash.current = { text: pr.name.slice(0, -1), t }
-      const lk = fresh.find((n) => n.name === 'Interrupted!' || n.name === 'Whiffed!')
-      if (lk) lockLabel.current = lk.name.slice(0, -1)
       if (fresh.length) setLog((l) => [...fresh.reverse().map((n) => ({ name: n.name, detail: n.detail, color: n.color, ok: n.ok, t: t })), ...l].slice(0, 8))
       setLobby(online.current ? { ...online.current.info } : null)
       setClock(t)
@@ -666,7 +663,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             // A parry just landed: "Reflected" or "Destroyed" on the hand, where you're looking.
             const pf = parryFlash.current
             const flash = !dim && pf && now - pf.t < PARRY_FLASH_MS ? pf.text : null
-            if (dim || flash) {
+            if (flash) {
               // "Fizzled" over the palm. The canvas is mirrored on screen, so flip the text back.
               const cx = ((lm[0].x + lm[9].x) / 2) * W
               const cy = ((lm[0].y + lm[9].y) / 2) * H
@@ -676,10 +673,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               ctx.font = `bold ${Math.round(0.04 * W)}px sans-serif`
               ctx.textAlign = 'center'
               ctx.textBaseline = 'middle'
-              ctx.fillStyle = flash ? '#7fd8ff' : '#ccc'
+              ctx.fillStyle = '#7fd8ff'
               ctx.shadowColor = '#000'
               ctx.shadowBlur = 8
-              ctx.fillText(flash ?? (locked ? lockLabel.current : staggered ? 'Staggered' : 'Fizzled'), 0, 0)
+              ctx.fillText(flash, 0, 0)
               ctx.restore()
             }
             // Not while drawing, silenced or with a spell readied (the fight would refuse it anyway).
@@ -1038,6 +1035,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             {mode === 'dummy' && id === foes[foes.length - 1] && dummyBar}
           </div>
           {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
+          {mode === 'dummy' && id === foes[foes.length - 1] && <span className="dealt-line">Damage dealt <b>{fight.dealt.player}</b></span>}
         </div>
         <StatusFx side={id} view={fight} />
         <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />
@@ -1127,33 +1125,27 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <div className="status-strip">
               <span className="charge" style={{ color: charge ? chargeInfo(charge).color : undefined }}>
                 {chargeLabel(charge, fight.mix.player)}
-                {chargePower(charge, fight.mix.player, fight.wear?.player) !== null && <small className="charge-power"> {chargePower(charge, fight.mix.player, fight.wear?.player)}%</small>}
               </span>
               <span className="sub-line">
                 {fight.running && fight.silenced.player > 0
-                  ? 'Silenced!'
+                  ? '' // the Silenced timer says it
                   : readyName
                     ? `Push to throw ${readyName}`
                     : drawing
                       ? 'drawing…'
                       : `seeing: ${seeing}`}
               </span>
-              {mode === 'dummy' && (
-                <span className="dealt-line">
-                  Damage dealt <b>{fight.dealt.player}</b>
-                </span>
-              )}
             </div>
+            {fight.wear?.player && <WearChips wear={fight.wear.player} />}
           </div>
-          {fight.wear && <WearRail wear={fight.wear.player} />}
           {status && <p className="status side-status">{status}</p>}
-          {latest && !latest.ok && (clock - latest.t < MESSAGE_MS || fight.fizzled.player > 0 || (fight.staggered?.player ?? 0) > 0) && (
+          {latest && !latest.ok && !LOCK_NOTES.has(latest.name) && clock - latest.t < MESSAGE_MS && (
             <div className="cast stage-overlay" key={latest.t} style={{ color: latest.color }}>
               {latest.name}
               <span>{latest.detail}</span>
             </div>
           )}
-          <StatusFx side="player" view={fight} />
+          <StatusFx side="player" view={fight} detail={latest && LOCK_NOTES.has(latest.name) && clock - latest.t < 1500 ? latest.detail : undefined} />
           <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />
           {(mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
@@ -1171,13 +1163,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         <div className="duel-side opp" ref={oppRef}>
           {isTeam && <div className="team-foes">{foes.map(foeCard)}</div>}
           {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
-          {!isTeam && mode !== 'tutorial' && fight.wear?.enemy && <WearRail wear={fight.wear.enemy} />}
           {!isTeam && <div className="side-hud">
             {fighterHead('enemy')}
             <div className="hud-row">
               {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
               {mode === 'dummy' && dummyBar}
             </div>
+            {mode !== 'tutorial' && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
+            {mode === 'dummy' && <span className="dealt-line">Damage dealt <b>{fight.dealt.player}</b></span>}
           </div>}
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
           {mode === 'practice' && !fight.running && (
@@ -1326,37 +1319,12 @@ function closedLoop(pts: Pt[]) {
 }
 
 /** Your charge's power when worn (an element, or a combo: the average of its two), else null. */
-function chargePower(el: string | null, mix: string[], wear: Record<string, number> | undefined) {
-  if (!el || !wear) return null
-  const els = el in COMBO_MIX ? COMBO_MIX[el] : el === COMBO ? mix : ELEMENTS[el] ? [el] : []
-  if (!els.length) return null
-  const p = Math.floor(els.reduce((t, e) => t + (wear[e] ?? 100), 0) / els.length)
-  return p < 100 ? p : null
-}
+
+/** Notes for "can't act" moments: the lockout overlay on that half says it (once), not the message line. */
+const LOCK_NOTES = new Set(['Fizzle', 'Parry missed', 'Interrupted!', 'Whiffed!'])
 
 const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
-/** Wear rail: every element in the bottom-left of a half, its bar = its power now (full when fresh).
- *  Each shows its % too, to judge whether a full-power throw is worth waiting for. */
-function WearRail({ wear }: { wear: Record<string, number> }) {
-  return (
-    <div className="wear-rail" aria-label="Element power">
-      {WEAR_ORDER.map((e) => {
-        const p = wear[e] ?? 100
-        return (
-          <span key={e} className={`wear-pip ${p < 100 ? 'worn' : ''}`} style={{ '--el': ELEMENTS[e].color } as React.CSSProperties} title={`${ELEMENTS[e].name} ${p}%`}>
-            <em>{p}</em>
-            <span className="wear-track">
-              <i style={{ width: `${p}%` }} />
-            </span>
-            <b>{e}</b>
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-/** Wear on a small 2v2 card: only the worn elements, as "I 62%" chips (a full rail won't fit). */
+/** Wear: only the worn elements, as "I 62%" chips under the status (fresh ones aren't shown). Same on every side. */
 function WearChips({ wear }: { wear: Record<string, number> }) {
   const worn = WEAR_ORDER.filter((e) => (wear[e] ?? 100) < 100)
   if (!worn.length) return null
@@ -1397,7 +1365,7 @@ function OppStatus({ fight, id = 'enemy', cast, hint: showHint }: { fight: Snaps
       <span className="charge" style={{ color: el ? chargeInfo(el).color : undefined }}>
         {chargeLabel(el, fight.mix[id] ?? [])}
       </span>
-      <span className="sub-line">{silenced ? 'Silenced!' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
+      <span className="sub-line">{silenced ? '' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
       {hint && !silenced && (
         <span className="sub-line" style={{ color: chargeInfo(hint).color }}>
           {isMixCounter(hint) ? `Counter with C, ${ELEMENTS[hint[1]].name}, ${ELEMENTS[hint[2]].name}` : `Counter with ${ELEMENTS[hint].name}`}

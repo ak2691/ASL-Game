@@ -1,7 +1,7 @@
 // Spell impact visuals: an element projectile flies across, then the target's half gets an element effect.
 // Strength sets the size: light (line) < heavy (H, counter, heal) < signature.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
-import { DOOM_MS, INTERRUPT_LOCK_MS, WHIFF_MS, GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
+import { DOOM_MS, INTERRUPT_LOCK_MS, GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
 import { COMBO_MIX, isMixCounter } from './spells'
 
 const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
@@ -543,14 +543,22 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
 
 /** Ongoing effects on one half: silence greys it out, static crackles the edges, chill frosts them,
  *  burn flickers from below, regen pulses green, and a knock-off drops rubble. */
-export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
+export function StatusFx({ side, view, detail }: { side: Fid; view: CombatView; detail?: string }) {
   const silenced = view.silenced[side]
+  // Can't act for a moment (one indicator for all of them): interrupted or whiffed, a missed parry's
+  // stagger, or a fizzle. The label is decided when it starts, and the bar drains from that length.
   const locked = view.locked?.[side] ?? 0
-  // Which lockout: decided when it starts (a whiff is longer), so the label doesn't flip as it drains.
-  const lockKind = useRef<'Interrupted' | 'Whiffed'>('Interrupted')
-  const wasLocked = useRef(0)
-  if (locked > wasLocked.current + 60) lockKind.current = locked > INTERRUPT_LOCK_MS ? 'Whiffed' : 'Interrupted'
-  wasLocked.current = locked
+  const staggered = view.staggered?.[side] ?? 0
+  const fizzled = view.fizzled[side] ?? 0
+  const left = locked || staggered || fizzled
+  const lockKind = useRef('Fizzled')
+  const lockPeak = useRef(1)
+  const wasLeft = useRef(0)
+  if (left > wasLeft.current + 60) {
+    lockKind.current = locked ? (locked > INTERRUPT_LOCK_MS ? 'Whiffed' : 'Interrupted') : staggered ? 'Staggered' : 'Fizzled'
+    lockPeak.current = left
+  }
+  wasLeft.current = left
   const knocks = view.knocked[side]
   const seenKnocks = useRef(knocks)
   const [knockId, setKnockId] = useState<number | null>(null)
@@ -592,11 +600,12 @@ export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
         </div>
       )}
       {silenced > 0 && <div className="st-silence" />}
-      {locked > 0 && (
+      {left > 0 && (
         <div className="st-locked">
           <b>{lockKind.current}</b>
+          {detail && <small>{detail}</small>}
           <span className="lock-bar">
-            <i style={{ width: `${Math.min(100, (locked / WHIFF_MS) * 100)}%` }} />
+            <i style={{ width: `${Math.min(100, (left / lockPeak.current) * 100)}%` }} />
           </span>
         </div>
       )}

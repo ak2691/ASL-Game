@@ -17,12 +17,12 @@ export function loadDrawHand(): Hand {
 // Lower = a smaller push counts (less effort, but leaning in can set it off). Read live every frame.
 export const PUSH_KEY = 'spells-push'
 export const PUSH_SIZES = [
-  { name: 'Tiny', growth: 1.08 },
-  { name: 'Small', growth: 1.14 },
-  { name: 'Medium', growth: 1.25 },
-  { name: 'Big', growth: 1.4 },
+  { name: 'Tiny', growth: 1.1 },
+  { name: 'Small', growth: 1.15 },
+  { name: 'Medium', growth: 1.2 },
+  { name: 'Big', growth: 1.3 },
 ]
-export const PUSH_DEFAULT = 1.25
+export const PUSH_DEFAULT = 1.2
 /** The size closest to growth `g` (older saves had in-between values). */
 export const nearestPush = (g: number) => PUSH_SIZES.reduce((a, b) => (Math.abs(b.growth - g) < Math.abs(a.growth - g) ? b : a))
 let push = (() => {
