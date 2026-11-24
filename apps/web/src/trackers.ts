@@ -6,7 +6,13 @@ export interface HandTracker {
   detect(frame: HTMLVideoElement | HTMLCanvasElement, now: number): Promise<NormalizedLandmark[] | null>
   /** Every hand found this frame (up to the tracker's hand count): screen points, and the same points
    *  in true 3D (meters, around the hand), which don't flatten when a finger points at the camera. */
-  detectAll(frame: HTMLVideoElement | HTMLCanvasElement, now: number): Promise<{ image: NormalizedLandmark[][]; world: Landmark[][] }>
+  detectAll(frame: HTMLVideoElement | HTMLCanvasElement, now: number): Promise<{ image: NormalizedLandmark[][]; world: Landmark[][]; handed: Handed[] }>
+}
+/** Which hand MediaPipe thinks it is, as it labels it ('Left' / 'Right'), and how sure (0..1). MediaPipe
+ *  assumes a mirrored (selfie) image; ours isn't, so its label is the player's other hand (see SpellPage). */
+export interface Handed {
+  label: 'Left' | 'Right' | null
+  score: number
 }
 
 const TASKS_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
@@ -30,7 +36,11 @@ async function createNewTracker(numHands: number): Promise<HandTracker> {
     detect: async (frame, now) => landmarker.detectForVideo(frame, now).landmarks[0] ?? null,
     detectAll: async (frame, now) => {
       const r = landmarker.detectForVideo(frame, now)
-      return { image: r.landmarks, world: r.worldLandmarks }
+      const handed = r.landmarks.map((_, i): Handed => {
+        const c = r.handedness?.[i]?.[0]
+        return { label: c?.categoryName === 'Left' || c?.categoryName === 'Right' ? c.categoryName : null, score: c?.score ?? 0 }
+      })
+      return { image: r.landmarks, world: r.worldLandmarks, handed }
     },
   }
 }

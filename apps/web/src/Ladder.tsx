@@ -16,7 +16,8 @@ const INFO: Record<Difficulty, { els: string[]; line: string }> = {
   adept: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'A real wizard now.' },
   magus: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'Reads your habits.' },
   archmage: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'Fast, and dodges your counters.' },
-  lich: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'Never makes a mistake.' },
+  lich: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'Fast, reads you, and knows every combo.' },
+  ascendant: { els: ['F', 'I', 'W', 'E', 'L', 'H', 'U'], line: 'The whole kit, used perfectly. Never makes a mistake.' },
 }
 
 const C = (el: string) => ELEMENTS[el].color

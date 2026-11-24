@@ -1,6 +1,6 @@
 // Spell info: every spell's damage and effects. Attack numbers come straight from combat.ts;
 // signature and heal numbers are written here (keep them in sync with land() in combat.ts).
-import { AEGIS_DRAIN, AEGIS_HP, BLIZZARD_SILENCE_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
+import { AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, QUICK_SILENCE_MS, READY_LIFE_MS, STATIC_PULSES } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 
 const s = (ms: number) => `${ms / 1000} s`
@@ -28,10 +28,15 @@ const UNHOLY = [
 ]
 
 const COMBO_ROWS = [
-  { c: 'magma', mix: 'C, F, E', draw: 'Volcano with a smoke loop', dmg: '25', effect: '+20 burn over 4 s.' },
-  { c: 'storm', mix: 'C, W, L', draw: 'Cloud with a bolt', dmg: '20', effect: 'Three static pulses where their throws fizzle.' },
-  { c: 'blizzard', mix: 'C, I, W', draw: 'Three petals', dmg: '15', effect: `Chill +15 and a ${s(BLIZZARD_SILENCE_MS)} silence.` },
-  { c: 'twilight', mix: 'C, H, U', draw: 'Circle with an S', dmg: '35', effect: 'Strips their Aegis and regen; cleanses you.' },
+  { c: 'magma', mix: 'C, F, E', draw: 'Volcano with a base', dmg: `${MAGMA[0]}`, effect: `+${MAGMA[1]} burn over 5 s.` },
+  { c: 'storm', mix: 'C, W, L', draw: 'Cloud with a bolt', dmg: `${STORM.hit}`, effect: `${STORM.count} damaging static pulses. A throw in a pulse fizzles and takes ${STORM.zap}.` },
+  { c: 'glacier', mix: 'C, I, E', draw: 'Iceberg', dmg: `${GLACIER_DMG}`, effect: `Takes ${s(GLACIER_MS)} to arrive. Only a Fire + Ice combo counterspell stops it.` },
+  { c: 'twilight', mix: 'C, H, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take 50% more.` },
+  { c: 'steam', mix: 'C, F, W', draw: 'Puffy cloud', dmg: `${STEAM_HIT}`, effect: `For ${s(STEAM_MS)} their attacks have a 50% chance to miss.` },
+  { c: 'thermal', mix: 'C, F, I', draw: 'Thermometer with a crack', dmg: `${THERMAL.hit}`, effect: `Burns and chills. Sets off burn or chill already on them for +${THERMAL.burst} each.` },
+  { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Stuns ${s(PLASMA.stun)} and burns +${PLASMA.burn}.` },
+  { c: 'sunfire', mix: 'C, H, F', draw: 'Sun', dmg: `${SUNFIRE[0]}`, effect: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
+  { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `They can't heal for ${s(GRAVE.ms)}.` },
 ]
 
 export function InfoPage({ onHome }: { onHome: () => void }) {
@@ -143,7 +148,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
 
       <section className="info-card" hidden={!COMBOS_ON}>
         <h2>Combos</h2>
-        <p className="info-note">Sign C, then the two elements, then draw. Starting to draw locks the mix; a mix that isn't a combo fizzles. Countered by beating either element.</p>
+        <p className="info-note">Sign C, then the two elements, then draw. Starting to draw locks the mix. To counter one, sign C and the two elements that beat it, then draw a circle.</p>
         <table className="info-table">
           <thead>
             <tr>

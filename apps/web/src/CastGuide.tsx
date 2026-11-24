@@ -26,7 +26,7 @@ export function ShapeCard({ shape, color, label, sub }: { shape: string; color?:
   )
 }
 
-const Sign = ({ l }: { l: string }) => <img className="asl-mini" src={`/asl/${l}.svg`} alt={`ASL ${l}`} />
+const Sign = ({ l, big }: { l: string; big?: boolean }) => <img className={`asl-mini ${big ? 'big' : ''}`} src={`/asl/${l}.svg`} alt={`ASL ${l}`} />
 
 export function CastGuide() {
   return (
@@ -70,12 +70,16 @@ export function CastGuide() {
           <ShapeCard key={sh} shape={sh} color={ELEMENTS.U.color} label={FORMS[sh]} sub={SHORT[sh]} />
         ))}
       </div>
-      {COMBOS_ON && <div className="guide-sub">Combos: sign C, then both letters, then draw</div>}
-      <div className="shape-guide" hidden={!COMBOS_ON}>
+      {COMBOS_ON && (
+        <div className="guide-sub combo-lead">
+          <Sign l={COMBO} big /> Combos: sign C first, then the two letters, then draw
+        </div>
+      )}
+      <div className="shape-guide combo-guide" hidden={!COMBOS_ON}>
         {Object.keys(COMBO_SHAPE).map((c) => (
           <div key={c} className="combo-card">
             <div className="combo-signs">
-              {[COMBO, ...COMBO_MIX[c]].map((l, i) => (
+              {COMBO_MIX[c].map((l, i) => (
                 <span key={l}>
                   {i > 0 && '+'}
                   <Sign l={l} />
@@ -97,7 +101,7 @@ export function CastGuide() {
       </ul>
       <b>3. Throw</b> — push your hand toward the camera.
       <p>
-        <b>Counter cycle</b> — Water → Fire → Ice → Earth → Lightning → Water (each beats the next). Holy and Unholy beat each other.{COMBOS_ON && ' A combo is countered by beating either of its elements.'}
+        <b>Counter cycle</b> — Water → Fire → Ice → Earth → Lightning → Water (each beats the next). Holy and Unholy beat each other.{COMBOS_ON && ' To counter a combo: sign C and the two elements that beat it, then draw a circle.'}
       </p>
       <p>
         <b>Counterspell</b> — sign an element, draw a <b>circle</b>, push. If your opponent is still charged with the element yours

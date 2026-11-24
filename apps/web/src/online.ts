@@ -1,8 +1,9 @@
 // Online play: one WebSocket to the game server. The server runs the fight; this mirrors its
 // state for the page, relays your casting steps, and builds the opponent's cast from theirs.
-import { MAX_HP, type CombatView } from './combat'
-import type { Arena, OppCast, Pt01, Snapshot } from './battle'
-import type { ClientMsg, OppEvent, ServerMsg } from './protocol'
+import { MAX_HP, type CombatView, type Fid } from './combat'
+import type { Arena, OppCast, Pt01 } from './battle'
+import type { ClientMsg, OppEvent, SeatInfo, ServerMsg } from './protocol'
+import type { TeamSnapshot } from './team'
 import { chargeInfo, spellName } from './spells'
 
 export type OnlinePhase = 'connecting' | 'reconnecting' | 'menu' | 'lobby' | 'countdown' | 'fighting' | 'over' | 'offline'
@@ -10,15 +11,22 @@ export type OnlinePhase = 'connecting' | 'reconnecting' | 'menu' | 'lobby' | 'co
 export interface LobbyInfo {
   phase: OnlinePhase
   code: string | null
-  players: number
-  ready: [boolean, boolean] // [you, opponent]
+  seats: SeatInfo[] // everyone in the room (team, ready, HP, connected)
+  you: number // your seat
+  host: number // the seat that sets HP
   countdownEnds: number | null // performance.now() time
-  paused: boolean // fight paused: someone is reconnecting
-  oppAwayUntil: number | null // performance.now() time the opponent's seat is held until
-  note: string | null // errors, "opponent left"
+  paused: boolean // fight paused: a whole team is reconnecting
+  awayUntil: number | null // performance.now() time a disconnected player's seat is held until
+  note: string | null // errors, "a player left"
+  forfeit: { votes: number; needed: number; mine: boolean } | null // your team's forfeit vote, if one is going
 }
 
 const EMPTY_VIEW: CombatView = {
+  fighters: [
+    { id: 'player', team: 'player', maxHp: MAX_HP },
+    { id: 'enemy', team: 'enemy', maxHp: MAX_HP },
+  ],
+  aim: { player: null, enemy: null },
   hp: { player: MAX_HP, enemy: MAX_HP },
   maxHp: { player: MAX_HP, enemy: MAX_HP },
   silenced: { player: 0, enemy: 0 },
@@ -33,8 +41,15 @@ const EMPTY_VIEW: CombatView = {
   mirror: { player: 0, enemy: 0 },
   doom: { player: 0, enemy: 0 },
   shroud: { player: 0, enemy: 0 },
+  guard: { player: 0, enemy: 0 },
+  exposed: { player: 0, enemy: 0 },
+  fog: { player: 0, enemy: 0 },
+  noHeal: { player: 0, enemy: 0 },
+  glacier: { player: 0, enemy: 0 },
+  storm: { player: false, enemy: false },
   ready: { player: null, enemy: null },
   fizzled: { player: 0, enemy: 0 },
+  staggered: { player: 0, enemy: 0 },
   notes: [],
   dealt: { player: 0, enemy: 0 },
   floats: [],
@@ -79,18 +94,21 @@ export class OnlineArena implements Arena {
   private closed = false
   private droppedAt: number | null = null
   private view: CombatView = EMPTY_VIEW
-  private opp: OppCast | null = null
+  private casts: Record<Fid, OppCast | null> = {} // everyone else's spell in progress, by their id as you see them
+  private sentAim: Fid | null | undefined = undefined
   private outbox: Pt01[] = [] // your stroke points, sent in batches
   private outAspect = 16 / 9 // your visible view's width / height
   info: LobbyInfo = {
     phase: 'connecting',
     code: null,
-    players: 0,
-    ready: [false, false],
+    seats: [],
+    you: 0,
+    host: 0,
     countdownEnds: null,
     paused: false,
-    oppAwayUntil: null,
+    awayUntil: null,
     note: null,
+    forfeit: null,
   }
 
   constructor() {
@@ -141,35 +159,42 @@ export class OnlineArena implements Arena {
   forfeit() {
     this.send({ t: 'forfeit' })
   }
+  switchTeam() {
+    this.send({ t: 'team' })
+  }
+  /** Host: a player's max HP for the next match. */
+  setHp(seat: number, hp: number) {
+    this.send({ t: 'hp', seat, hp })
+  }
   leave() {
     this.send({ t: 'leave' })
     setOnlineFlag(false)
-    this.opp = null
+    this.casts = {}
     this.view = EMPTY_VIEW
-    this.info = { ...this.info, phase: 'menu', code: null, players: 0, paused: false, oppAwayUntil: null, note: null }
+    this.info = { ...this.info, phase: 'menu', code: null, seats: [], paused: false, awayUntil: null, note: null }
   }
 
   private onMessage(m: ServerMsg) {
     switch (m.t) {
       case 'welcome':
         // Not resumed = fresh start (or our seat expired): show the menu.
-        if (!m.resumed) this.info = { ...this.info, phase: 'menu', code: null, players: 0 }
+        if (!m.resumed) this.info = { ...this.info, phase: 'menu', code: null, seats: [] }
         return
       case 'lobby': {
         setOnlineFlag(true)
         const was = this.info.phase
         // Mid-fight lobby updates (someone reconnecting) don't end the fight; the result arrives in 'state'.
         // After a fight, keep showing the result until someone readies up.
-        const phase =
-          was === 'fighting' ? 'fighting' : was === 'over' && !m.ready.some(Boolean) ? 'over' : 'lobby'
-        this.info = { ...this.info, phase, code: m.code, players: m.players, ready: m.ready, countdownEnds: null }
-        if (m.players < 2) this.opp = null
+        const phase = was === 'fighting' ? 'fighting' : was === 'over' && !m.seats.some((s) => s.ready) ? 'over' : 'lobby'
+        this.info = { ...this.info, phase, code: m.code, seats: m.seats, you: m.you, host: m.host, countdownEnds: null }
+        if (!m.seats.some((s) => !s.here)) this.info.awayUntil = null
         return
       }
       case 'countdown':
         this.view = EMPTY_VIEW
-        this.opp = null
-        this.info = { ...this.info, phase: 'countdown', countdownEnds: performance.now() + m.ms, note: null }
+        this.casts = {}
+        this.sentAim = undefined
+        this.info = { ...this.info, phase: 'countdown', countdownEnds: performance.now() + m.ms, note: null, forfeit: null }
         return
       case 'start':
         this.info = { ...this.info, phase: 'fighting', countdownEnds: null }
@@ -179,23 +204,18 @@ export class OnlineArena implements Arena {
         this.info = { ...this.info, paused: m.paused, ...(m.view.over ? { phase: 'over' as const } : {}) }
         return
       case 'opp':
-        return this.onOpp(m.ev)
-      case 'oppAway':
-        this.opp = null
-        this.info = { ...this.info, oppAwayUntil: performance.now() + m.ms, note: null }
+        return this.onOpp(m.from, m.ev)
+      case 'away':
+        this.info = { ...this.info, awayUntil: performance.now() + m.ms, note: null }
         return
-      case 'oppBack':
-        this.info = { ...this.info, oppAwayUntil: null, note: null }
+      case 'back':
+        this.info = { ...this.info, awayUntil: null, note: null }
         return
-      case 'oppLeft':
-        this.opp = null
-        this.info = {
-          ...this.info,
-          phase: m.forfeited ? 'over' : 'lobby',
-          oppAwayUntil: null,
-          paused: false,
-          note: `Your opponent ${m.forfeited ? 'forfeited' : 'left'}. Share the code to play someone else.`,
-        }
+      case 'left':
+        this.info = { ...this.info, awayUntil: null, note: m.forfeited ? 'A player left the match.' : 'A player left the room.' }
+        return
+      case 'forfeitVote':
+        this.info = { ...this.info, forfeit: m.needed ? { votes: m.votes, needed: m.needed, mine: m.mine } : null }
         return
       case 'error':
         this.info = { ...this.info, note: m.msg }
@@ -203,28 +223,30 @@ export class OnlineArena implements Arena {
     }
   }
 
-  private onOpp(ev: OppEvent) {
+  private onOpp(from: Fid, ev: OppEvent) {
     const colorOf = (el: string | null) => (el ? chargeInfo(el).color : '#cccccc')
     const base = (el: string | null): OppCast => ({ el: el ?? '?', name: null, color: colorOf(el), phase: 'charge', points: [], view: { aspect: 16 / 9, fit: 'cover' }, progress: null })
+    const cur = this.casts[from] ?? null
+    const set = (c: OppCast | null) => (this.casts[from] = c)
     switch (ev.kind) {
       case 'charge':
-        this.opp = ev.el ? { ...(this.opp ?? base(ev.el)), el: ev.el, color: colorOf(ev.el) } : this.opp?.points.length ? this.opp : null
+        set(ev.el ? { ...(cur ?? base(ev.el)), el: ev.el, color: colorOf(ev.el) } : cur?.points.length ? cur : null)
         return
       case 'stroke': {
-        const o = this.opp ?? base(null)
+        const o = cur ?? base(null)
         // Fractions of what they saw in their window; shown filling this panel the same way.
         const pts = ev.pts.map(([x, y]) => ({ x, y }))
-        this.opp = { ...o, phase: 'draw', name: null, points: [...o.points, ...pts].slice(-600), view: { aspect: ev.a, fit: 'cover' } }
+        set({ ...o, phase: 'draw', name: null, points: [...o.points, ...pts].slice(-600), view: { aspect: ev.a, fit: 'cover' } })
         return
       }
       case 'readied':
-        this.opp = { ...(this.opp ?? base(ev.el)), el: ev.el, color: colorOf(ev.el), phase: 'ready', name: spellName(ev.el, ev.shape) }
+        set({ ...(cur ?? base(ev.el)), el: ev.el, color: colorOf(ev.el), phase: 'ready', name: spellName(ev.el, ev.shape) })
         return
       case 'cleared':
-        this.opp = this.opp && this.opp.el !== '?' ? { ...this.opp, phase: 'charge', points: [], name: null } : null
+        set(cur && cur.el !== '?' ? { ...cur, phase: 'charge', points: [], name: null } : null)
         return
       case 'cast':
-        this.opp = null
+        set(null)
         return
     }
   }
@@ -248,6 +270,15 @@ export class OnlineArena implements Arena {
   push() {
     this.send({ t: 'push' })
   }
+  /** Team fights: who your next throw goes to (sent only when it changes). */
+  aim(target: Fid | null) {
+    if (target === this.sentAim) return
+    this.sentAim = target
+    this.send({ t: 'aim', target })
+  }
+  parry() {
+    this.send({ t: 'parry' })
+  }
   uncharge() {
     this.send({ t: 'uncharge' })
   }
@@ -258,12 +289,13 @@ export class OnlineArena implements Arena {
     this.outbox = []
   }
 
-  update(): Snapshot {
+  update(): TeamSnapshot {
     if (this.info.phase === 'fighting') this.flush() // ~20 batches a second (the page calls this every 50 ms)
     // The server's state wins: a readied spell that faded, or a charge that's gone (silenced, faded).
-    const o = this.opp
-    if (o?.phase === 'ready' && !this.view.ready.enemy) this.opp = null
-    else if (o?.phase === 'charge' && !this.view.charge.enemy) this.opp = null
-    return { ...this.view, enemyCast: this.opp, running: this.info.phase === 'fighting' }
+    for (const [id, o] of Object.entries(this.casts)) {
+      if (o?.phase === 'ready' && !this.view.ready[id]) this.casts[id] = null
+      else if (o?.phase === 'charge' && !this.view.charge[id]) this.casts[id] = null
+    }
+    return { ...this.view, casts: { ...this.casts }, enemyCast: this.casts.enemy ?? null, running: this.info.phase === 'fighting' }
   }
 }

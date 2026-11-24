@@ -40,7 +40,7 @@ function Badge({ bg, hi }: { bg: string; hi: string }) {
 /** Each portrait's glow color (its main element). */
 export const GLOW_COLOR: Record<string, string> = {
   pebble: '#ffcf8a', ember: '#ff8a3d', frost: '#8fd8ff', cleric: '#8cf0b0', hexer: '#c58bff', tide: '#7fbcff',
-  zealot: '#ffd24d', warden: '#ffd24d', adept: '#7aa0ff', magus: '#c58bff', archmage: '#ff7a8a', lich: '#8cff9a',
+  zealot: '#ffd24d', warden: '#ffd24d', adept: '#7aa0ff', magus: '#c58bff', archmage: '#ff7a8a', lich: '#8cff9a', ascendant: '#ffe9a8',
 }
 
 /** Big cartoon eyes: white, a pupil looking to one side, and an angled brow for attitude. */
@@ -191,6 +191,7 @@ const WIZ: Record<string, { bg: string; hi: string; hat: string; shade: string; 
   magus: { bg: '#4a2a7a', hi: '#a77ae6', hat: '#9b5de5', shade: '#6f39b8', band: '#8fd8ff', beard: '#c9c9c9' },
   archmage: { bg: '#7a1f2c', hi: '#e8606f', hat: '#d7263d', shade: '#9c1528', band: '#ffd24d', beard: '#f4f4f4' },
   lich: { bg: '#1c2a24', hi: '#4f8a6a', hat: '#2a1838', shade: '#140a1e', band: '#8cff9a', skull: true },
+  ascendant: { bg: '#2a2340', hi: '#ffe9a8', hat: '#f4efe0', shade: '#c9c0a6', band: '#c8a2ff', beard: '#ffffff' }, // placeholder look
 }
 
 function wizard(id: string) {

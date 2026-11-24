@@ -14,7 +14,7 @@ const NAMES = [
 ] as const
 export type Sfx = (typeof NAMES)[number]
 /** Spells with no sounds of their own borrow an element's, pitched (Unholy: low and eerie). */
-const SOUND_OF: Record<string, [string, number]> = { U: ['I', 0.6], magma: ['F', 0.8], storm: ['L', 0.85], blizzard: ['I', 0.85], twilight: ['W', 0.7] }
+const SOUND_OF: Record<string, [string, number]> = { U: ['I', 0.6], magma: ['F', 0.8], storm: ['L', 0.85], glacier: ['I', 0.6], twilight: ['W', 0.7], steam: ['W', 0.9], thermal: ['I', 0.9], plasma: ['L', 0.7], sunfire: ['F', 1.1], grave: ['I', 0.5] }
 
 const VOL_KEY = 'sfx-volume'
 let ctx: AudioContext | null = null
@@ -34,7 +34,14 @@ function init() {
   ctx = new AudioContext()
   master = ctx.createGain()
   master.gain.value = volume
-  master.connect(ctx.destination)
+  // A limiter on the way out: layered hits stay loud without clipping into distortion.
+  const limit = ctx.createDynamicsCompressor()
+  limit.threshold.value = -6
+  limit.knee.value = 6
+  limit.ratio.value = 12
+  limit.attack.value = 0.002
+  limit.release.value = 0.15
+  master.connect(limit).connect(ctx.destination)
   for (const n of NAMES)
     fetch(`${import.meta.env.BASE_URL}sfx/${n}.ogg`)
       .then((r) => r.arrayBuffer())
@@ -65,6 +72,114 @@ export function play(name: Sfx, opts: { vol?: number; pitch?: number; delay?: nu
   g.gain.value = (opts.vol ?? 1) * (0.92 + Math.random() * 0.08)
   src.connect(g).connect(master)
   src.start(ctx.currentTime + (opts.delay ?? 0) / 1000)
+}
+
+/** A burst of filtered noise: `type`/`freq` shape it, it fades out over `ms`. */
+function noiseHit(opts: { type: BiquadFilterType; freq: number; q?: number; ms: number; vol: number; t: number }) {
+  if (!ctx || !master) return
+  const len = Math.ceil((ctx.sampleRate * opts.ms) / 1000)
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  const src = ctx.createBufferSource()
+  src.buffer = buf
+  const f = ctx.createBiquadFilter()
+  f.type = opts.type
+  f.frequency.value = opts.freq
+  f.Q.value = opts.q ?? 0.8
+  const g = ctx.createGain()
+  g.gain.setValueAtTime(opts.vol, opts.t)
+  g.gain.exponentialRampToValueAtTime(0.0001, opts.t + opts.ms / 1000)
+  src.connect(f).connect(g).connect(master)
+  src.start(opts.t)
+}
+
+/** A hard hit made in code, in layers: a bright crack (the moment of contact, heard on any speaker), a
+ *  mid body, a deep sub sweeping down, and a low rumble tail so it rings out. `size` 0..1 scales it. */
+export function impact(size: number, delay = 0) {
+  if (!ctx || !master || volume === 0) return
+  const t = ctx.currentTime + delay / 1000
+  const s = Math.max(0, Math.min(1, size))
+  noiseHit({ type: 'bandpass', freq: 2600, q: 0.7, ms: 45 + 25 * s, vol: 0.9, t }) // crack
+  thump({ from: 260, to: 110, ms: 160 + 120 * s, vol: 0.6, delay }) // body
+  thump({ from: 120 - 25 * s, to: 38 - 6 * s, ms: 320 + 380 * s, vol: 1, delay }) // sub
+  noiseHit({ type: 'lowpass', freq: 380 - 120 * s, q: 0.5, ms: 450 + 650 * s, vol: 0.35 + 0.25 * s, t }) // rumble tail
+}
+
+/** A deep thump made in code (a sine sweeping down), layered under impacts that need weight. */
+export function thump(opts: { from: number; to: number; ms: number; vol: number; delay?: number }) {
+  if (!ctx || !master || volume === 0) return
+  const t = ctx.currentTime + (opts.delay ?? 0) / 1000
+  const o = ctx.createOscillator()
+  const g = ctx.createGain()
+  o.type = 'sine'
+  o.frequency.setValueAtTime(opts.from, t)
+  o.frequency.exponentialRampToValueAtTime(opts.to, t + opts.ms / 1000)
+  g.gain.setValueAtTime(0.0001, t)
+  g.gain.exponentialRampToValueAtTime(opts.vol, t + 0.006) // sharp attack: the punch
+  g.gain.exponentialRampToValueAtTime(0.0001, t + opts.ms / 1000)
+  o.connect(g).connect(master)
+  o.start(t)
+  o.stop(t + opts.ms / 1000 + 0.02)
+}
+
+// Drawing: "soft graphite", made in code: pink noise (less harsh than white noise, which sounded sandy)
+// in a narrow band around 1.5 kHz with the top cut. As loud as the fingertip is fast.
+// One voice for you, one quieter for the enemy, panned to their side. Picked by ear on a test page.
+const PENCIL_VOL = 1.4 // loudness: about as noticeable as the first pencil sound (the narrow band is quieter at the same gain)
+type Voice = { gain: GainNode }
+const voices = new Map<string, Voice>()
+function pinkNoise(c: AudioContext, seconds: number) {
+  const buf = c.createBuffer(1, c.sampleRate * seconds, c.sampleRate)
+  const d = buf.getChannelData(0)
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0
+  for (let i = 0; i < d.length; i++) {
+    // Paul Kellet's pink filter over white noise.
+    const w = Math.random() * 2 - 1
+    b0 = 0.99886 * b0 + w * 0.0555179
+    b1 = 0.99332 * b1 + w * 0.0750759
+    b2 = 0.969 * b2 + w * 0.153852
+    b3 = 0.8665 * b3 + w * 0.3104856
+    b4 = 0.55 * b4 + w * 0.5329522
+    b5 = -0.7616 * b5 - w * 0.016898
+    d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11
+    b6 = w * 0.115926
+  }
+  return buf
+}
+function voice(key: 'me' | 'enemy'): Voice | null {
+  if (!ctx || !master) return null
+  let v = voices.get(key)
+  if (v) return v
+  const src = ctx.createBufferSource()
+  src.buffer = pinkNoise(ctx, 3)
+  src.loop = true
+  const band = ctx.createBiquadFilter() // the graphite body
+  band.type = 'bandpass'
+  band.frequency.value = 1500
+  band.Q.value = 1.1
+  const lp = ctx.createBiquadFilter() // no harsh top
+  lp.type = 'lowpass'
+  lp.frequency.value = 3000
+  lp.Q.value = 0.5
+  const gain = ctx.createGain()
+  gain.gain.value = 0
+  const pan = ctx.createStereoPanner()
+  pan.pan.value = key === 'enemy' ? 0.6 : -0.2
+  src.connect(band).connect(lp).connect(gain).connect(pan).connect(master)
+  src.start()
+  v = { gain }
+  voices.set(key, v)
+  return v
+}
+/** Set the pencil sound for `key`: `speed` 0 (silent) to 1 (a fast stroke). Call it every frame. */
+export function pencil(key: 'me' | 'enemy', speed: number) {
+  if (!ctx || (speed <= 0 && !voices.has(key))) return
+  const v = voice(key)
+  if (!v) return
+  const k = Math.max(0, Math.min(1, speed))
+  const level = k === 0 ? 0 : (0.12 + 0.48 * k) * PENCIL_VOL * (key === 'enemy' ? 0.5 : 1)
+  v.gain.gain.setTargetAtTime(level, ctx.currentTime, k === 0 ? 0.04 : 0.02)
 }
 
 export const getVolume = () => volume
@@ -104,7 +219,7 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
 
     // Your sign and your shape locking in.
     if (v.charge[me] && v.charge[me] !== p?.charge[me]) {
-      const [c, pitch] = SOUND_OF[v.charge[me]!] ?? [v.charge[me]!, 1]
+      const [c, pitch] = SOUND_OF[v.charge[me]!] ?? [v.charge[me]!.slice(-1), 1]
       play((c === 'C' ? 'charge' : `charge_${c}`) as Sfx, { vol: 0.6, pitch })
     }
     if (v.ready[me] && !p?.ready[me]) play('lockin', { vol: 0.6 })
@@ -123,10 +238,10 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
         if (b.kind === 'fizzle') continue // the fizzle sound above covers it
         const interrupt = b.name.endsWith('Interrupt')
         if (b.kind === 'counter') {
-          play(interrupt ? 'interrupt' : 'counter_cast', { vol: 0.8 })
+          play('counter_cast', interrupt ? { vol: 0.5, pitch: 1.35 } : { vol: 0.8 })
           continue // result plays when it lands
         }
-        const [base, low] = SOUND_OF[b.el] ?? [b.el, 1]
+        const [base, low] = SOUND_OF[b.el] ?? [b.el.slice(-1), 1]
         const el = base as 'F' | 'I' | 'W' | 'E' | 'L' | 'H'
         const big = b.tier === 'signature'
         const heavy = b.tier === 'heavy'
@@ -149,7 +264,17 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
       // A counter arrives: hit or miss.
       if ((b.kind === 'counter' || b.kind === 'missed') && b.landed && !landed.current.has(b.id)) {
         landed.current.add(b.id)
-        play(b.kind === 'counter' ? 'counter_hit' : 'counter_miss', { vol: 0.9 })
+        if (b.kind === 'missed') play('counter_miss', { vol: 0.9 })
+        else if (b.name.endsWith('Interrupt')) {
+          // Interrupt: a short, tight punch.
+          play('interrupt', { vol: 1 })
+          impact(0.35)
+        } else {
+          // Counterspell: a heavy shield clang over a long, deep boom.
+          play('counter_hit', { vol: 0.9 })
+          play('heavy_layer', { vol: 0.8 })
+          impact(1)
+        }
       }
     }
 

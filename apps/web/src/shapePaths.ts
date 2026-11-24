@@ -2,17 +2,6 @@
 // guide, the tutorial, and the AI's drawing (sampled along the path). Must match how
 // ml/synth_shapes.py draws each shape.
 
-/** Three-petal rose (r = cos 3θ), one petal pointing up. */
-function trefoilPath() {
-  const pts: string[] = []
-  for (let i = 0; i <= 90; i++) {
-    const th = (Math.PI * i) / 90
-    const r = 16 * Math.cos(3 * th)
-    pts.push(`${(20 + r * Math.cos(th - Math.PI / 2)).toFixed(1)} ${(21 + r * Math.sin(th - Math.PI / 2)).toFixed(1)}`)
-  }
-  return `M${pts.join(' L')}`
-}
-
 /** Shroud: three cursive loops (a prolate cycloid), fitted into the box. Returns the path and its start. */
 function veilPath(): [string, [number, number]] {
   const raw: [number, number][] = []
@@ -46,11 +35,16 @@ export const SHAPE_PATHS: Record<string, string> = {
   scythe: 'M12 39 L18 4 C28 0 39 8 35 21 C33 14 26 10 20 13 L7 25 L25 26.5',
   veil: VEIL[0],
   blade: 'M6 24 L34 37 L34 24 L6 24 L6 12 L20 12 L20 3 L20 12 L34 12 L34 24',
-  // Combos
-  volcano: 'M3 36 L14 20 L17 20 L18 11 A4 4 0 1 1 22 11 L23 20 L26 20 L37 36',
+  // Combos (plans/combos.md)
+  volcano: 'M3 36 L14 20 L17 20 L18 11 A4 4 0 1 1 22 11 L23 20 L26 20 L37 36 L3 36',
   cloud: 'M19 22 L35 22 A4 6 0 0 0 27 22 A6 9 0 0 0 15 22 A4 6 0 0 0 5 22 L19 22 L14 29 L22 29 L16 38',
-  trefoil: trefoilPath(),
-  yinyang: 'M20 4 A16 16 0 1 1 19.9 4 A8 8 0 0 1 20 20 A8 8 0 0 0 20 36',
+  iceberg: 'M2 18 L38 18 L30 18 L24 5 L19 11 L15 7 L9 18 L13 37 L27 37 L31 18',
+  yinyang: 'M20 4 A16 16 0 1 1 19.9 4 A8 8 0 0 1 20 20 A8 8 0 0 0 20 36 L20 30.5 A2.5 2.5 0 1 1 19.9 30.5 L20 14.5 A2.5 2.5 0 1 1 19.9 14.5',
+  puff: 'M5 15 A5 5 0 0 1 15 15 A5 5 0 0 1 25 15 A5 5 0 0 1 35 15 A5 5 0 0 1 35 25 A5 5 0 0 1 25 25 A5 5 0 0 1 15 25 A5 5 0 0 1 5 25 A5 5 0 0 1 5 15',
+  thermo: 'M17 26 L17 6 A3 3 0 0 1 23 6 L23 26 A7 7 0 1 1 17 26 L10 22 L30 17 L11 12 L29 7',
+  plasma: 'M20 20 C15 14 15 8 20 6 C25 8 25 14 20 20 C14 22 8 26 7 31 C11 33 17 28 20 20 C23 28 29 33 33 31 C32 26 26 22 20 20 L20 2 A18 18 0 1 1 19.9 2',
+  sun: 'M20 4 L22.3 14.7 L32.5 6.2 L26.5 17.3 L37.5 19.4 L26.3 22.6 L34 31.7 L22.7 26.6 L20 37 L17.4 26.4 L6 31.7 L13.7 22.6 L2.5 19.4 L13.5 17.3 L7.5 6.2 L17.7 14.7 L20 4',
+  tomb: 'M8 36 L32 36 L32 16 A12 12 0 0 0 8 16 L8 36 L20 36 L20 12 L20 18 L14 18 L26 18',
 }
 
 export const SHAPE_STARTS: Record<string, [number, number]> = {
@@ -71,8 +65,13 @@ export const SHAPE_STARTS: Record<string, [number, number]> = {
   blade: [6, 24],
   volcano: [3, 36],
   cloud: [19, 22],
-  trefoil: [20, 21],
+  iceberg: [2, 18],
   yinyang: [20, 4],
+  puff: [5, 15],
+  thermo: [17, 26],
+  plasma: [20, 20],
+  sun: [20, 4],
+  tomb: [8, 36],
 }
 
 /** Points along a shape's guide path, in drawing order (browser only: uses an SVG element). */

@@ -69,7 +69,7 @@ export default function App() {
       <img className="hero-logo" src="/logo.svg" alt="" />
       <h1 className="logo">ASL Wizard</h1>
       <button onClick={() => setMode('tutorial')}>Tutorial</button>
-      <button onClick={() => setMode('dummy')}>Dummy</button>
+      <button onClick={() => setMode('dummy')}>Training dummy</button>
       <button onClick={() => setMode('practice')}>Practice AI</button>
       <button onClick={() => setMode('online')}>Online</button>
       <p className="home-privacy">

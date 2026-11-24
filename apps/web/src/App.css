@@ -160,6 +160,26 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .status-strip .charge { font-size: 20px; font-weight: 700; }
 .side-status { position: absolute; top: 50%; left: 0; right: 0; text-align: center; z-index: 2; }
 .stage-overlay { position: absolute; left: 16px; bottom: 14px; z-index: 2; pointer-events: none; text-shadow: 0 2px 6px #000; }
+.dummy-bar { display: flex; gap: 8px; align-items: center; }
+.dummy-bar .icon-btn { width: 34px; min-width: 0; height: 34px; padding: 0 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.dummy-bar .icon-btn svg { width: 18px; height: 18px; flex: none; }
+.corner-bar { position: fixed; bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); z-index: 5; display: flex; gap: 8px; align-items: center; }
+.dealt-line { font-size: 13px; color: var(--sub); }
+.dealt-line b { color: var(--text); font-weight: 600; }
+.dummy-spells { display: flex; flex-direction: column; gap: 12px; }
+.dummy-spells-head { display: flex; justify-content: space-between; align-items: baseline; }
+.dummy-spells-list { display: flex; flex-direction: column; gap: 14px; }
+.pool-el { display: flex; flex-direction: column; gap: 6px; }
+.pool-el .pool-el-name { all: unset; cursor: pointer; display: flex; gap: 8px; align-items: baseline; font-weight: 800; font-size: 16px; color: currentColor; }
+.pool-el-name small { color: var(--sub); font-weight: normal; font-size: 12px; }
+.pool-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pool-el .pool-card { all: unset; cursor: pointer; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px;
+  border-radius: 10px; background: var(--sub-alt); color: var(--sub); border: 2px solid transparent; font-size: 12px; text-align: center; opacity: 0.5; transition: opacity 120ms, border-color 120ms; }
+.pool-el .pool-card.on { color: currentColor; border-color: currentColor; opacity: 1; }
+.pool-el .pool-card span { color: var(--text); }
+.pool-el .pool-card:not(.on) span { color: var(--sub); }
+.pool-el .pool-card:hover { opacity: 1; }
+.pool-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; position: sticky; bottom: -16px; padding: 10px 0; background: var(--bg); }
 .stage-center { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; z-index: 2; }
 .result { font-size: 40px; color: var(--main); }
 .privacy-note { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; color: var(--sub); font-size: 11px; margin: 0; pointer-events: none; z-index: 3; }
@@ -189,6 +209,12 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .bolt.heal, .bolt.fizzle { display: none; }
 
 /* Where it lands. Every piece waits for the flight (--d) then plays for --t. */
+/* Parry ring (placeholder look): closes on your half as a spell flies at you; turns white inside the window. */
+.parry-ring { position: absolute; left: 50%; top: 46%; width: 34%; aspect-ratio: 1; z-index: 6; pointer-events: none; border-radius: 50%;
+  border: 4px solid currentColor; opacity: 0.85; transform: translate(-50%, -50%) scale(2.4);
+  animation: parry-close var(--fly) linear forwards, parry-open var(--win) step-start var(--open) forwards; }
+@keyframes parry-close { to { transform: translate(-50%, -50%) scale(1); } }
+@keyframes parry-open { from, to { border-color: #fff; border-width: 7px; box-shadow: 0 0 24px #fff, inset 0 0 24px #fff; opacity: 1; } }
 .impact { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
 .impact * { animation-delay: var(--d) !important; animation-fill-mode: forwards !important; }
 .impact-flash { position: absolute; inset: 0; background: radial-gradient(circle at center, currentColor, transparent 70%); opacity: 0; animation: flash 600ms ease-out; }
@@ -283,14 +309,26 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
   .bolt.from-enemy { animation-name: fly-up; }
   .bolt.from-player .projectile { transform: rotate(90deg); }
   .bolt.from-enemy .projectile { transform: rotate(-90deg); }
-  .privacy-note { padding: 0 64px; }
+  /* Things with a face or an up (the Doom skull, the ice cage) stay upright while the trail turns. */
+  .bolt .upright { transform-box: fill-box; transform-origin: center; }
+  .bolt.from-player .upright { transform: rotate(-90deg); }
+  .bolt.from-enemy .upright { transform: rotate(90deg); }
+  /* Tidal Wave crashes in from the caster's side: top or bottom. */
+  .sig-wave { animation-name: wave-sweep-v; }
+  .sig-wave.from-left { --wx: -110%; }
+  .sig-wave.from-right { --wx: 110%; }
+  .privacy-note { bottom: 48px; padding: 0 10px; }
+  .online-chip .sub-line { display: none; }
+  .duel .status-fx > .st-timers:not(.mine) { top: 128px; }
 }
+@keyframes wave-sweep-v { 0% { opacity: 1; transform: translateY(var(--wx)); } 55% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(calc(var(--wx) * -0.4)); } }
 @keyframes fly-down { 0% { top: 22%; opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; } 100% { top: 78%; opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
 @keyframes fly-up { 0% { top: 78%; opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; } 100% { top: 22%; opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
 
 /* Short halves (phones, either way round): the tutorial card shrinks to fit, and scrolls if it still can't. */
 @container (max-height: 560px) {
-  html[data-theme] .tutorial { gap: 8px; padding: 8px 8px 30px; }
+  html[data-theme] .tutorial { gap: 8px; padding: 8px 8px 48px; }
+  html[data-theme] .tut-bar { position: static; transform: none; width: 100%; flex: none; }
   html[data-theme] .tut-body { gap: 6px; padding: 8px 10px; }
   html[data-theme] .tut-demo { flex-wrap: nowrap; gap: 14px; }
   html[data-theme] :is(.tut-demo img, .tut-demo svg, .tut-push) { width: clamp(64px, 26cqh, 150px); height: clamp(64px, 26cqh, 150px); }
@@ -534,3 +572,145 @@ html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { 
 /* The one call to action on a screen (Start battle): green "go", apart from the blue menu buttons. */
 html[data-theme] button.cta, button.cta { background: var(--you); color: var(--ink, #111); font-size: 1.15em; padding-left: 30px; padding-right: 30px; }
 html[data-theme] button.cta:hover, button.cta:hover { background: color-mix(in srgb, var(--you) 80%, #fff); }
+
+/* ---- Training dummy with two enemies: foe panels, aim zones ---- */
+.team-foes { position: absolute; inset: 0; display: flex; gap: 3px; background: var(--sub-alt); }
+.team-card { position: relative; min-width: 0; overflow: hidden; }
+.team-card.foe { flex: 1 1 0; background: radial-gradient(ellipse at center, var(--sub-alt), var(--bg) 75%); transition: box-shadow 0.15s; }
+.team-card.foe .side-hud { padding: 10px 10px 18px; }
+.team-card.foe .status-strip .charge { font-size: 17px; }
+/* Small panels stay readable: the stroke keeps its on-screen width however small the panel. */
+.team-card .enemy-stroke { vector-effect: non-scaling-stroke; stroke-width: 9px; }
+.team-spell { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; font-size: clamp(22px, 9cqw, 44px); z-index: 2; text-shadow: 0 2px 8px var(--shadow); pointer-events: none; }
+.team-card.foe { container-type: inline-size; }
+.team-card.targeted { box-shadow: inset 0 0 0 4px var(--aim, var(--you)), inset 0 0 40px color-mix(in srgb, var(--aim, var(--you)) 45%, transparent); }
+.team-card.out { filter: grayscale(1) brightness(0.5); }
+.out-tag { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 32px; color: #ccc; z-index: 3; }
+.aim-zones { position: absolute; inset: 0; display: grid; z-index: 1; pointer-events: none; }
+.aim-zones > div { display: flex; align-items: flex-end; justify-content: center; padding-bottom: 22%; border-right: 1px dashed color-mix(in srgb, var(--aim) 35%, transparent); }
+.aim-zones > div:last-child { border-right: none; }
+.aim-zones > div span { font-weight: 700; font-size: 15px; opacity: 0.55; text-shadow: 0 1px 4px var(--shadow); }
+.aim-zones > div.on { background: color-mix(in srgb, var(--aim) 14%, transparent); }
+.aim-zones > div.on span { opacity: 1; color: var(--aim); font-size: 19px; }
+.dummy-foes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.dummy-tabs { display: inline-flex; gap: 6px; }
+.dummy-foes button.on { background: var(--you); color: var(--ink, #111); }
+
+/* Combos */
+.bolt { z-index: 1; }
+.bolt.el-glacier { z-index: 0; } /* the slow glacier stays under the caster's other spells */
+.fx-steam { position: absolute; inset: -10%; background: radial-gradient(circle at 50% 50%, rgba(240, 245, 250, 0.85), rgba(220, 230, 240, 0.5) 50%, transparent 80%); opacity: 0; animation: shroud-in 1400ms ease-out var(--d) both; }
+.fx-sun { position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, rgba(255, 240, 150, 0.9), rgba(255, 180, 40, 0.45) 40%, transparent 70%); opacity: 0; animation: lava-rise 1600ms ease-out var(--d) both; }
+.st-steam { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(235, 240, 245, 0.55), rgba(235, 240, 245, 0.25) 60%, rgba(235, 240, 245, 0.1)); backdrop-filter: blur(3px); }
+.st-timer.guard { color: #d9c4ff; }
+.st-timer.exposed { color: #ff9ad5; }
+.st-timer.fog { color: #e8eef2; }
+.st-timer.noheal { color: #b9a8c9; }
+.st-timer.glacier { color: #bfe9ff; }
+
+/* Tutorial progress: one colored bar, pinned to the bottom (it never moves with the card) */
+.tutorial { padding-bottom: 96px; }
+.tut-bar { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); width: min(640px, calc(100% - 24px)); box-sizing: border-box; display: flex; gap: 3px; padding: 4px; overflow-x: auto; scrollbar-width: thin; z-index: 3; }
+.tut-bar .tut-seg { flex: 1 0 12px; height: 12px; min-width: 12px; padding: 0 !important; border: none; border-radius: 4px; background: currentColor; opacity: 0.3; box-shadow: none; touch-action: manipulation; }
+.tut-bar .tut-seg.done { opacity: 1; }
+.tut-bar .tut-seg[aria-current] { opacity: 1; outline: 2px solid #fff; outline-offset: 1px; }
+
+/* Every tutorial card is the same size: Next stays in one place */
+.tutorial .tut-card { height: min(520px, calc(100cqh - 70px)); min-height: 0; }
+.tut-body { overflow: hidden; }
+.tut-demo { flex-wrap: nowrap !important; height: 245px; flex-shrink: 0; align-items: flex-start; }
+.tut-signs.multi { flex-direction: column; gap: 4px; }
+.tut-signs.multi img, .tut-signs.multi img + img { width: 52px !important; height: 52px !important; padding: 3px; }
+html[data-theme='cartoon'] .tut-signs.multi img { border-width: 3px; box-shadow: 0 3px 0 var(--ink); border-radius: 12px; }
+.tut-tip { min-height: 4.2em; margin: 0; font-size: 0.92rem; line-height: 1.35; }
+.tut-head .tut-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
+.tut-mini { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 85%, transparent); color: var(--text); white-space: nowrap; }
+.tut-try { margin-top: 4px; }
+.bolt.el-glacier { animation-timing-function: linear; } /* a slow, steady creep */
+.bolt .flick { animation: flick 300ms steps(2) infinite; }
+@keyframes flick { 50% { opacity: 0.2; } }
+/* Tutorial drawings: a thinner brush so busy shapes (Plasma, Sun, Yin-yang) don't mush together */
+.tut-demo svg .tut-draw { stroke-width: 1.6 !important; }
+.tut-demo svg .tut-ghost { stroke-width: 1.6 !important; opacity: 0.3 !important; }
+/* How to cast: bigger, clearer signs */
+.spell-help .asl-mini { width: 44px; height: 44px; padding: 2px; box-sizing: border-box; }
+.spell-help .asl-mini.big { width: 64px; height: 64px; }
+.spell-help li { margin: 4px 0; }
+.combo-lead { display: flex; align-items: center; gap: 10px; }
+.combo-guide { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.combo-signs .asl-mini { width: 40px !important; height: 40px !important; }
+.combo-signs { font-size: 14px; gap: 4px; }
+/* Storm: rain weather, not Thunderbolt's single strike. A low blue-grey cloud bank, then steady rain
+   for the whole storm, and a bolt on each pulse. */
+.sig-cloud.storm { filter: hue-rotate(10deg) brightness(0.55) saturate(0.5); height: 30%; }
+.sig-rainwash { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(40, 60, 110, 0.55), rgba(40, 60, 110, 0.15)); opacity: 0; animation: shroud-in 1600ms ease-out; }
+.st-storm { position: absolute; inset: 0; pointer-events: none; background:
+  linear-gradient(to bottom, rgba(30, 45, 90, 0.45), transparent 35%),
+  repeating-linear-gradient(105deg, transparent 0 14px, rgba(160, 196, 255, 0.35) 14px 15px);
+  background-size: 100% 100%, 200px 200px; animation: rain-move 400ms linear infinite; }
+@keyframes rain-move { to { background-position: 0 0, -40px 200px; } }
+.st-storm svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.st-storm polyline { fill: none; stroke: #fff; stroke-width: 1.2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 6px #9fb0ff); stroke-width: 4px; }
+.st-storm.on { box-shadow: inset 0 0 80px rgba(160, 190, 255, 0.5); }
+.st-timer span { position: relative; }
+.team-card.ally { position: absolute; left: 12px; bottom: 12px; width: min(300px, 45%); padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--bg) 88%, transparent); z-index: 3; display: flex; flex-direction: column; gap: 4px; }
+.team-card.ally .status-strip .charge { font-size: 15px; }
+.room-teams { display: flex; gap: 10px; flex-wrap: wrap; }
+.room-team { min-width: 210px; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-radius: 12px; background: var(--sub-alt); border-top: 4px solid var(--you); }
+.room-team.two { border-top-color: var(--foe); }
+.room-team-name { font-size: 15px; }
+.room-seat { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.room-seat.away { opacity: 0.5; }
+.room-seat-name { min-width: 64px; font-weight: 700; }
+.room-hp { display: inline-flex; align-items: center; gap: 6px; color: var(--sub); }
+.room-hp input { width: 90px; }
+.room-ready { margin-left: auto; font-size: 12px; color: var(--sub); }
+.room-ready.on { color: var(--you); }
+.team-card.ally .out-tag { font-size: 20px; justify-content: flex-end; padding-right: 14px; }
+
+/* Online lobby: its own screen over the arena (custom games by code). */
+.lobby-screen { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--bg); overflow: auto; }
+.lobby-card { width: min(680px, 100%); display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; border-radius: 18px; background: var(--sub-alt); }
+.lobby-title { font-size: 30px; }
+.lobby-join { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.lobby-code { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.lobby-code .room-code { font-size: 44px; }
+.lobby-card .room-teams { width: 100%; justify-content: center; }
+.lobby-card .room-team { flex: 1 1 220px; background: var(--bg); }
+.lobby-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.lobby-home { align-self: flex-start; }
+.online-chip { display: flex; gap: 10px; align-items: center; }
+.online-chip b { color: var(--main); letter-spacing: 0.1em; }
+.online-toast { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 7; padding: 6px 16px; border-radius: 999px; background: var(--sub-alt); font-size: 14px; pointer-events: none; }
+.room-hp, .room-ready, .room-seat-name { white-space: nowrap; }
+.room-hp input { accent-color: var(--main); }
+.room-hp span, .room-ready { white-space: nowrap; flex-shrink: 0; }
+.room-seat { flex-wrap: nowrap; }
+.room-hp input { min-width: 60px; flex: 1; }
+.hud-row { display: flex; align-items: center; gap: 10px; }
+.hud-row > .dummy-bar { margin-left: auto; pointer-events: auto; }
+.hud-row > .status-strip { flex: 1 1 90px; min-width: 0; }
+.hud-row .status-strip .charge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dummy-bar button { white-space: nowrap; flex-shrink: 0; }
+.hud-row { flex-wrap: wrap; }
+/* Narrow foe panels (two dummies on a phone): smaller dummy controls so they fit. */
+@container (max-width: 240px) {
+  html[data-theme] .dummy-bar { gap: 4px; }
+  html[data-theme] .dummy-bar .icon-btn { width: 28px; height: 28px; }
+  html[data-theme] .dummy-bar > button:first-child { font-size: 11px; padding: 4px 9px; }
+}
+/* Short halves (phones): the practice ladder shrinks (it scrolls) so Start battle stays on screen,
+   clear of the health bar above and Menu / Home below. */
+@container (max-height: 560px) {
+  .duel-side.opp > .stage-center { padding: 88px 0 92px; gap: 6px; }
+  .tower { max-height: max(110px, calc(100cqh - 308px)); }
+  .tower-wrap .spire { height: 26px; }
+}
+.dummy-pace { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: var(--sub-alt); }
+.pace-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.pace-row > span { min-width: 130px; color: var(--sub); }
+.pace-row input { flex: 1; min-width: 80px; accent-color: var(--main); }
+.pace-row b { min-width: 44px; text-align: right; }
+.pace-hint { font-size: 12px; color: var(--sub); margin: -2px 0 4px 140px; }
+@media (max-width: 500px) { .pace-row > span { min-width: 0; } .pace-hint { margin-left: 0; } }

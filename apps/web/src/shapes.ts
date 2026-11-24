@@ -190,6 +190,60 @@ export function spikeCount(points: Pt[]) {
   return n
 }
 
+/** Sunfire's points: corners where the outline turns sharply the way the whole loop turns (the dips turn
+ *  the other way). Must be exactly 8. Mirror of sun_tips in ml/sun_points.py (K = 5, 30°): on messy
+ *  synthetic suns, 97% of 8-point suns count 8; 7 or 9 point suns count 8 under 5% of the time. */
+export function sunTips(points: Pt[]) {
+  const N = 160
+  const K = 5
+  const q = resample(points, N).slice(0, -1)
+  const m = q.length
+  const dir = (i: number, j: number) => {
+    const a = q[((i % m) + m) % m], b = q[((j % m) + m) % m]
+    return Math.atan2(b.y - a.y, b.x - a.x)
+  }
+  const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
+  const turn = q.map((_, i) => wrap(dir(i, i + K) - dir(i - K, i)))
+  const sgn = Math.sign(turn.reduce((a, b) => a + b, 0)) || 1
+  const t = turn.map((x) => (x * sgn * 180) / Math.PI)
+  let n = 0
+  let last = -99
+  for (let i = 0; i < m; i++)
+    if (t[i] > 30 && t[i] >= t[(i - 1 + m) % m] && t[i] >= t[(i + 1) % m] && i - last > K) {
+      n++
+      last = i
+    }
+  return n
+}
+
+/** Plasma's petals: trips out from the middle (under 0.15 of the ball's radius) that turn back before the
+ *  ball (tip between 0.2 and 0.88) and return. Must be exactly 3. Mirror of ml/petals.py: 96% of messy
+ *  3-petal drawings count 3; 2 never do, 4 about 7%. */
+export function plasmaPetals(points: Pt[]) {
+  const q = resample(points, 200)
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+  for (const v of q) [x0, x1, y0, y1] = [Math.min(x0, v.x), Math.max(x1, v.x), Math.min(y0, v.y), Math.max(y1, v.y)]
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
+  const r = q.map((v) => Math.hypot(v.x - cx, v.y - cy))
+  const max = Math.max(...r) || 1
+  let n = 0
+  let out = false
+  let top = 0
+  for (const d of r) {
+    const v = d / max
+    if (!out) {
+      if (v > 0.15) [out, top] = [true, v]
+    } else {
+      top = Math.max(top, v)
+      if (v < 0.15) {
+        if (top > 0.2 && top < 0.88) n++
+        out = false
+      }
+    }
+  }
+  return n
+}
+
 /** Doom's blade must really curve (a few straight lines with corners used to pass). Splits the stroke at
  *  sharp corners and returns the most net turning (degrees) any long-enough smooth run makes. The
  *  blade's curves turn 110°+ over a good share of the stroke; straight lines with corners turn ~0 between
@@ -250,6 +304,14 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
     if (spikeCount(points) === 4) return { name: 'flame', score: Math.max(0.7, flame), top }
     if (top[0].name === 'flame') return { name: 'none', score: top[0].prob, top }
   }
+  // Sunfire: exactly 8 points, counted by a rule (the network can't count 7 vs 8 vs 9 reliably).
+  const sun = top.find((t) => t.name === 'sun')?.prob ?? 0
+  if (top[0].name === 'sun' || sun >= 0.3) {
+    if (sunTips(points) === 8) return { name: 'sun', score: Math.max(0.7, sun), top }
+    if (top[0].name === 'sun') return { name: 'none', score: top[0].prob, top }
+  }
+  // Plasma: exactly 3 petals, also counted by a rule.
+  if (top[0].name === 'plasma' && plasmaPetals(points) !== 3) return { name: 'none', score: top[0].prob, top }
   // Doom: the blade has to curve. Straight lines with corners are never a scythe.
   if (top[0].name === 'scythe' && bladeCurve(points) < DOOM_CURVE) return { name: 'none', score: top[0].prob, top }
   return { name: top[0].name, score: top[0].prob, top }

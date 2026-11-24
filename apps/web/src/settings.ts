@@ -1,5 +1,6 @@
 // Player settings saved between visits (home Settings panel and the in-game Esc menu).
 import type { Hand } from './recognition'
+import { COMBOS_ON, COMBO_SHAPE, SIGNATURE, shapesFor } from './spells'
 
 export const TWO_HANDS_KEY = 'spells-two-hands'
 export const DRAW_HAND_KEY = 'spells-draw-hand'
@@ -17,5 +18,101 @@ export function loadTwoHands() {
     return localStorage.getItem(TWO_HANDS_KEY) !== '0'
   } catch {
     return true
+  }
+}
+
+// Push sensitivity: how much the hand must grow on screen (move toward the camera) to throw or parry.
+// Lower = a smaller push counts (less effort, but leaning in can set it off). Read live every frame.
+export const PUSH_KEY = 'spells-push'
+export const PUSH_SIZES = [
+  { name: 'Tiny', growth: 1.08 },
+  { name: 'Small', growth: 1.14 },
+  { name: 'Medium', growth: 1.25 },
+  { name: 'Big', growth: 1.4 },
+]
+export const PUSH_DEFAULT = 1.25
+/** The size closest to growth `g` (older saves had in-between values). */
+export const nearestPush = (g: number) => PUSH_SIZES.reduce((a, b) => (Math.abs(b.growth - g) < Math.abs(a.growth - g) ? b : a))
+let push = (() => {
+  try {
+    const v = Number(localStorage.getItem(PUSH_KEY))
+    return v > 1 ? nearestPush(v).growth : PUSH_DEFAULT
+  } catch {
+    return PUSH_DEFAULT
+  }
+})()
+export const getPushGrowth = () => push
+export function setPushGrowth(v: number) {
+  push = nearestPush(v).growth
+  try {
+    localStorage.setItem(PUSH_KEY, String(push))
+  } catch {
+    /* not saved */
+  }
+}
+
+// Training dummy: which spells it may throw when attacking, as "element:shape" ("F:line", "H:star", ...).
+export const DUMMY_POOL_KEY = 'spells-dummy-pool'
+export const DUMMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L', 'H', 'U']
+export const DUMMY_COMBOS = COMBOS_ON ? Object.keys(COMBO_SHAPE) : []
+export const ALL_DUMMY_SPELLS = [...DUMMY_ELEMENTS, ...DUMMY_COMBOS].flatMap((el) => shapesFor(el).map((sh) => `${el}:${sh}`))
+export const DUMMY_POOL2_KEY = 'spells-dummy-pool-2' // the second enemy's spells
+export const DUMMY_TWO_KEY = 'spells-dummy-two' // '1' = a second enemy
+export function loadDummyPool(key = DUMMY_POOL_KEY): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? 'null')
+    if (Array.isArray(v)) {
+      // Older saves used "F:signature" (the element's signature shape) and had no Holy or Unholy: those start on.
+      const old = v.some((x) => typeof x === 'string' && x.endsWith(':signature'))
+      const pool = v.map((x) => (typeof x === 'string' && x.endsWith(':signature') ? `${x[0]}:${SIGNATURE[x[0]]}` : x))
+      if (old) pool.push(...ALL_DUMMY_SPELLS.filter((k) => k[0] === 'H' || k[0] === 'U'))
+      return pool.filter((x) => ALL_DUMMY_SPELLS.includes(x))
+    }
+  } catch {
+    /* fall through */
+  }
+  return ALL_DUMMY_SPELLS
+}
+export function saveDummyPool(pool: string[], key = DUMMY_POOL_KEY) {
+  try {
+    localStorage.setItem(key, JSON.stringify(pool))
+  } catch {
+    /* not saved */
+  }
+}
+export function loadDummyTwo() {
+  try {
+    return localStorage.getItem(DUMMY_TWO_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+export function saveDummyTwo(on: boolean) {
+  try {
+    localStorage.setItem(DUMMY_TWO_KEY, on ? '1' : '0')
+  } catch {
+    /* not saved */
+  }
+}
+
+// Training dummy pace: cast time as a % of the default, and the time between casts (ms).
+const DUMMY_PACE_KEY = 'spells-dummy-pace'
+export const CAST_PCT = { min: 50, max: 200 }
+export const GAP_MS = { min: 500, max: 8000, def: 2600 }
+export function loadDummyPace(): { castPct: number; gapMs: number } {
+  try {
+    const v = JSON.parse(localStorage.getItem(DUMMY_PACE_KEY) ?? 'null')
+    if (v && typeof v.castPct === 'number' && typeof v.gapMs === 'number')
+      return { castPct: Math.min(CAST_PCT.max, Math.max(CAST_PCT.min, v.castPct)), gapMs: Math.min(GAP_MS.max, Math.max(GAP_MS.min, v.gapMs)) }
+  } catch {
+    /* fall through */
+  }
+  return { castPct: 100, gapMs: GAP_MS.def }
+}
+export function saveDummyPace(p: { castPct: number; gapMs: number }) {
+  try {
+    localStorage.setItem(DUMMY_PACE_KEY, JSON.stringify(p))
+  } catch {
+    /* not saved */
   }
 }

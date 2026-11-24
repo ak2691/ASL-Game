@@ -2,20 +2,23 @@
 // One WebSocket per player at /ws. Also serves the built web app (apps/web/dist) so one Render
 // service hosts everything.
 //
-// Players are identified by a token their browser keeps across refreshes (not by the socket), so a
-// dropped connection or a refresh can rejoin the same seat within GRACE_MS. While a fighter is
-// away the fight is paused.
+// A room holds up to 4 players on two teams (1v1, 1v2, 2v2). The first player is the host and sets
+// each player's HP. Players are identified by a token their browser keeps across refreshes (not by the
+// socket), so a dropped connection or a refresh can rejoin the same seat within GRACE_MS. If a whole
+// team is away the fight pauses; if a teammate is still fighting, it goes on without them. A player
+// who doesn't come back in time is out of the match and the room.
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { Combat, flipView, type CombatView, type Side } from '../apps/web/src/combat.ts'
-import type { ClientMsg, OppEvent, ServerMsg } from '../apps/web/src/protocol.ts'
+import { Combat, MAX_HP, type Fid, type Side } from '../apps/web/src/combat.ts'
+import { HP_MAX, HP_MIN, ROOM_MAX, TEAM_MAX, type ClientMsg, type OppEvent, type ServerMsg } from '../apps/web/src/protocol.ts'
+import { hideShrouded, idsFor, viewFor } from '../apps/web/src/teamView.ts'
 
 const PORT = Number(process.env.PORT ?? 8787)
 const COUNTDOWN_MS = 3000
-const TICK_MS = 50
+const TICK_MS = 25 // how often a running fight is advanced (spells landing, ticks); local play redraws every frame
 const GRACE_MS = 15000 // a disconnected player keeps their seat this long
 const MAX_STROKE_PTS = 200 // per message
 const MAX_MSG_BYTES = 64 * 1024
@@ -29,11 +32,15 @@ interface Seat {
   token: string
   ws: WebSocket | null // null while disconnected
   awayTimer: ReturnType<typeof setTimeout> | null
+  team: Side
+  ready: boolean
+  hp: number // max HP for the next match
+  fid: Fid | null // fighter id in the current match (null = not in it)
+  forfeit: boolean // voted to forfeit this match
 }
 interface Room {
   code: string
-  seats: [Seat | null, Seat | null] // seat 0 = 'player' side, seat 1 = 'enemy' side
-  ready: [boolean, boolean]
+  seats: Seat[] // join order; seats[0] is the host
   phase: Phase
   combat: Combat
   timer: ReturnType<typeof setTimeout> | null // countdown or tick
@@ -55,26 +62,18 @@ function newCode() {
 const send = (ws: WebSocket | null | undefined, msg: ServerMsg) => {
   if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg))
 }
-const sideOf = (i: number): Side => (i === 0 ? 'player' : 'enemy')
-const indexOf = (room: Room, seat: Seat) => room.seats.indexOf(seat)
-const otherSeat = (room: Room, seat: Seat) => room.seats[1 - indexOf(room, seat)]
+const others = (room: Room, seat: Seat) => room.seats.filter((s) => s !== seat)
+const teamSize = (room: Room, t: Side) => room.seats.filter((s) => s.team === t).length
 
 function sendLobby(room: Room) {
-  const count = room.seats.filter(Boolean).length
-  room.seats.forEach((s, i) => send(s?.ws, { t: 'lobby', code: room.code, players: count, ready: [room.ready[i], room.ready[1 - i]] }))
+  const seats = room.seats.map((s) => ({ team: s.team, ready: s.ready, hp: s.hp, here: !!s.ws }))
+  room.seats.forEach((s, i) => send(s.ws, { t: 'lobby', code: room.code, seats, you: i, host: 0 }))
 }
 
 function sendState(room: Room) {
   const view = room.combat.view(room.pausedAt ?? Date.now())
   const paused = room.pausedAt !== null
-  send(room.seats[0]?.ws, { t: 'state', view: hideShrouded(view), paused })
-  send(room.seats[1]?.ws, { t: 'state', view: hideShrouded(flipView(view)), paused })
-}
-
-/** Shroud: while your opponent is Shrouded, you're never sent their charge, mix or readied spell. */
-function hideShrouded(v: CombatView): CombatView {
-  if (!(v.shroud.enemy > 0)) return v
-  return { ...v, charge: { ...v.charge, enemy: null }, mix: { ...v.mix, enemy: [] }, ready: { ...v.ready, enemy: null } }
+  for (const s of room.seats) if (s.fid) send(s.ws, { t: 'state', view: hideShrouded(viewFor(view, s.fid)), paused })
 }
 
 function stopTimer(room: Room) {
@@ -82,14 +81,25 @@ function stopTimer(room: Room) {
   room.timer = null
 }
 
+/** Ready to go: everyone here and ready, and both teams have someone (at most TEAM_MAX each). */
+function canStart(room: Room) {
+  const a = teamSize(room, 'player')
+  const b = teamSize(room, 'enemy')
+  return a >= 1 && b >= 1 && a <= TEAM_MAX && b <= TEAM_MAX && room.seats.every((s) => s.ws && s.ready)
+}
+
 function startCountdown(room: Room) {
   room.phase = 'countdown'
-  room.combat = new Combat()
+  room.seats.forEach((s, i) => {
+    s.fid = `f${i}`
+    s.forfeit = false
+  })
+  room.combat = new Combat({ fighters: room.seats.map((s) => ({ id: s.fid!, team: s.team, maxHp: s.hp })) })
   room.pausedAt = null
-  room.seats.forEach((s) => send(s?.ws, { t: 'countdown', ms: COUNTDOWN_MS }))
+  room.seats.forEach((s) => send(s.ws, { t: 'countdown', ms: COUNTDOWN_MS }))
   room.timer = setTimeout(() => {
     room.phase = 'fighting'
-    room.seats.forEach((s) => send(s?.ws, { t: 'start' }))
+    room.seats.forEach((s) => send(s.ws, { t: 'start' }))
     tick(room)
   }, COUNTDOWN_MS)
 }
@@ -98,7 +108,7 @@ function endFight(room: Room) {
   stopTimer(room)
   sendState(room)
   room.phase = 'over'
-  room.ready = [false, false]
+  room.seats.forEach((s) => (s.ready = false))
   room.pausedAt = null
   sendLobby(room)
 }
@@ -115,41 +125,64 @@ function tick(room: Room) {
   if (rooms.get(room.code) === room && room.phase === 'fighting') room.timer = setTimeout(() => tick(room), TICK_MS)
 }
 
-/** Remove a seat for good. Mid-fight, that's a forfeit. */
+/** Paused while a whole team is away (nobody left on it who's connected and still in). */
+function updatePause(room: Room) {
+  if (room.phase !== 'fighting') return
+  const stuck = (['player', 'enemy'] as Side[]).some((t) => {
+    const team = room.seats.filter((s) => s.fid && s.team === t && !room.combat.isOut(s.fid))
+    return team.length > 0 && team.every((s) => !s.ws)
+  })
+  if (stuck && room.pausedAt === null) room.pausedAt = Date.now()
+  else if (!stuck && room.pausedAt !== null) {
+    room.combat.shift(Date.now() - room.pausedAt)
+    room.pausedAt = null
+  }
+}
+
+/** Forfeit is a team vote: everyone on the team still fighting and connected must vote (a teammate who
+ *  left, is away or is out doesn't count). When they all have, the team loses. Returns true if it ended. */
+function checkForfeit(room: Room): boolean {
+  if (room.phase !== 'fighting') return false
+  for (const t of ['player', 'enemy'] as Side[]) {
+    const team = room.seats.filter((s) => s.fid && s.team === t)
+    const voters = team.filter((s) => s.forfeit)
+    if (!voters.length) continue
+    const needed = team.filter((s) => s.ws && !room.combat.isOut(s.fid!))
+    if (needed.every((s) => s.forfeit)) {
+      room.combat.forfeit(voters[0].fid!)
+      endFight(room)
+      return true
+    }
+    for (const s of team) send(s.ws, { t: 'forfeitVote', votes: needed.filter((x) => x.forfeit).length, needed: needed.length, mine: s.forfeit })
+  }
+  return false
+}
+
+/** Remove a seat for good. Mid-fight, they're out of the match (their team fights on, if anyone's left). */
 function removeSeat(room: Room, seat: Seat, forfeited: boolean) {
-  const i = indexOf(room, seat)
-  if (i < 0) return
+  if (!room.seats.includes(seat)) return
   if (seat.awayTimer) clearTimeout(seat.awayTimer)
   seatOfToken.delete(seat.token)
   const fighting = room.phase === 'fighting'
-  if (fighting) {
-    room.combat.forfeit(sideOf(i))
-    endFight(room)
-  }
-  room.seats[i] = null
-  const left = room.seats.find(Boolean) ?? null
-  if (!left) {
+  room.seats = room.seats.filter((s) => s !== seat)
+  if (!room.seats.length) {
     stopTimer(room)
     rooms.delete(room.code)
     return
   }
-  // The remaining player keeps the room (and the code) and moves to seat 0.
-  room.seats = [left, null]
-  stopTimer(room)
-  room.phase = fighting ? 'over' : 'lobby'
-  room.ready = [false, false]
-  room.pausedAt = null
-  send(left.ws, { t: 'oppLeft', forfeited: forfeited || fighting })
+  room.seats.forEach((s) => send(s.ws, { t: 'left', forfeited: forfeited || fighting }))
+  if (fighting && seat.fid) {
+    room.combat.leave(seat.fid, Date.now())
+    updatePause(room)
+    if (room.combat.winner) return endFight(room)
+    if (checkForfeit(room)) return // they were the vote still missing
+    sendState(room)
+  } else if (room.phase === 'countdown') {
+    stopTimer(room)
+    room.phase = 'lobby'
+  }
+  if (room.phase !== 'fighting') room.seats.forEach((s) => (s.ready = false))
   sendLobby(room)
-}
-
-function pause(room: Room) {
-  if (room.phase === 'fighting' && room.pausedAt === null) room.pausedAt = Date.now()
-}
-function resumeIfAllHere(room: Room) {
-  if (room.pausedAt === null || room.seats.some((s) => s && !s.ws)) return
-  room.combat.shift(Date.now() - room.pausedAt)
-  room.pausedAt = null
 }
 
 /** A seat's connection dropped (refresh, network): hold it for GRACE_MS. */
@@ -164,10 +197,12 @@ function onDisconnect(ws: WebSocket) {
     // Not started yet: back to the lobby rather than starting with someone missing.
     stopTimer(room)
     room.phase = 'lobby'
-    room.ready = [false, false]
+    room.seats.forEach((s) => (s.ready = false))
   }
-  pause(room)
-  send(otherSeat(room, seat)?.ws, { t: 'oppAway', ms: GRACE_MS })
+  updatePause(room)
+  if (checkForfeit(room)) return
+  others(room, seat).forEach((s) => send(s.ws, { t: 'away', ms: GRACE_MS }))
+  sendLobby(room)
   seat.awayTimer = setTimeout(() => removeSeat(room, seat, false), GRACE_MS)
 }
 
@@ -185,20 +220,22 @@ function onHello(ws: WebSocket, token: string) {
   if (seat.awayTimer) clearTimeout(seat.awayTimer)
   seat.awayTimer = null
   send(ws, { t: 'welcome', resumed: true })
-  send(otherSeat(room, seat)?.ws, { t: 'oppBack' })
+  others(room, seat).forEach((s) => send(s.ws, { t: 'back' }))
   sendLobby(room)
-  if (room.phase === 'fighting') {
+  if (room.phase === 'fighting' && seat.fid) {
     send(ws, { t: 'start' })
-    resumeIfAllHere(room)
+    updatePause(room)
     sendState(room)
   }
 }
 
+/** Another fighter's casting, to everyone else (by the id each of them knows that fighter as). */
 function relay(room: Room, from: Seat, ev: OppEvent) {
-  if (room.phase !== 'fighting' || room.pausedAt !== null) return
+  if (room.phase !== 'fighting' || room.pausedAt !== null || !from.fid) return
   // Shrouded: their charge, strokes and readied spell stay on the server (only the throw itself is shown).
-  if (ev.kind !== 'cast' && room.combat.view(Date.now()).shroud[sideOf(indexOf(room, from))] > 0) return
-  send(otherSeat(room, from)?.ws, { t: 'opp', ev })
+  if (ev.kind !== 'cast' && room.combat.view(Date.now()).shroud[from.fid] > 0) return
+  const fighters = room.combat.view(Date.now()).fighters
+  for (const s of others(room, from)) if (s.fid) send(s.ws, { t: 'opp', from: idsFor(fighters, s.fid)[from.fid], ev })
 }
 
 function onMessage(ws: WebSocket, msg: ClientMsg) {
@@ -213,8 +250,8 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
   switch (msg.t) {
     case 'create': {
       if (at) removeSeat(at.room, at.seat, false)
-      const seat: Seat = { token, ws, awayTimer: null }
-      const r: Room = { code: newCode(), seats: [seat, null], ready: [false, false], phase: 'lobby', combat: new Combat(), timer: null, pausedAt: null }
+      const seat: Seat = { token, ws, awayTimer: null, team: 'player', ready: false, hp: MAX_HP, fid: null, forfeit: false }
+      const r: Room = { code: newCode(), seats: [seat], phase: 'lobby', combat: new Combat(), timer: null, pausedAt: null }
       rooms.set(r.code, r)
       seatOfToken.set(token, { room: r, seat })
       sendLobby(r)
@@ -224,13 +261,16 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       const r = rooms.get(String(msg.code ?? '').toUpperCase().trim())
       if (!r) return send(ws, { t: 'error', msg: 'No room with that code.' })
       if (at?.room === r) return
-      if (r.seats[0] && r.seats[1]) return send(ws, { t: 'error', msg: 'That room is full.' })
+      if (r.seats.length >= ROOM_MAX) return send(ws, { t: 'error', msg: 'That room is full.' })
+      if (r.phase === 'fighting' || r.phase === 'countdown') return send(ws, { t: 'error', msg: 'That room is in a match. Try again when it ends.' })
       if (at) removeSeat(at.room, at.seat, false)
-      const seat: Seat = { token, ws, awayTimer: null }
-      r.seats[r.seats[0] ? 1 : 0] = seat
+      // The smaller team gets the new player (team 2 on a tie, so a 1v1 fills first).
+      const team: Side = teamSize(r, 'enemy') <= teamSize(r, 'player') ? 'enemy' : 'player'
+      const seat: Seat = { token, ws, awayTimer: null, team, ready: false, hp: MAX_HP, fid: null, forfeit: false }
+      r.seats.push(seat)
       seatOfToken.set(token, { room: r, seat })
       r.phase = 'lobby'
-      r.ready = [false, false]
+      r.seats.forEach((s) => (s.ready = false))
       sendLobby(r)
       return
     }
@@ -240,25 +280,41 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
   }
   if (!at) return
   const { room, seat } = at
-  const i = indexOf(room, seat)
+  const lobby = room.phase === 'lobby' || room.phase === 'over'
   switch (msg.t) {
     case 'ready':
-      if (room.phase !== 'lobby' && room.phase !== 'over') return
-      room.ready[i] = true
+      if (!lobby) return
+      seat.ready = true
       sendLobby(room)
-      if (room.seats[0]?.ws && room.seats[1]?.ws && room.ready[0] && room.ready[1]) startCountdown(room)
+      if (canStart(room)) startCountdown(room)
       return
+    case 'team': {
+      const to: Side = seat.team === 'player' ? 'enemy' : 'player'
+      if (!lobby || teamSize(room, to) >= TEAM_MAX) return
+      seat.team = to
+      room.seats.forEach((s) => (s.ready = false)) // teams changed: everyone confirms again
+      return sendLobby(room)
+    }
+    case 'hp': {
+      const target = room.seats[Number(msg.seat)]
+      if (!lobby || room.seats[0] !== seat || !target) return
+      target.hp = Math.min(HP_MAX, Math.max(HP_MIN, Math.round((Number(msg.hp) || MAX_HP) / 10) * 10))
+      room.seats.forEach((s) => (s.ready = false))
+      return sendLobby(room)
+    }
     case 'forfeit':
-      if (room.phase !== 'fighting') return
-      room.combat.forfeit(sideOf(i))
-      return endFight(room)
+      // A vote (pressing again takes it back). Alone on your team, it ends the match at once.
+      if (room.phase !== 'fighting' || !seat.fid) return
+      seat.forfeit = !seat.forfeit
+      if (!checkForfeit(room) && !seat.forfeit) for (const s of room.seats.filter((x) => x.team === seat.team)) send(s.ws, { t: 'forfeitVote', votes: 0, needed: 0, mine: s.forfeit })
+      return
   }
   // Casting: the browser only says what it recognized. The fight's rules decide what that does, on
   // the server's clock (charges, readied spells, throws, fizzle lockouts, fades). Nothing while paused.
-  // Each decision goes out to both players at once, not on the next tick (the tick is for what
-  // happens with nobody acting: spells landing, burns, fades).
-  if (room.phase !== 'fighting' || room.pausedAt !== null) return
-  const side = sideOf(i)
+  // Each decision goes out to everyone at once, not on the next tick (the tick is for what happens with
+  // nobody acting: spells landing, burns, fades).
+  if (room.phase !== 'fighting' || room.pausedAt !== null || !seat.fid) return
+  const side = seat.fid
   const now = Date.now()
   switch (msg.t) {
     case 'sign': {
@@ -283,6 +339,16 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       relay(room, seat, r ? { kind: 'readied', el: r.el, shape: r.shape } : { kind: 'cleared' })
       return sendState(room)
     }
+    case 'aim': {
+      // Their ids -> the server's.
+      const mine = idsFor(room.combat.view(now).fighters, side)
+      const target = typeof msg.target === 'string' ? Object.keys(mine).find((k) => mine[k] === msg.target) ?? null : null
+      room.combat.aim(side, target)
+      return
+    }
+    case 'parry':
+      room.combat.parry(side, now)
+      return sendState(room)
     case 'uncharge':
       if (room.combat.uncharge(side)) relay(room, seat, { kind: 'charge', el: null })
       return sendState(room)
@@ -294,6 +360,7 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       if (res === 'ok') relay(room, seat, { kind: 'cast' })
       else if (res === 'static') relay(room, seat, { kind: 'cleared' })
       room.combat.update(now) // a heal applies at once
+      if (room.combat.winner) return endFight(room)
       return sendState(room)
     }
   }
@@ -330,7 +397,9 @@ const http = createServer(async (req, res) => {
   res.writeHead(404).end('Not built yet: run `npm run build` in apps/web')
 })
 
-const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: MAX_MSG_BYTES })
+// Compression: state updates are near-identical JSON 40 times a second, so with the shared window
+// (context takeover) each one shrinks to a small diff. Tiny messages aren't worth compressing.
+const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: MAX_MSG_BYTES, perMessageDeflate: { threshold: 128 } })
 const alive = new WeakMap<WebSocket, boolean>()
 wss.on('connection', (ws) => {
   alive.set(ws, true)

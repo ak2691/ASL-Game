@@ -3,7 +3,7 @@ import glob, json, sys
 import numpy as np
 from synth_shapes import CLASSES, Gen, features
 
-m = json.load(open("../apps/web/public/models/shapes.json"))
+m = json.load(open(sys.argv[1] if len(sys.argv)>1 else "../apps/web/public/models/shapes.json"))
 def run(f):
     x = f
     for l in m["layers"]:

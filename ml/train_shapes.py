@@ -1,6 +1,6 @@
 """Train the spell-shape network on synthetic drawings (synth_shapes.py).
 
-Model: 326 -> 256 -> 96 -> 19 MLP (same JSON layer format as letters.json).
+Model: 328 -> 256 -> 96 -> 24 MLP (same JSON layer format as letters.json).
 Usage:  .venv/Scripts/python train_shapes.py
 Output: ../apps/web/public/models/shapes.json
 """

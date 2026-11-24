@@ -1,12 +1,13 @@
 // Spell impact visuals: an element projectile flies across, then the target's half gets an element effect.
 // Strength sets the size: light (line) < heavy (H, counter, heal) < signature.
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
-import { AEGIS_HP, MIRROR_MS, SHROUD_MS, type Bolt, type CombatView, type Side } from './combat'
+import { GLACIER_MS, GRAVE, MIRROR_MS, SHROUD_MS, STEAM_MS, TWILIGHT_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
+import { COMBO_MIX, isMixCounter } from './spells'
 
 const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
 const COUNT = { light: 6, heavy: 14, signature: 30 }
 /** A combo's impact uses both of its elements' particles. */
-const PARTS: Record<string, string[]> = { magma: ['F', 'E'], storm: ['W', 'L'], blizzard: ['I', 'W'], twilight: ['H', 'U'] }
+const partsOf = (el: string) => COMBO_MIX[el] ?? (isMixCounter(el) ? [el[1], el[2]] : undefined)
 
 /** Same numbers on every render for the same bolt (it re-renders every 50 ms). */
 function rng(seed: number) {
@@ -25,7 +26,7 @@ type Vars = CSSProperties & Record<`--${string}`, string | number>
 export function BoltLayer({ bolts }: { bolts: Bolt[] }) {
   return (
     <div className="bolt-layer">
-      {bolts.map((b) => (
+      {bolts.filter((b) => !b.parried).map((b) => (
         b.shape === 'battlements' && b.kind === 'hit' ? (
           // Earthquake: a crack races along the ground from your half to theirs.
           <div key={b.id}>
@@ -37,16 +38,33 @@ export function BoltLayer({ bolts }: { bolts: Bolt[] }) {
             ))}
           </div>
         ) : (
-          <div key={b.id} className={`bolt from-${b.from} ${b.kind} tier-${b.tier}`} style={{ color: b.color, '--fly': `${b.fly}ms` } as Vars}>
-            <Projectile b={b} />
-          </div>
+          <FlyingBolt key={b.id} b={b} />
         )
       ))}
     </div>
   )
 }
 
-const MIX: Record<string, string> = { magma: 'F', storm: 'L', blizzard: 'I', twilight: 'U' }
+// The screen updates the fight every 50 ms, so a spell can show up a little after it was thrown. With a
+// local clock (practice, dummy: bolt times are performance.now()), its animation starts from where the
+// spell really is, so it reaches the target exactly when it lands. Online, bolt times are the server's.
+let localClock = false
+export const setLocalBoltClock = (on: boolean) => {
+  localClock = on
+}
+/** ms since the throw, as of when this bolt first appears on screen (0 without a local clock). */
+const useSinceThrow = (b: Bolt) => useState(() => (localClock ? Math.max(0, Math.min(b.fly, performance.now() - b.t)) : 0))[0]
+
+function FlyingBolt({ b }: { b: Bolt }) {
+  const since = useSinceThrow(b)
+  return (
+    <div className={`bolt from-${b.from} ${b.kind} tier-${b.tier} el-${b.el}`} style={{ color: b.color, '--fly': `${b.fly}ms`, animationDelay: `-${since}ms` } as Vars}>
+      <Projectile b={b} />
+    </div>
+  )
+}
+
+const MIX: Record<string, string> = { magma: 'F', storm: 'L', glacier: 'I', twilight: 'U', steam: 'W', thermal: 'I', plasma: 'L', sunfire: 'F', grave: 'U' }
 
 /** What flies: drawn facing right (flipped for the enemy). Bigger for heavies and signatures.
  *  Glowing-energy look (reference: spell VFX in Hades / Magicka): no outlines, a white-hot core fading
@@ -116,11 +134,108 @@ function Projectile({ b }: { b: Bolt }) {
         <circle cx="66" cy="50" r="32" fill={core} />
       </>
     )
+  else if (b.el === 'magma')
+    // Magma: a molten boulder dripping lava, in a long fire trail.
+    art = (
+      <>
+        {defs('#ff5a14', '#ffb13d')}
+        <path d="M0 50 Q30 16 66 24 L66 76 Q30 84 0 50 Z" fill={trail} filter={blur} />
+        <circle cx="68" cy="50" r="30" fill={core} filter={blur} />
+        <path d="M50 34 L68 22 L88 30 L94 52 L84 72 L60 76 L46 58 Z" fill="#3a1c10" />
+        <path d="M56 36 L70 46 L66 60 M70 46 L86 40 M66 60 L80 66 M66 60 L54 64" fill="none" stroke="#ffb13d" strokeWidth="3" strokeLinecap="round" />
+        <path d="M58 76 Q57 86 60 90 Q63 86 62 76 Z M76 74 Q76 82 78 84 Q80 82 79 74 Z" fill="#ff7a1f" />
+      </>
+    )
+  else if (b.el === 'steam')
+    // Steam: a rolling ball of white puffs.
+    art = (
+      <>
+        {defs('#cfd8df', '#ffffff')}
+        <path d="M0 50 Q30 30 60 34 L60 66 Q30 70 0 50 Z" fill={trail} filter={blur} />
+        <g className="spin">
+          {[[50, 36, 14], [66, 42, 16], [60, 60, 15], [42, 58, 13], [36, 44, 11]].map(([x, y, r], k) => (
+            <circle key={k} cx={x} cy={y} r={r} fill="#eef3f6" opacity="0.9" />
+          ))}
+        </g>
+      </>
+    )
+  else if (b.el === 'thermal')
+    // Thermal Shock: an orb half fire, half ice, cracking in the middle.
+    art = (
+      <>
+        {defs('#ff6aa8', '#ffffff')}
+        <path d="M0 50 Q30 26 62 32 L62 68 Q30 74 0 50 Z" fill={trail} filter={blur} />
+        <path d="M68 22 A28 28 0 0 0 68 78 Z" fill="#ff5a2a" />
+        <path d="M68 22 A28 28 0 0 1 68 78 Z" fill="#7fd0ff" />
+        <path d="M68 22 L62 36 L72 48 L62 60 L70 78" fill="none" stroke="#fff" strokeWidth="3" strokeLinejoin="round" />
+      </>
+    )
+  else if (b.el === 'plasma')
+    // Plasma: a hot pink ball with tendrils crackling round it.
+    art = (
+      <>
+        {defs('#e83dff', '#ffd6ff')}
+        <path d="M0 50 Q30 28 60 34 L60 66 Q30 72 0 50 Z" fill={trail} filter={blur} />
+        <circle cx="62" cy="50" r="30" fill={core} filter={blur} />
+        <circle cx="62" cy="50" r="22" fill="none" stroke="#ffd6ff" strokeWidth="2" />
+        <g className="spin" style={{ transformOrigin: '62px 50px' }}>
+          <path d="M62 50 Q52 36 62 28 Q72 36 62 50 Q48 54 44 64 Q56 66 62 50 Q76 54 80 64 Q68 66 62 50" fill="none" stroke="#fff" strokeWidth="2.5" />
+        </g>
+      </>
+    )
+  else if (b.el === 'sunfire')
+    // Sunfire: a blazing little sun, rays turning.
+    art = (
+      <>
+        {defs('#ffb81f', '#fff6c2')}
+        <path d="M0 50 Q30 28 60 34 L60 66 Q30 72 0 50 Z" fill={trail} filter={blur} />
+        <g className="spin" style={{ transformOrigin: '64px 50px' }}>
+          <path d="M64 18 L68 38 L86 28 L76 46 L96 50 L76 54 L86 72 L68 62 L64 82 L60 62 L42 72 L52 54 L32 50 L52 46 L42 28 L60 38 Z" fill="#ffd23d" />
+        </g>
+        <circle cx="64" cy="50" r="14" fill={core} />
+      </>
+    )
+  else if (b.el === 'grave')
+    // Grave: a tombstone in a cold purple haze.
+    art = (
+      <>
+        {defs('#6a4a8c', '#c9b6e0')}
+        <path d="M0 50 Q30 28 56 34 L56 66 Q30 72 0 50 Z" fill={trail} filter={blur} />
+        <circle cx="66" cy="50" r="30" fill={core} filter={blur} opacity="0.6" />
+        <path d="M52 80 L52 40 A14 14 0 0 1 80 40 L80 80 Z" fill="#8a7a9c" stroke="#3a2c4c" strokeWidth="3" />
+        <path d="M66 46 L66 70 M58 54 L74 54" stroke="#3a2c4c" strokeWidth="4" strokeLinecap="round" />
+      </>
+    )
+  else if (b.el === 'twilight')
+    // Twilight: a spinning disc of light and dark.
+    art = (
+      <>
+        {defs('#a07ad8', '#ffffff')}
+        <path d="M0 50 Q30 28 60 34 L60 66 Q30 72 0 50 Z" fill={trail} filter={blur} />
+        <g className="spin" style={{ transformOrigin: '64px 50px' }}>
+          <circle cx="64" cy="50" r="26" fill="#fff" />
+          <path d="M64 24 A26 26 0 0 1 64 76 A13 13 0 0 1 64 50 A13 13 0 0 0 64 24 Z" fill="#2a1840" />
+          <circle cx="64" cy="37" r="4" fill="#2a1840" />
+          <circle cx="64" cy="63" r="4" fill="#fff" />
+        </g>
+      </>
+    )
+  else if (b.el === 'glacier')
+    // Advancing Glacier: a slow wall of ice, drawn under everything else the caster throws.
+    art = (
+      <>
+        {defs('#7fd0ff', '#e8f8ff')}
+        <path d="M18 92 L26 30 L40 40 L52 8 L66 34 L80 22 L90 92 Z" fill="#cdeeff" opacity="0.9" />
+        <path d="M52 8 L66 34 L60 92 L44 92 Z" fill="#9fdcff" opacity="0.8" />
+        <path d="M18 92 L26 30 L40 40 L52 8 L66 34 L80 22 L90 92 Z" fill="none" stroke="#fff" strokeWidth="2" />
+      </>
+    )
   else if (el === 'I' && sig)
     // Frozen Prison: a cage of glowing ice bars.
     art = (
       <>
         {defs('#5fc8ff', '#dff6ff')}
+        <g className="upright">
         <rect x="14" y="10" width="72" height="80" rx="8" fill="#8fd8ff" opacity="0.25" filter={blur} />
         {[26, 42, 58, 74].map((x) => (
           <g key={x}>
@@ -130,6 +245,7 @@ function Projectile({ b }: { b: Bolt }) {
         ))}
         <rect x="10" y="8" width="80" height="8" rx="4" fill="#e9f8ff" />
         <rect x="10" y="84" width="80" height="8" rx="4" fill="#e9f8ff" />
+        </g>
       </>
     )
   else if (el === 'I')
@@ -200,7 +316,7 @@ function Projectile({ b }: { b: Bolt }) {
         <circle cx="56" cy="30" r="1.4" fill="#e2bd80" />
       </>
     )
-  else if (el === 'L' && sig) return null // Thunderbolt doesn't fly: a storm forms over them and strikes
+  else if ((el === 'L' && sig) || b.el === 'storm') return null // Thunderbolt and Storm don't fly: a storm forms over them and strikes
   else if (el === 'L')
     // Lightning: a white-hot zigzag bolt in a crackling yellow glow.
     art = (
@@ -231,6 +347,7 @@ function Projectile({ b }: { b: Bolt }) {
       <>
         {defs('#8a3fd6', '#e6c2ff')}
         <path d="M0 50 Q26 24 50 30 L50 70 Q26 76 0 50 Z" fill={trail} filter={blur} />
+        <g className="upright">
         <circle cx="64" cy="48" r="38" fill={core} opacity="0.55" filter={blur} />
         <path d="M64 16 Q90 16 92 42 Q93 55 83 59 L82 72 Q74 80 64 80 Q54 80 46 72 L45 59 Q35 55 36 42 Q38 16 64 16 Z" fill="#f2eefc" />
         <ellipse cx="54" cy="44" rx="7.5" ry="8.5" fill="#3a1f5a" />
@@ -239,6 +356,7 @@ function Projectile({ b }: { b: Bolt }) {
         <circle cx="74" cy="45" r="3.5" fill="#d9a6ff" />
         <path d="M61 59 L64 52 L67 59 Z" fill="#3a1f5a" />
         <path d="M52 69 h24 M57 65 v8 M62 65 v8 M67 65 v8 M72 65 v8" stroke="#3a1f5a" strokeWidth="2.5" />
+        </g>
       </>
     )
   else
@@ -252,6 +370,20 @@ function Projectile({ b }: { b: Bolt }) {
     <svg className="projectile" viewBox="0 0 100 100" aria-hidden="true">
       {art}
     </svg>
+  )
+}
+
+/** Parry timing: a ring per spell flying at `side` that closes on impact and lights up when the parry
+ *  window opens (the last PARRY_WINDOW_MS). Pure CSS timing from the moment it appears. */
+export function ParryRings({ side, bolts, windowMs }: { side: Side; bolts: Bolt[]; windowMs: number }) {
+  return (
+    <>
+      {bolts
+        .filter((b) => b.from !== side && b.parryable && !b.parried && !b.landed)
+        .map((b) => (
+          <div key={b.id} className="parry-ring" style={{ color: b.color, '--fly': `${b.fly}ms`, '--open': `${Math.max(0, b.fly - windowMs)}ms`, '--win': `${windowMs}ms` } as Vars} />
+        ))}
+    </>
   )
 }
 
@@ -270,7 +402,7 @@ export function useShake(bolts: Bolt[], refs: Record<Side, RefObject<HTMLDivElem
       const at = (k: number) => (vert ? `translate(0, ${k * px}px)` : `translate(${k * px}px, ${k * px * 0.35}px)`)
       refs[target].current?.animate(
         [0, -1, 0.8, -0.6, 0.4, -0.2, 0].map((k) => ({ transform: at(k) })),
-        { duration: ms, delay: b.landed ? 0 : b.fly, easing: 'ease-out' },
+        { duration: ms, delay: b.landed ? 0 : Math.max(0, b.fly - (localClock ? performance.now() - b.t : 0)), easing: 'ease-out' },
       )
     }
   }, [bolts, refs])
@@ -282,6 +414,7 @@ export function Impacts({ side, bolts }: { side: Side; bolts: Bolt[] }) {
     <>
       {bolts.map((b) => {
         const onTarget = b.from !== side
+        if (b.parried) return null
         if (onTarget && b.kind === 'hit') return <Impact key={b.id} b={b} />
         if (onTarget && b.kind === 'counter' && b.landed) return <Impact key={b.id} b={b} landed />
         if (!onTarget && b.kind === 'heal') return <Impact key={b.id} b={b} />
@@ -306,9 +439,10 @@ export function Impacts({ side, bolts }: { side: Side; bolts: Bolt[] }) {
 function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
   const r = rng(b.id)
   const n = COUNT[b.tier]
-  const delay = b.kind === 'heal' || landed ? 0 : b.fly
+  const since = useSinceThrow(b)
+  const delay = b.kind === 'heal' || landed ? 0 : Math.max(0, b.fly - since)
   const el = b.kind === 'counter' ? 'counter' : b.el
-  const els = PARTS[el] ?? [el]
+  const els = partsOf(el) ?? [el]
   const parts: ReactElement[] = []
   const add = (cls: string, v: Vars) => parts.push(<i key={parts.length} className={cls} style={v} />)
   const d = (extra = 0) => `${delay + extra}ms`
@@ -400,7 +534,7 @@ export function SilenceLock({ ms }: { ms: number }) {
 
 /** Ongoing effects on one half: silence greys it out, static crackles the edges, chill frosts them,
  *  burn flickers from below, regen pulses green, and a knock-off drops rubble. */
-export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
+export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
   const silenced = view.silenced[side]
   const knocks = view.knocked[side]
   const seenKnocks = useRef(knocks)
@@ -419,6 +553,16 @@ export function StatusFx({ side, view }: { side: Side; view: CombatView }) {
       {view.shield[side] > 0 && <div className="st-aegis" />}
       {view.mirror[side] > 0 && <div className="st-mirror" />}
       {view.shroud[side] > 0 && <div className="st-shroud" />}
+      {view.fog[side] > 0 && <div className="st-steam" />}
+      {view.storm[side] && (
+        <div className={`st-storm ${st}`}>
+          {st === 'on' && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+              <polyline points={`${20 + r() * 60},0 ${30 + r() * 40},30 ${20 + r() * 60},55 ${30 + r() * 40},100`} />
+            </svg>
+          )}
+        </div>
+      )}
       {view.doom[side] > 0 && (
         <div className="st-doom">
           <b>{(view.doom[side] / 1000).toFixed(1)}</b>
@@ -489,6 +633,17 @@ function signature(b: Bolt, r: () => number, parts: ReactElement[]) {
     }
     parts.push(<div key={k()} className="sig-whiteout" />)
   }
+  if (b.el === 'storm')
+    // Storm (Water + Lightning): not one big strike but weather. A blue-grey rain front rolls in
+    // over their half and sets in; the 5 pulses then strike one by one (StatusFx, st-storm).
+    parts.push(
+      <div key={k()} className="sig-cloud storm" style={{ '--d': '0ms', '--t': `${b.fly}ms` } as Vars}>
+        {Array.from({ length: 14 }, (_, i) => (
+          <i key={i} style={{ '--x': `${4 + r() * 92}%`, '--d': `${r() * b.fly * 0.8}ms` } as Vars} />
+        ))}
+      </div>,
+      <div key={k() + 1} className="sig-rainwash" />,
+    )
   if (b.el === 'E')
     // Earthquake: cracks run up from the ground.
     for (let c = 0; c < 4; c++) {
@@ -529,12 +684,25 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
     case 'volcano': // lava wells up from below
       parts.push(<div key={k()} className="fx-lava" style={{ '--d': d() } as Vars} />)
       break
-    case 'cloud': {
-      // the sky darkens and a bolt splits it
+    case 'iceberg': // the glacier crushes in, snow everywhere
+    case 'thermo': // hot and cold at once
+      for (let i = 0; i < 26; i++)
+        parts.push(<i key={k()} className="p snow" style={{ '--x': `${(r() - 0.5) * 100}%`, '--s': `${4 + r() * 6}px`, '--d': d(r() * 500), '--t': `${900 + r() * 700}ms` } as Vars} />)
+      break
+    case 'puff': // steam rolls over them
+      parts.push(<div key={k()} className="fx-steam" style={{ '--d': d() } as Vars} />)
+      break
+    case 'sun': // a blaze of sunlight
+      parts.push(<div key={k()} className="fx-sun" style={{ '--d': d() } as Vars} />)
+      break
+    case 'tomb': // a grave's gloom
+      parts.push(<div key={k()} className="fx-shroud" style={{ '--d': d() } as Vars} />)
+      break
+    case 'plasma': {
       parts.push(<div key={k()} className="sig-dark" style={{ '--d': d(100) } as Vars} />)
       let x = 50
       const pts = [`${x},-2`]
-      for (let y = 8; y <= 100; y += 8) pts.push(`${(x = Math.max(15, Math.min(85, x + (r() - 0.5) * 30)))},${y}`)
+      for (let y = 8; y <= 100; y += 8) pts.push(`${(x = Math.max(15, Math.min(85, x + (r() - 0.5) * 40)))},${y}`)
       parts.push(
         <svg key={k()} className="sig-bolt" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ '--d': d(150) } as Vars}>
           <polyline points={pts.join(' ')} />
@@ -542,10 +710,6 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
       )
       break
     }
-    case 'trefoil': // snow drives down
-      for (let i = 0; i < 26; i++)
-        parts.push(<i key={k()} className="p snow" style={{ '--x': `${(r() - 0.5) * 100}%`, '--s': `${4 + r() * 6}px`, '--d': d(r() * 500), '--t': `${900 + r() * 700}ms` } as Vars} />)
-      break
     case 'yinyang': // light and dark split the half and spin
       parts.push(<div key={k()} className="fx-twilight" style={{ '--d': d() } as Vars} />)
       break
@@ -553,19 +717,24 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
 }
 
 /** Buffs with a clock: how much is left, as a label and a bar that runs down. */
-function Timers({ view, side }: { view: CombatView; side: Side }) {
+function Timers({ view, side }: { view: CombatView; side: Fid }) {
   const items = [
-    view.shield[side] > 0 && { k: 'aegis', label: `Armor ${view.shield[side]}`, f: view.shield[side] / AEGIS_HP },
+    // Aegis armor isn't listed: the health bar already shows it (+N and the armor segment).
     view.mirror[side] > 0 && { k: 'mirror', label: `Mirror ${(view.mirror[side] / 1000).toFixed(1)} s`, f: view.mirror[side] / MIRROR_MS },
     view.shroud[side] > 0 && { k: 'shroud', label: `Shroud ${(view.shroud[side] / 1000).toFixed(1)} s`, f: view.shroud[side] / SHROUD_MS },
+    view.guard[side] > 0 && { k: 'guard', label: `Guarded ${(view.guard[side] / 1000).toFixed(1)} s`, f: view.guard[side] / TWILIGHT_MS },
+    view.exposed[side] > 0 && { k: 'exposed', label: `Exposed ${(view.exposed[side] / 1000).toFixed(1)} s`, f: view.exposed[side] / TWILIGHT_MS },
+    view.fog[side] > 0 && { k: 'fog', label: `Steam ${(view.fog[side] / 1000).toFixed(1)} s`, f: view.fog[side] / STEAM_MS },
+    view.noHeal[side] > 0 && { k: 'noheal', label: `No healing ${(view.noHeal[side] / 1000).toFixed(1)} s`, f: view.noHeal[side] / GRAVE.ms },
+    view.glacier[side] > 0 && { k: 'glacier', label: `Glacier ${(view.glacier[side] / 1000).toFixed(1)} s`, f: view.glacier[side] / GLACIER_MS },
   ].filter((x): x is { k: string; label: string; f: number } => !!x)
   if (!items.length) return null
   return (
     <div className={`st-timers ${side === 'player' ? 'mine' : ''}`}>
       {items.map((t) => (
         <span key={t.k} className={`st-timer ${t.k}`}>
-          {t.label}
           <i style={{ width: `${Math.min(1, t.f) * 100}%` }} />
+          <span>{t.label}</span>
         </span>
       ))}
     </div>
