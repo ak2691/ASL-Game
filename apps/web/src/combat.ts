@@ -78,7 +78,7 @@ const REFLECT_POWER = [0.5, 0.35]
 // and adds a stack to each.
 export const WEAR_STEP = 0.3
 export const WEAR_FLOOR = 0.3 // Nov 24: was 0.4
-export const WEAR_DECAY_MS = 8000 // Nov 24: was 5000 (two elements alternated recovered fully; three in rotation still do)
+export const WEAR_DECAY_MS = 10000 // Nov 24: was 8000, before that 5000 (two elements alternated recovered fully; three in rotation still do)
 const WEAR_MAX_STACKS = (1 - WEAR_FLOOR) / WEAR_STEP // stacks that reach the floor
 // Wear also shrinks effects (Nov 24): chill %, stun and silence lengths (never below STUN_MIN_MS), timed
 // effects (Twilight, fog, no-heal, Shroud), Doom and Storm damage. Lightning is the exception: below

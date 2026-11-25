@@ -106,9 +106,9 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two'; icons?: Row
   {
     title: 'Wear',
     points: [
-      `Every throw wears its element: ${pct(WEAR_STEP)} less damage per stack, down to ${pct(WEAR_FLOOR)}. A light counts half.`,
+      `Every throw wears its element: ${pct(WEAR_STEP)} less power (a light, half that), down to ${pct(WEAR_FLOOR)}.`,
       `Worn spells are weaker all round: smaller chills, shorter stuns and effects. Lightning worn below ${pct(STATIC_CUTOFF)} adds no static.`,
-      `A stack fades every ${secs(WEAR_DECAY_MS)}. Rotate elements to stay at full power.`,
+      `A worn element recovers ${pct(WEAR_STEP)} every ${secs(WEAR_DECAY_MS)}. Rotate elements to stay at full power.`,
       "A worn element shows under your health with its power (like I 62%). Your opponent's show under theirs: their fresh elements are what they'll want to throw.",
     ],
   },

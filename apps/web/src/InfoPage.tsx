@@ -212,7 +212,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
           <li><b>Armor (Aegis):</b> direct hits are soaked first. It drains over time.</li>
           <li><b>Doomed:</b> a countdown. Land any cast before it ends.</li>
           <li><b>Shrouded:</b> your opponent can't see your charge or drawing.</li>
-          <li><b>Worn:</b> every throw wears its element (a light half as much). Each stack takes {WEAR_STEP * 100}% off that element's damage and heals, down to {WEAR_FLOOR * 100}%. Wear also shrinks chills, stuns, timed effects and Doom (a stun never below {s(STUN_MIN_MS)}, Shroud never below {s(SHROUD_MIN_MS)}). Lightning below {STATIC_CUTOFF * 100}% adds no static. A stack fades every {s(WEAR_DECAY_MS)}. A combo hits at the average of its two elements and wears both. Mix your elements.</li>
+          <li><b>Worn:</b> every throw takes {WEAR_STEP * 100}% off its element's power (a light, half that), down to {WEAR_FLOOR * 100}%. Power means damage, heals and effects. Wear also shrinks chills, stuns, timed effects and Doom (a stun never below {s(STUN_MIN_MS)}, Shroud never below {s(SHROUD_MIN_MS)}). Lightning below {STATIC_CUTOFF * 100}% adds no static. A worn element recovers {WEAR_STEP * 100}% every {s(WEAR_DECAY_MS)}. A combo hits at the average of its two elements and wears both. Mix your elements.</li>
         </ul>
         <h3>Icons</h3>
         <p className="info-note">When you can't act, your hand shows this with a red ring that drains, and a word under it saying why. After a good parry: a green shield.</p>

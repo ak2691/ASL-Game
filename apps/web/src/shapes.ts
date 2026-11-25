@@ -216,9 +216,10 @@ export function sunTips(points: Pt[]) {
   return n
 }
 
-/** Plasma's petals: trips out from the middle (under 0.15 of the ball's radius) that turn back before the
- *  ball (tip between 0.2 and 0.88) and return. Must be exactly 3. Mirror of ml/petals.py: 96% of messy
- *  3-petal drawings count 3; 2 never do, 4 about 7%. */
+/** Plasma's petals: trips out from the middle (under 0.2 of the ball's radius) that reach past 0.25 and come
+ *  back. Told from the line-and-ball trip by length (under 3.5 radii; the ball alone is ~6), not by how far
+ *  out they reach, so petals may touch the ball (as in the guide). Must be exactly 3. Mirror of ml/petals.py
+ *  (Nov 24 loosening): long, off-centre 3-petal drawings 98% (was 65%); 2 never count, 4 about 7%. */
 export function plasmaPetals(points: Pt[]) {
   const q = resample(points, 200)
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
@@ -229,14 +230,17 @@ export function plasmaPetals(points: Pt[]) {
   let n = 0
   let out = false
   let top = 0
-  for (const d of r) {
-    const v = d / max
+  let len = 0
+  for (let i = 0; i < r.length; i++) {
+    const v = r[i] / max
+    const step = i ? Math.hypot(q[i].x - q[i - 1].x, q[i].y - q[i - 1].y) / max : 0
     if (!out) {
-      if (v > 0.15) [out, top] = [true, v]
+      if (v > 0.2) [out, top, len] = [true, v, step]
     } else {
       top = Math.max(top, v)
-      if (v < 0.15) {
-        if (top > 0.2 && top < 0.88) n++
+      len += step
+      if (v < 0.2) {
+        if (top > 0.25 && len < 3.5) n++
         out = false
       }
     }
@@ -329,8 +333,13 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
     if (sunTips(points) === 8) return { name: 'sun', score: Math.max(0.7, sun), top }
     if (top[0].name === 'sun') return { name: 'none', score: top[0].prob, top }
   }
-  // Plasma: exactly 3 petals, also counted by a rule.
-  if (top[0].name === 'plasma' && plasmaPetals(points) !== 3) return { name: 'none', score: top[0].prob, top }
+  // Plasma: exactly 3 petals, also counted by a rule. Hard to draw, so (like Sunfire) a network that only
+  // leans Plasma is enough when the petals count right.
+  const plasma = top.find((t) => t.name === 'plasma')?.prob ?? 0
+  if (top[0].name === 'plasma' || plasma >= 0.3) {
+    if (plasmaPetals(points) === 3) return { name: 'plasma', score: Math.max(0.7, plasma), top }
+    if (top[0].name === 'plasma') return { name: 'none', score: top[0].prob, top }
+  }
   // Heavy (H): both posts must run the full height, with the crossbar between them (no half-drawn H).
   if (top[0].name === 'h' && !fullH(points)) return { name: 'none', score: top[0].prob, top }
   // Doom: the blade has to curve. Straight lines with corners are never a scythe.

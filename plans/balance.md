@@ -225,3 +225,17 @@ no-heal; not stuns, knockdowns or wear). Backfire on a counterspell: half (15 or
 - After Grave or Twilight (both wear Unholy): ~50, even with Meteor. A second Execute in the window: ~40.
 - Watch: 2v2, where curses are near-constant. Fix if needed: cursed 60 -> 55.
 - AI: favors Execute when you're cursed (more so when smart), avoids it when you're not.
+
+### Wear recovery 8 s -> 10 s (Nov 24)
+Recovers 30% per 10 s (3%/s). Heavies every ~3.3 s: two elements alternating sink toward ~50-60%; three in
+rotation stay near full. Lightning static (70% cutoff) about once per 10 s per element. Plasma's 50% now takes
+~17 s to clear (was ~13): stronger, watch it. Execute's second hit in a Grave window: ~38. Player text no longer
+says "stack": it says "takes 30% off" and "recovers 30% every 10 s".
+
+### 10 s recovery check (Nov 24, simulated casts per bot, average power of its throws)
+At 8 s, two elements alternating recovered exactly in time; at 10 s they sink to the floor. Two-element bots
+collapse: Frost 75%, Cleric 56%, Hexer 40% (static only 9% of its Lightning), Zealot 36%. That breaks the
+ladder (Zealot far weaker than Tide at 93%). Every other bot stays 91-97%.
+Fix: a third element each: Frost I F W (97%), Cleric W I E (96%), Hexer E L I (92%, static 97%), Zealot F E W (91%).
+Players: same rule. Two elements is now a losing rotation; three keeps you near full. Combos wear two at once,
+so a combo player needs 4+ elements in play. Spell numbers themselves don't change.

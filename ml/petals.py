@@ -1,28 +1,30 @@
 """Plasma petal counter (mirror of plasmaPetals in apps/web/src/shapes.ts).
 
 Distance from the ball's centre, as a share of the ball's radius (the biggest distance). A petal is a
-trip out from the middle (under IN) that turns back before reaching the ball (its tip between TIP and
-OUT) and comes back to the middle. The line out to the ball and the ball itself go past OUT: not petals.
+trip out from the middle (under IN) that reaches past TIP and comes back, shorter than LEN radii. The
+line out plus the ball is far longer, so petals may touch the ball. (Nov 24: was a reach cap of 0.88.)
 """
 import numpy as np
 from synth_shapes import resample
 
-N, IN, TIP, OUT = 200, 0.15, 0.2, 0.88
+N, IN, TIP, LEN = 200, 0.2, 0.25, 3.5
 
 
 def petals(p):
     q = resample(np.asarray(p, float), N)
     c = (q.min(0) + q.max(0)) / 2
     r = np.hypot(*(q - c).T)
-    r = r / (r.max() or 1)
-    n, out, top = 0, False, 0.0
-    for v in r:
+    R = r.max() or 1
+    r = r / R
+    seg = np.r_[0, np.hypot(*np.diff(q, axis=0).T)] / R
+    n, out, top, ln = 0, False, 0.0, 0.0
+    for v, s in zip(r, seg):
         if not out:
-            if v > IN: out, top = True, v
+            if v > IN: out, top, ln = True, v, s
         else:
-            top = max(top, v)
+            top = max(top, v); ln += s
             if v < IN:
-                if TIP < top < OUT: n += 1
+                if top > TIP and ln < LEN: n += 1
                 out = False
     return n
 
