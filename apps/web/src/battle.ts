@@ -162,16 +162,17 @@ const DRAW_MS: Record<string, number> = {
   scythe: 1800,
   veil: 2000,
   blade: 2400,
-  // Combos, by how much drawing each one is (Nov 24: they were far too quick to answer):
-  tomb: 3000, // 9 straight lines
-  iceberg: 3100, // 10 straight lines
-  volcano: 3100, // 9 lines and a small arc
-  cloud: 3300, // three arcs, then the bolt
-  thermo: 3500, // tube, bulb, then a 4-line crack
-  puff: 3800, // 8 humps, each a careful arc
-  yinyang: 3800, // circle, the S, both dots
-  sun: 4000, // 16 lines, exactly 8 points
-  plasma: 4200, // 3 curved petals, then the ball around them
+  // Combos, by how much drawing each one is. Nov 24: about twice a signature. A hand in the air, drawing
+  // something unfamiliar to a camera, is far slower than a pencil; Sunfire and Plasma are the slowest by far.
+  tomb: 5000, // 9 straight lines
+  iceberg: 5200, // 10 straight lines
+  volcano: 5200, // 9 lines and a small arc
+  cloud: 5600, // three arcs, then the bolt
+  thermo: 6000, // tube, bulb, then a 4-line crack
+  puff: 6200, // 8 humps, each a careful arc
+  yinyang: 6200, // circle, the S, both dots
+  plasma: 7500, // 3 curved petals, then the ball around them
+  sun: 8000, // 16 lines, exactly 8 points
 }
 const ENEMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L']
 // What it attacks with (weights). Same rules as the player, so reading the shape tells you what's coming.

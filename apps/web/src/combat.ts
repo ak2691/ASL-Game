@@ -35,7 +35,7 @@ export const EXECUTE = { base: 30, cursed: 60 }
 export const MAGMA: [number, number] = [45, 45] // hit, then burn over 5 s
 export const STORM = { hit: 25, pulse: 10, zap: 15, count: 5 } // 0.35 s on / 0.6 s off; a throw in a pulse fizzles and takes `zap`
 export const GLACIER_MS = 6500 // Advancing Glacier: creeps this long, then crushes...
-export const GLACIER_DMG = 95 // ...for this. Only a Fire + Ice combo counterspell stops it.
+export const GLACIER_DMG = 100 // ...for this. Only a Fire + Ice combo counterspell stops it.
 export const TWILIGHT_MS = 8000 // you take 50% less, they take 100% more (stacks with chill)
 export const TWILIGHT_GUARD = 0.5 // you take this much less
 export const TWILIGHT_EXPOSE = 1 // they take this much more (Nov 23 buff: was 0.5)
@@ -47,8 +47,8 @@ export const STEAM_HIT = 40
 export const THERMAL = { hit: 38, burn: 22, chill: 0.5 } // a hit, a burn and a chill
 // Plasma (Nov 24): no stun. It knocks their charge off like Earthquake and drops every one of their
 // elements to `cap` power at most (lower ones stay where they are).
-export const PLASMA = { hit: 42, burn: 20, cap: 0.5 }
-export const SUNFIRE: [number, number] = [20, 50] // hit, then a 6 s burn that heals you what it deals
+export const PLASMA = { hit: 46, burn: 20, cap: 0.5 }
+export const SUNFIRE: [number, number] = [20, 55] // hit, then a 6 s burn that heals you what it deals
 export const GRAVE = { hit: 34, ms: 10000 } // no healing (Water's mend included) and no Angelic spells (a Angelic counterspell still works)
 export const TIDAL_HEAL = 28 // Tidal Wave heals its caster this much
 export const HEAL = 34 // Angelic star: right away

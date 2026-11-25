@@ -239,3 +239,18 @@ ladder (Zealot far weaker than Tide at 93%). Every other bot stays 91-97%.
 Fix: a third element each: Frost I F W (97%), Cleric W I E (96%), Hexer E L I (92%, static 97%), Zealot F E W (91%).
 Players: same rule. Two elements is now a losing rotation; three keeps you near full. Combos wear two at once,
 so a combo player needs 4+ elements in play. Spell numbers themselves don't change.
+
+### Hardest-draw buffs (Nov 24)
+Real drawing time (user): Sunfire takes by far the longest, Plasma next.
+- Sunfire burn 50 -> 55: swing back to 130, ~22.8/s. Top value, paid by the longest draw; Grave stops the heal.
+- Glacier 95 -> 100: round number; still slow (6.5 s) and only a combo counterspell stops it.
+- Plasma hit 42 -> 46 (not 50): with 10 s wear recovery its 50% cap now lasts ~17 s and is worth ~40-60 on
+  its own. 46 + 20 burn + interrupt (~15) + cap (~50) = ~131 over ~5.9 s, ~22/s: level with Sunfire. At 50 it
+  would be ~25/s, clearly the best combo.
+
+### AI and dummy combo draw times ~2x signatures (Nov 24)
+Humans drawing in the air to a camera are far slower than the old times assumed. Combo DRAW_MS (speed 1):
+Grave 5.0, Glacier/Magma 5.2, Storm 5.6, Thermal 6.0, Steam/Twilight 6.2, Plasma 7.5, Sunfire 8.0 s (was
+3.0-4.2; signatures stay 2.0-2.5). Full casts at speed 1 now ~6.7-9.7 s, so per-second combo values in this
+file drop by about a third (about 1.5x slower): combos are big but slow, and far easier to see coming and counter.
+Ladder order holds (every combo bot slows the same way); combo-heavy bots (Archmage up) lose a little pace.
