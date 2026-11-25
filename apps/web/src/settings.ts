@@ -16,26 +16,22 @@ export function loadDrawHand(): Hand {
 // Push sensitivity: how much the hand must grow on screen (move toward the camera) to throw or parry.
 // Lower = a smaller push counts (less effort, but leaning in can set it off). Read live every frame.
 export const PUSH_KEY = 'spells-push'
-export const PUSH_SIZES = [
-  { name: 'Tiny', growth: 1.1 },
-  { name: 'Small', growth: 1.15 },
-  { name: 'Medium', growth: 1.2 },
-  { name: 'Big', growth: 1.3 },
-]
+// Stored as a growth ratio (1.2 = the hand looks 20% bigger). Players set it as a whole percent, 5 to 50.
+export const PUSH_MIN = 5
+export const PUSH_MAX = 50
 export const PUSH_DEFAULT = 1.2
-/** The size closest to growth `g` (older saves had in-between values). */
-export const nearestPush = (g: number) => PUSH_SIZES.reduce((a, b) => (Math.abs(b.growth - g) < Math.abs(a.growth - g) ? b : a))
+const clampPush = (g: number) => 1 + Math.min(PUSH_MAX, Math.max(PUSH_MIN, Math.round((g - 1) * 100))) / 100
 let push = (() => {
   try {
     const v = Number(localStorage.getItem(PUSH_KEY))
-    return v > 1 ? nearestPush(v).growth : PUSH_DEFAULT
+    return v > 1 ? clampPush(v) : PUSH_DEFAULT
   } catch {
     return PUSH_DEFAULT
   }
 })()
 export const getPushGrowth = () => push
 export function setPushGrowth(v: number) {
-  push = nearestPush(v).growth
+  push = clampPush(v)
   try {
     localStorage.setItem(PUSH_KEY, String(push))
   } catch {
@@ -124,6 +120,23 @@ export function loadDummyAids(): DummyAids {
 export function saveDummyAids(a: DummyAids) {
   try {
     localStorage.setItem(DUMMY_AIDS_KEY, JSON.stringify(a))
+  } catch {
+    /* not saved */
+  }
+}
+
+/** Practice opponents' lines (speech bubbles): on unless turned off in the menu. */
+const CHATTER_KEY = 'spells-chatter'
+export function loadChatter() {
+  try {
+    return localStorage.getItem(CHATTER_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+export function saveChatter(on: boolean) {
+  try {
+    localStorage.setItem(CHATTER_KEY, on ? '1' : '0')
   } catch {
     /* not saved */
   }

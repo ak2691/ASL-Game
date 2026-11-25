@@ -7,7 +7,7 @@ Goal: winning takes variety. Mix lights and heavies (jab, then hook when there's
 
 | Rule | Value |
 |---|---|
-| Wear | By element. Light +½ stack; heavy, signature, Angelic/Unholy +1. Each stack −30% damage and heals, floor 30% (Nov 24: was 40%). A stack fades every 8 s (Nov 24: was 5 s; two elements alternated recovered fully). Stacks cap at the floor. Damage only. |
+| Wear | By element. Light and Angelic +½ stack (Nov 25: Angelic was +1); heavy, signature, Unholy +1. Each stack −30% damage and heals, floor 30% (Nov 24: was 40%). A stack fades every 8 s (Nov 24: was 5 s; two elements alternated recovered fully). Stacks cap at the floor. Damage only. |
 | Combo wear | Hits at the average of its two elements' power, adds 1 stack to each. |
 | Heavy | No wind-up. Stricter H (both posts full height, crossbar between): ~1.1 s to draw. |
 | Parry windows | Light 100 ms, heavy 150, signature 200, combo 150 (Nov 25: tightened after a playtest; signatures were ~100% parryable when focused). Glacier can't be parried. |
@@ -254,3 +254,161 @@ Grave 5.0, Glacier/Magma 5.2, Storm 5.6, Thermal 6.0, Steam/Twilight 6.2, Plasma
 3.0-4.2; signatures stay 2.0-2.5). Full casts at speed 1 now ~6.7-9.7 s, so per-second combo values in this
 file drop by about a third (about 1.5x slower): combos are big but slow, and far easier to see coming and counter.
 Ladder order holds (every combo bot slows the same way); combo-heavy bots (Archmage up) lose a little pace.
+
+### Ladder rework: three tiers, no dips (Nov 24)
+Apprentice 1-4 (one mechanic each), Adept 5-9 (one system each), Master 10-13 (same kit, sharper; headline
+trait on the tower: Magus Punisher, Archmage Dodger, Lich Mind reader, Ascendant Flawless).
+Every skill number now holds or rises floor to floor: speed, gap, reaction, spam counter, parries, smarts,
+stuns, reads, heals, dodges, drops, combo counters, circles; counter mistakes only fall (Pebble 30% -> Warden
+15% -> Ascendant 0). Magic and combo rates and heal thresholds are personality, not difficulty.
+Fixes: Pebble E W F, Ember F L I (3 elements each); Cleric react .2, Glacier at a low rate; Tide smart .32 and
+Aegis; Zealot spam counter .65; Warden smart .42, circles .32; Adept smart .45, circles .35, mistakes .12.
+Tower element dots now come from the bots' real settings (they had drifted).
+
+### AI pacing: less waiting, slower drawing (Nov 24)
+DRAW_MS light 600 -> 800, heavy 1800 -> 2400; every bot's wait between casts halved (Old Bram 2000 -> 1000 ...
+Archmage 360, Lich 330, Ascendant 300). Time moves from idle to visible drawing you can react to.
+Miss Hollis: the big hit (a heavy) starts the moment the chill is thrown, landing inside the 4 s chill (sim: 26 of
+29 chills used by a hit, was ~0). Pip: Lightning while it has static, else its least-worn element; bursts of two
+lights then a heavy; 70% less wait after a light. Sim vs an idle player (damage/s): Old Bram 5.1, Pip 3.5,
+Miss Hollis 5.1, Brother Alden 4.2 (heals not counted). Pip's number is lower, but lights are near-impossible to
+counter while Bram's heavies give ~3.6 s to counter: against a player who counters, Pip is the harder fight.
+
+### AI drawing per floor (Nov 25)
+Drawing time no longer comes from the speed setting (lines/heavies scaled fully, so the top was superhuman).
+Per floor, easing geometrically from the bottom (Old Bram) to the top (The Archwizard):
+heavy 4.0 -> 1.5 s, light a third of that (1.33 -> 0.5), signatures avg 5.5 -> 2.5 s (Meteor 6.25 -> 2.84),
+combos ~10 -> ~6 s (Grave 9.2 / Sunfire 11.6 at the bottom, 5.5 / 7.0 at the top). Counter circles and quick
+interrupts unchanged. Sim vs an idle player, damage/s: Old Bram 2.8, Pip 2.3, Miss Hollis 3.6, Brother Alden 3.1,
+Morwen 3.4, Master Ito 3.6, Nyx 2.1 (Shroud casts), Proctor Vell 4.3, Rook 4.7, Gideon 5.2, Tamsin 5.2,
+Lady Glass 5.8, The Archwizard 5.8. Heavy H check loosened (posts reach the top/bottom quarter, wider bands).
+
+### Morwen and Nyx rework (Nov 25)
+Vs a heavy spammer (sim, damage/s dealt / taken): Morwen was 2.3 / 4.4, below Brother Alden; Nyx 1.1 / 3.1.
+Morwen (curser): Grave is the main setup (10 s), or an Ice light with an Execute started the moment it's thrown;
+Execute drawn 55% faster and only thrown if a curse will still be on you when it lands; Doom only now and then.
+Nyx (shadow): while Shrouded, quick hidden heavies (20% faster) instead of a slow signature.
+After: Old Bram 2.5/3.9, Pip 2.0/4.4, Miss Hollis 2.7/4.6, Brother Alden 2.5/2.9, Morwen 3.2/4.3 (16 Executes in
+6 min, all on a curse), Master Ito 2.3/3.1, Nyx 2.0/3.2, Proctor Vell 3.3/1.4. Watch: Nyx and Ito still trail Morwen.
+
+### Doom buff and floor tuning (Nov 25)
+Doom: only a spell at 70%+ power lifts it (a combo: its average power; counters always lift). Punishes the same
+thing wear does; the AI throws its freshest element when Doomed.
+Master Ito: when his counter lands, a quick heavy (30% faster draw) follows at once. Nyx: Shroud drawn 30% faster,
+hidden heavies 35% faster, reacts .42. Rook reacts .5. The Archwizard's exam drops the slow styles (curser, combo).
+Vs a heavy spammer, 16 sims per floor, net damage/s (dealt - taken): Old Bram -1.5, Pip -2.2, Miss Hollis -1.7,
+Brother Alden -1.0, Morwen -0.9, Master Ito +0.3, Nyx -0.4, Proctor Vell +2.5, Rook +2.1, Gideon +3.2,
+Tamsin +2.6, Lady Glass +3.9, The Archwizard +4.5. Small dips (Nyx/Ito, Rook/Vell, Tamsin/Gideon) are style
+matchups vs this one player type (Vell's interrupts are built for heavy drawers), within ~0.6.
+
+### Angelic wears half as fast (Nov 25)
+Damage dodges wear by rotating elements; healing is all Angelic, so a second heal within 10 s was 70% and a third
+40%. Now heal, regen and Aegis add half a stack (like a light). Steady state: one Angelic spell every 5 s stays at
+100% (was ~50%); every 2.5 s settles near 75%; spamming still sinks to the 30% floor. Heal amounts unchanged
+(heal 34, regen 45 over 2.5 s, Aegis 45).
+Check vs others: a heal every 5 s is ~6.8 HP/s, above most bots' damage/s (2-6) but it's a full draw that
+deals nothing, and Grave (10 s no-heal), Lich (punishes heals) and interrupts answer it. Tidal Wave (Water) and
+Sunfire heal on other elements and are unchanged. Cleric and other healer bots heal more often at full power:
+small buff to those floors. Watch: a heal-every-5 s turtle against the low floors; if it stalls fights, trim
+HEAL to 30 rather than bring back the full stack.
+
+
+### Heal 42 + cleanse (Nov 25)
+Why: in an HP race a heal is worth its HP as damage, and two heavies of different elements in the same draw time
+deal ~50 with effects, so heal 34 was never the right pick. Star heal 34 -> 42 and it now clears your burns,
+chill and static. Not cleansed: Sunfire's leeching burn, Storm's damaging static (combo payoffs) and curses
+(Doom, Grave, Exposed, fog), which stay the answers to healing.
+Check vs others: 42 + a cleansed effect (a Fire heavy's 8 burn, a 50% chill before a heavy ~12, Thunderbolt
+static ~15) is ~50-57 value, level with two fresh heavies (~50), still deals nothing and gives no pressure.
+Grave still blocks it; Lich still punishes it. Regen (45 over 2.5 s) and Aegis unchanged; regen no longer the
+better heal per draw. Tidal Wave (25 + 28 heal) is now less heal than a star but also hits: fine.
+Healer bots (Cleric, Tide, Zealot, Warden up) heal 42 at healBelow: ~24% more per heal, small buff to those
+floors; they don't yet heal on purpose to cleanse. Watch: Fire and Ice punch value drops a little vs a healer.
+
+### Regen 60, bots cleanse (Nov 25)
+After heal 42 + cleanse, regen (45 over 2.5 s, counterable mid-tick, no cleanse) lost to the star everywhere.
+Regen 9 -> 12 per tick: 60 over 2.5 s. Two heals with two jobs: star = 42 now + cleanse; regen = most HP, but
+delayed and a counterspell cuts off what's left. Regen ~43% more HP than the star, the same as before (45 vs 34).
+Check vs others: 60 over ~hourglass draw + 2.5 s is still below two fresh heavies plus their effects once the
+counter risk is counted, deals nothing; Grave blocks it, Lich punishes it. Healer bots' low-HP regen +33%: small
+buff to Cleric/Tide/Zealot/Warden and up.
+Bots: a healer that's burning, chilled or static and under 90% HP stars it off (chance 25% + 50% x smart,
+shares the 6 s heal cooldown). Higher floors cleanse more; Fire/Ice/Lightning setups vs healers are a bit weaker.
+
+### Heal clears every debuff, Grave reworked, Earthquake knockdown needs full Earth (Nov 25)
+- Heal (star) now clears every debuff: all burns (Sunfire's and Plasma's too), chill, all static (Storm too),
+  Doom, Exposed, Steam fog and Grave. Under a Grave it clears the Grave but heals 0 that time.
+- Grave: was "no healing and no Angelic spells". Now: nothing heals them or gives them armor for 10 s (heal,
+  regen, Tidal Wave, Water mend, Sunfire leech, Aegis). Other Angelic spells and the Angelic counterspell work.
+  Answer to it: a Heal (no HP) to clear it, then heal normally.
+- Earthquake: the knockdown (charge and readied spell lost) only happens at 100% Earth power. Worn Earth still
+  hits 38 x power, no knockdown.
+Check vs others: Heal is now the universal answer to setups (Doom, Twilight, Steam, Storm, Sunfire, Grave),
+but it costs a full star draw that deals nothing and Grave turns one heal into 0 HP. Combo payoffs vs a healer
+drop (Sunfire's burn, Storm's pulses, Twilight's window can be wiped mid-way): watch Zealot/Archmage pace.
+Earthquake: spamming it loses the knockdown, so its value drops from ~38 + knockdown (~15) to 38 x power when
+worn; at full Earth unchanged. Execute vs a healer: cursed bonus easier to wipe.
+Bots: healers now star off any debuff (Grave, Doom, Exposed, fog too), same 6 s cooldown and chance.
+
+### Cleanse needs full Angelic power; bot combos 9 s to 4 s (Nov 25)
+- Heal's cleanse only happens at 100% Angelic power. A worn heal still heals (x power) but clears nothing, so a
+  second heal within ~10 s can't keep you clean. Under a Grave a worn heal does nothing at all.
+  Bots only heal to cleanse when their Angelic is fresh.
+- Practice AI combo draw (average combo, before each combo's own size factor): was ~10 s to ~6 s geometric;
+  now 9 s to 4 s, half geometric and half linear. Floors 1-13: 9.0, 8.5, 8.0, 7.5, 7.1, 6.7, 6.2, 5.8, 5.5,
+  5.1, 4.7, 4.3, 4.0 s. Grave/Sunfire still differ from that by sqrt(their DRAW_MS / average).
+Check vs others: combo bots (Archmage up) land combos ~25-35% sooner at the top, ~10% at the bottom. Still slower
+than a signature (2.5-5.5 s) at every floor, still visible long enough to counter with C + two letters + circle.
+With heal's cleanse limited, a combo's payoff is only wiped by a fresh heal. Watch: Archmage/Lich/Ascendant pace.
+
+### Bots cash in their setups; waits vary by what was thrown (Nov 25)
+Problem (user, vs Lady Glass): an Ice light, then a slow combo; the chill expired unused.
+- New skill setupSense (chance to cash in its own setup): Apprentice 0, Hexer .3, Tide .35, Zealot .4,
+  Warden .45, Adept .55, Magus .75, Archmage .85, Lich .95, Ascendant 1.
+- Setups: any Ice attack or Frozen Prison (chill, 4 s after it lands), Thermal (chill), Twilight (Exposed, 8 s).
+  Not counters or quick interrupts.
+- On throwing one, the payoff starts at once (no wait): the first of Execute (if it has it), a signature, a
+  heavy, a light, from its freshest non-Ice element, whose charge + draw + push + flight lands inside the
+  window. Never a combo. Hand check: Master Ice light -> ~4.07 s window; heavy ~3-3.5 s fits, signature
+  ~4.3 s mostly doesn't. Twilight's 8 s fits a signature at every Adept/Master floor.
+- Waits between casts now depend on the last throw: x0.6 after a light, x1 heavy, x1.2 signature/Magic,
+  x1.4 combo (then the usual +/-20% jitter). Average pace about the same; more rhythm.
+Check vs others: chill's +25/50% and Twilight's double damage now actually get used on Adept/Master floors,
+so those floors hit harder in bursts (a heavy at +50% after an Ice heavy). Counter play: the payoff is visible
+(it starts at once, as a non-Ice element) and interruptible; a full-power heal clears the chill first.
+Not simulated (no sim script saved); watch Adept tier (Hexer-Adept) for a difficulty jump.
+
+### Heavy chill 5 s; Adept and up always cash in, after a reaction beat (Nov 25)
+- Chill duration: Ice light and Thermal 4 s (unchanged); Ice heavy and Frozen Prison 5 s (was 4). Bonus
+  unchanged (+25% light, +50% heavy, +60% Prison). For players too: Ice heavy -> heavy is now a real combo.
+- Bots: setupSense (a chance) replaced by setupDelay: every Adept and Master bot follows up its own setup,
+  after a reaction beat: Morwen 0.6 s, Ito 0.55, Nyx 0.5, Vell 0.45, Rook 0.4, Gideon 0.3, Tamsin 0.25,
+  Lady Glass 0.2, Archwizard 0.15 s. Apprentice bots never do (Miss Hollis keeps her own chill habit).
+- Fit check (window from the throw: flight + chill - 0.25 s slack): after an Ice heavy ~5.45 s, after an Ice
+  light ~4.07 s. Morwen: 0.6 + heavy ~4.5 = 5.1 s fits after a heavy; after a light only a light fits.
+  Rook: 0.4 + heavy ~3.7 = 4.1 s, heavy after a heavy easily, after a light just at the edge. Master: heavy
+  or Execute after either; a signature after Twilight (8 s).
+Check vs others: Adept floors get a steady chill->heavy rhythm (+50% on the follow-up). Readable: Ice first,
+a beat, then a non-Ice heavy you can interrupt; a full-power heal clears the chill. Watch the floor 4 -> 5 jump.
+
+### Faster Master signatures, smaller gap between signatures (Nov 25)
+Practice AI signature draw: average 5.5 s (floor 1) to 2.0 s (floor 13), was 2.5 s at the top; each
+signature now scales by sqrt(its size / average) like combos (was fully linear, so Meteor was 14% slower than
+average and Heal 18% faster). Drawing time only (signing and the push come on top):
+  floor:            1     5     9     10    11    12    13
+  Meteor          5.86  4.18  2.99  2.75  2.52  2.32  2.13   (was 6.25 ... 2.84 at 13)
+  Earthquake/Exec 5.74  4.10  2.93  2.69  2.47  2.27  2.09
+  Thunder/Tidal   5.50  3.93  2.80  2.58  2.37  2.18  2.00
+  Prison/Aegis    5.24  3.74  2.67  2.46  2.26  2.07  1.91
+  Heal/Doom       4.97  3.55  2.53  2.33  2.14  1.97  1.81   (was 4.50 ... 2.05 at 13)
+Check vs others: Master signatures land ~0.3-0.7 s sooner, still slower than a heavy (1.5-1.9 s) so still
+readable and interruptible; punisher/Ito/Nyx speed-ups stack on top as before. Low floors: big signatures a
+bit quicker, small ones (Heal, Doom) a bit slower; average unchanged. Twilight payoffs fit a signature more
+often. Watch: Gideon-Archwizard pace and Meteor/Earthquake burst.
+
+### Fastest heavy 1.2 s (Nov 25)
+Practice AI heavy draw, floor 1 to 13 (geometric): 4.0, 3.62, 3.27, 2.96, 2.68, 2.42, 2.19, 1.98, 1.79, 1.62,
+1.47, 1.33, 1.20 s (was 4.0 ... 1.5 at the top; floor 9 was 2.08). Lights are a third: 0.4 s at the top.
+Keeps a ~0.8 s step to the average signature (2.0 s). Interrupt window vs the top heavy: ~1.2 s draw + 0.7 s
+flight. Adept follow-ups fit more easily (Morwen heavy 2.68 s, was 2.88). Watch: Archwizard lights (0.4 s)
+and whether Master heavies are still readable.

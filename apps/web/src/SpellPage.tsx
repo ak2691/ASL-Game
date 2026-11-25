@@ -1,27 +1,26 @@
 // Spellcasting prototype: sign an element letter to charge, then pinch (or point) and draw a shape.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
-import { openCamera, type CameraInfo } from './camera'
+import { allowCamera, camAllowed, openCamera, type CameraInfo } from './camera'
 import { classify, loadRecognizer, trueShape, type Hand } from './recognition'
 import { directionLetter, passesGate } from './rules'
 import { getTracker, type Handed } from './trackers'
 import { LandmarkSmoother } from './smoothing'
-import { CastGuide } from './CastGuide'
-import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
+import { Spellbook } from './Spellbook'
+import { PushSlab, SlabChoice, SlabSection, SlabSlider, VolumeSlab } from './SettingRows'
+import { loadShapeModel, matchAmong, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
 import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
-import { Tower } from './Ladder'
-import { DummyArena, PracticeArena, beaterOf, dummyTimes, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
+import { Tower, chatLine } from './Ladder'
+import { DummyArena, LADDER, PracticeArena, beaterOf, dummyTimes, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
 import { HAND_ICONS, HAND_WORDS } from './statusIcons'
 import { BoltLayer, Impacts, ParryRings, StatusFx, StatusRow, canActState, setLocalBoltClock, useShake } from './effects'
 import { INTERRUPT_LOCK_MS, PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
-import { VolumeSlider } from './VolumeSlider'
-import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids } from './settings'
-import { PushSlider } from './PushSlider'
+import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids, loadChatter, saveChatter } from './settings'
 import { DummySpells } from './DummySpells'
-import { GEAR, Icon } from './HomeCorner'
+import { BOOK, GEAR, Icon } from './HomeCorner'
 
 const RESET = 'M3 12a9 9 0 1 0 3-6.7 M3 4v5h5'
 import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
@@ -94,6 +93,7 @@ const PARRY_COOLDOWN_MS = 500
 const parryPendingGrowth = () => 1 + (getPushGrowth() - 1) / 2
 const MIN_STROKE_PALMS = 0.8 // shorter strokes fizzle (too short to be a shape). Was 1.2: lines (one segment) had to be far bigger than a W
 const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignored (no fizzle)
+const PRACTICE_RESULT_MS = 2500 // the win / lose banner after a practice fight, then the tower
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const PARRY_FLASH_MS = 800 // "Reflected" / "Destroyed" stays on your hand this long
@@ -200,6 +200,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [status, setStatus] = useState('Loading hand tracking and letter model…')
+  // The camera never opens by itself (Nov 24): you turn it on from a card that says why, or by starting play
+  // (Start battle, Ready). Once allowed it stays allowed for this browser session. A Duel's lobby never uses it.
+  const [camOn, setCamOn] = useState(() => mode !== 'online' && camAllowed())
+  const turnOnCamera = () => {
+    allowCamera()
+    setCamOn(true)
+  }
   const [seeing, setSeeing] = useState('')
   const [drawing, setDrawing] = useState(false)
   const [log, setLog] = useState<Cast[]>([])
@@ -288,6 +295,16 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     setDummyAttacks(kind === 'parry')
   }
   const [fight, setFight] = useState<Snapshot>(() => arena.current.update(0))
+  useEffect(() => {
+    const say = fight.say
+    if (!say || say.n === saidN.current || mode !== 'practice') return
+    saidN.current = say.n
+    if (!chatter || !fought.current) return
+    setBubble({ text: chatLine(fought.current, say.key), n: say.n })
+    play('ui_click', { vol: 0.35, pitch: 1.7 })
+    const t = setTimeout(() => setBubble((b) => (b?.n === say.n ? null : b)), say.key === 'win' || say.key === 'lose' ? 5000 : 3500)
+    return () => clearTimeout(t)
+  }, [fight.say?.n]) // eslint-disable-line react-hooks/exhaustive-deps
   const fightRef = useRef(fight) // read by the camera loop (e.g. "am I silenced?")
   // Your charge and readied spell, as the fight decided them (online: the server).
   // A charge you just signed shows at once; the fight confirms it (online, a round trip later) or,
@@ -362,6 +379,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const inRoom = mode === 'online' && !!lobby?.code
   // When the last match ended (the result shows a moment before the lobby comes back).
   const overAt = useRef(0)
+  const lastOver = useRef<string | null>(null)
+  const practiceOverAt = useRef(0)
   const lastPhase = useRef<string | null>(null)
   if (lobby?.phase !== lastPhase.current) {
     if (lobby?.phase === 'over') overAt.current = clock
@@ -372,9 +391,22 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     onHome()
   }
   const [difficulty, setDifficulty] = useState<Difficulty>('pebble')
+  const fought = useRef<Difficulty | null>(null) // the floor of the last practice fight (for its loss tip)
+  // Practice opponents talk (text only): a bubble by their name, a soft blip, gone after a few seconds.
+  const [chatter, setChatter] = useState(loadChatter)
+  const [bubble, setBubble] = useState<{ text: string; n: number } | null>(null)
+  const saidN = useRef(0)
   // Practice starts after a short 3-2-1 (the gong plays when the fight begins).
   const [countdownEnds, setCountdownEnds] = useState<number | null>(null)
-  const startPractice = () => setCountdownEnds(performance.now() + 3000)
+  const startPractice = () => {
+    turnOnCamera()
+    setCountdownEnds(performance.now() + 3000)
+  }
+  // Duel: the camera turns on once you're ready (or the countdown starts), never in the lobby.
+  const meReady = mode === 'online' && !!lobby && !!lobby.seats[lobby.you]?.ready
+  useEffect(() => {
+    if (mode === 'online' && !camOn && (meReady || lobby?.phase === 'countdown' || lobby?.phase === 'fighting')) turnOnCamera()
+  }, [meReady, lobby?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
   const lastTick = useRef(0)
   const secsLeft = (ends: number | null | undefined) => (ends ? Math.max(0, Math.ceil((ends - clock) / 1000)) : 0)
   const onlineEnds = mode === 'online' && lobby?.phase === 'countdown' ? lobby.countdownEnds : null
@@ -384,7 +416,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     lastTick.current = left
     if (countdownEnds && clock >= countdownEnds) {
       setCountdownEnds(null)
+      fought.current = difficulty
       practice.current.start(performance.now(), difficulty)
+      setFight(practice.current.update(performance.now())) // running at once: no frame where the tower comes back
     }
   }, [clock]) // eslint-disable-line react-hooks/exhaustive-deps
   const inPracticeMatch = mode === 'practice' && fight.running
@@ -422,6 +456,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     let stream: MediaStream | null = null
 
     async function start() {
+      if (!camOn) return
       try {
         const [rec, tracker2, shapeModel] = await Promise.all([loadRecognizer(), getTracker(2), loadShapeModel()])
         if (stopped) return
@@ -506,6 +541,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           const need = m.name === COUNTER ? CIRCLE_SCORE : STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
           let shape = m.score >= need && m.name !== 'none' ? m.name : null
           const el = fightRef.current.charge.player
+          // A single element (or Angelic / Unholy) charged: only what it can cast competes, at lower minimums:
+          // the counter circle 30%, a heavy 40%, Angelic heals 50%. Signatures and combos keep their strict
+          // checks (a cheat test let round-topped Meteors and scribbles through at any lower minimum).
+          if (el && el !== 'C' && !(el in COMBO_MIX) && (!shape || !isValidSpell(el, shape)) && m.name !== 'line') {
+            const cands = [...shapesFor(el), ...(el in BEATS || el === 'A' || el === 'U' ? [COUNTER] : [])]
+            shape = matchAmong(m, pts, cands, (n) => (n === COUNTER ? 0.3 : STRICT_SHAPES.has(n) ? Infinity : n === 'h' ? 0.4 : 0.5))
+          }
           // A wobbly circle: if what was read wouldn't cast (no spell for this charge) but the drawing is a
           // closed loop that leans circle, it's the counterspell. Never overrides a spell that would cast.
           const counterReady = !!el && (el in BEATS || fightRef.current.mix.player.length === 2)
@@ -667,7 +709,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             const lk = view.locked?.player ?? 0
             if (lk > lastLocked + 60) lockWhiff = lk > INTERRUPT_LOCK_MS
             lastLocked = lk
-            const cs = canActState(view, 'player', lockWhiff)
+            const cs = view.over ? null : canActState(view, 'player', lockWhiff) // nothing on your hand once the match is over
             if (!cs) handLock = null
             else if (!handLock || handLock.k !== cs.k || cs.ms > handLock.peak) handLock = { k: cs.k, peak: Math.max(cs.ms, handLock?.k === cs.k ? handLock.peak : 0) }
           }
@@ -683,7 +725,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             // Can't act (fizzled, staggered, interrupted, whiffed, silenced, recovering from a parry): a ring on
             // the palm drains as the timer, with the cause's symbol in the middle. The timer runs in the fight,
             // so if the hand leaves the frame it's still counting when it comes back.
-            const cs = canActState(view, 'player', lockWhiff)
+            const cs = view.over ? null : canActState(view, 'player', lockWhiff) // nothing on your hand once the match is over
             if (cs) {
               const cx = ((lm[0].x + lm[9].x) / 2) * W
               const cy = ((lm[0].y + lm[9].y) / 2) * H
@@ -744,7 +786,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               ctx.font = `bold ${Math.round(0.04 * W)}px sans-serif`
               ctx.textAlign = 'center'
               ctx.textBaseline = 'middle'
-              ctx.fillStyle = '#7fd8ff'
+              ctx.fillStyle = '#ffffff'
               ctx.shadowColor = '#000'
               ctx.shadowBlur = 8
               ctx.fillText(flash, 0, 0)
@@ -890,13 +932,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             // Flash both palms while the parry shows.
             if (now - parryAt < 300) {
               ctx.lineWidth = 6
-              ctx.strokeStyle = '#7fd8ff'
+              ctx.strokeStyle = '#ffffff'; ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 18
               for (const h of [lm, dLm]) {
                 if (!h) continue
                 ctx.beginPath()
                 ctx.arc(h[9].x * W, h[9].y * H, size(h) * 1.2, 0, 2 * Math.PI)
                 ctx.stroke()
               }
+              ctx.shadowBlur = 0
             }
           }
 
@@ -1023,14 +1066,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       stopped = true
       stream?.getTracks().forEach((t) => t.stop())
     }
-  }, [hand])
+  }, [hand, camOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A new match starts with a clean cast log (last match's "Knocked down!" mustn't linger).
   useEffect(() => {
     if (fight.running) setLog([])
   }, [fight.running])
   const latest = log[0]
-  const oppName = mode === 'online' ? 'Opponent' : mode === 'dummy' || mode === 'tutorial' ? 'Training dummy' : 'Enemy'
+  const oppName = mode === 'online' ? 'Opponent' : mode === 'dummy' || mode === 'tutorial' ? 'Training dummy' : LADDER.find((b) => b.id === difficulty)?.name ?? 'Enemy'
   const teamOf = (id: Fid) => fight.fighters.find((f) => f.id === id)?.team ?? id
   const fighterHead = (side: Fid, name?: string) => (
     <div className="fighter">
@@ -1038,7 +1081,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         {name ?? (side === 'player' ? 'You' : oppName)}
         {/* Every status as icons, on the name row (a fixed height, so nothing below ever moves). Your own
             "can't act" ones are on your hand. Too many: the first few and "+N". */}
-        <StatusRow view={fight} side={side} hand={side === 'player'} max={side.startsWith('ally') || (isTeam && side !== 'player') ? 3 : 5} />
+        {!fight.over && <StatusRow view={fight} side={side} hand={side === 'player'} max={side.startsWith('ally') || (isTeam && side !== 'player') ? 3 : 5} />}
       </div>
       <div className="hp-bar">
         <div
@@ -1098,9 +1141,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       <div key={id} data-fid={id} className={`team-card ally ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
         {fighterHead(id, nameOf(id))}
         <OppStatus fight={fight} id={id} cast={cast} />
-        {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
-        <StatusFx side={id} view={fight} />
-        <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />
+        {!fight.over && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
+        {!fight.over && <StatusFx side={id} view={fight} />}
+        {!fight.over && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
         {out && <b className="out-tag">Out</b>}
       </div>
     )
@@ -1122,10 +1165,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <div className="hud-row">
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
           </div>
-          {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
+          {!fight.over && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
         </div>
-        <StatusFx side={id} view={fight} />
-        <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />
+        {!fight.over && <StatusFx side={id} view={fight} />}
+        {!fight.over && <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />}
         {out && <b className="out-tag">Out</b>}
       </div>
     )
@@ -1153,7 +1196,12 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   )
   const result = fight.over ? (fight.over === 'player' ? 'You win!' : 'You lose') : null
   // The result goes across the middle of the arena (it's about you, not the enemy's half).
-  const showResult = !!result && (mode === 'practice' ? !countdownEnds : mode === 'online' && lobby?.phase === 'over')
+  // Practice: the result shows for a moment, then you're back in the tower (it doesn't linger over the floors).
+  if ((fight.over ?? null) !== lastOver.current) {
+    if (fight.over) practiceOverAt.current = clock
+    lastOver.current = fight.over ?? null
+  }
+  const showResult = !!result && (mode === 'practice' ? !countdownEnds && clock - practiceOverAt.current < PRACTICE_RESULT_MS : mode === 'online' && lobby?.phase === 'over')
   // Online: the lobby screen covers the arena except during the countdown and the fight (and the result,
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
@@ -1222,18 +1270,30 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                       : `seeing: ${seeing}`}
               </span>
             </div>
-            {fight.wear?.player && <WearChips wear={fight.wear.player} />}
+            {!fight.over && fight.wear?.player && <WearChips wear={fight.wear.player} />}
           </div>
-          {status && <p className="status side-status">{status}</p>}
+          {!camOn && mode !== 'online' ? (
+            <div className="cam-gate">
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <rect x="5" y="14" width="28" height="22" rx="5" fill="none" stroke="currentColor" strokeWidth="3.5" />
+                <path d="M33 21 L43 15 V35 L33 29 Z" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
+              </svg>
+              <b>Turn on your camera</b>
+              <p>You cast spells with your hands, so this needs your camera. Your video stays on your device. It's never saved or shown to anyone.</p>
+              <button onClick={turnOnCamera}>Turn on camera</button>
+            </div>
+          ) : (
+            status && <p className="status side-status">{status}</p>
+          )}
           {latest && !latest.ok && !LOCK_NOTES.has(latest.name) && clock - latest.t < MESSAGE_MS && (
             <div className="cast stage-overlay" key={latest.t} style={{ color: latest.color }}>
               {latest.name}
               <span>{latest.detail}</span>
             </div>
           )}
-          <StatusFx side="player" view={fight} />
-          <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />
-          {(mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
+          {!fight.over && <StatusFx side="player" view={fight} />}
+          {!fight.over && <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />}
+          {!fight.over && (mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
           {isTeam && myR && fight.running && zoneTarget('left', myR.el, myR.shape) !== null && (
             <div className="aim-zones" style={{ '--aim': chargeInfo(myR.el).color, gridTemplateColumns: signLeft ? '1fr 2fr' : '2fr 1fr' } as React.CSSProperties}>
@@ -1252,14 +1312,21 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
           {!isTeam && <div className="side-hud">
             {fighterHead('enemy')}
+            {mode === 'practice' && bubble && (
+              <p className="chat-bubble" key={bubble.n}>
+                {bubble.text}
+              </p>
+            )}
             <div className="hud-row">
               {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
             </div>
-            {mode !== 'tutorial' && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
+            {mode !== 'tutorial' && !fight.over && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
           </div>}
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
+          {/* Practice: picking an opponent, you're inside the tower (brick walls fill this half). It fades out as the fight starts. */}
+          {mode === 'practice' && <div className={`tower-room ${fight.running ? '' : 'on'}`} aria-hidden="true" />}
           {mode === 'practice' && !fight.running && (
-            <div className="stage-center">
+            <div className={`stage-center ${countdownEnds ? 'leaving' : ''}`}>
               <Tower value={difficulty} onPick={setDifficulty} />
               {countdownEnds ? (
                 <b className="countdown">{secsLeft(countdownEnds) || 1}</b>
@@ -1273,32 +1340,67 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               {lobby?.phase === 'countdown' && <b className="countdown">{Math.max(1, Math.ceil(((lobby.countdownEnds ?? clock) - clock) / 1000))}</b>}
             </div>
           )}
-          {!isTeam && <StatusFx side="enemy" view={fight} />}
-          {!isTeam && <Impacts side="enemy" bolts={fight.bolts} />}
+          {!isTeam && !fight.over && <StatusFx side="enemy" view={fight} />}
+          {!isTeam && !fight.over && <Impacts side="enemy" bolts={fight.bolts} />}
         </div>
 
-        <BoltLayer bolts={fight.bolts} team={isTeam} />
+        {!fight.over && <BoltLayer bolts={fight.bolts} team={isTeam} />}
         {showResult && <div className={`result-banner ${fight.over === 'player' ? 'won' : 'lost'}`}>{result}</div>}
       </section>
       {menu === 'main' && (
         <div className="menu-overlay" onClick={() => setMenu(null)}>
-          <div className="menu-card pause-menu" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setMenu(null)}>Resume</button>
-            {mode === 'practice' && fight.running && (
-              <button
-                onClick={() => {
-                  practice.current.stop()
-                  setMenu(null)
-                }}
-              >
-                End match
+          {/* The in-match menu (Nov 24): Resume up top, settings as rows with switches, the rest as small buttons. */}
+          <div className="menu-card pause-menu dm" onClick={(e) => e.stopPropagation()}>
+            <b className="leave-title pm-title">Paused</b>
+            <SlabSection title="Controls">
+              <SlabChoice label="Draw with" value={drawHand} options={[{ v: 'left', name: 'Left' }, { v: 'right', name: 'Right' }]} onChange={(h) => (h !== drawHand ? swapDrawHand() : undefined)} />
+              <PushSlab />
+            </SlabSection>
+            <SlabSection title="Sound">
+              <VolumeSlab />
+              {mode === 'practice' && (
+                <SlabChoice
+                  label="Chatter"
+                  value={chatter ? 'on' : 'off'}
+                  options={[{ v: 'off', name: 'Off' }, { v: 'on', name: 'On' }]}
+                  onChange={(v) => {
+                    const on = v === 'on'
+                    saveChatter(on)
+                    setChatter(on)
+                    if (!on) setBubble(null)
+                  }}
+                />
+              )}
+            </SlabSection>
+            {/* Equal tiles, icon over a word (Nov 25): Resume first and green; leaving ones red. */}
+            <div className="pm-tiles">
+              <button className="pm-tile go" onClick={() => setMenu(null)}>
+                <Icon d="M8 5v14l11-7z" />
+                Resume
               </button>
-            )}
-            {mode !== 'tutorial' && <button onClick={() => setMenu('help')}>How to cast</button>}
-            <button onClick={swapDrawHand}>Draw with: {drawHand === 'right' ? 'Right hand' : 'Left hand'}</button>
-            <PushSlider />
-            <button onClick={() => (inRoom || inPracticeMatch ? setMenu('leave') : goHome())}>Home</button>
-            <VolumeSlider />
+              {mode !== 'tutorial' && (
+                <button className="pm-tile" onClick={() => setMenu('help')}>
+                  <Icon d={BOOK} />
+                  Spellbook
+                </button>
+              )}
+              {mode === 'practice' && fight.running && (
+                <button
+                  className="pm-tile stop"
+                  onClick={() => {
+                    practice.current.stop()
+                    setMenu(null)
+                  }}
+                >
+                  <Icon d="M6 6h12v12H6z" />
+                  End match
+                </button>
+              )}
+              <button className="pm-tile stop" onClick={() => (inRoom || inPracticeMatch ? setMenu('leave') : goHome())}>
+                <Icon d="M3 11l9-8 9 8 M5 9v12h5v-6h4v6h5V9" />
+                Home
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1336,16 +1438,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         </div>
       )}
       {menu === 'help' && (
-        <div className="menu-overlay" onClick={() => setMenu(null)}>
-          <div className="menu-card" onClick={(e) => e.stopPropagation()}>
-            <div className="menu-head">
-              <b>How to cast</b>
-              <button className="small" onClick={() => setMenu('main')}>
-                Back
-              </button>
-            </div>
-            <CastGuide />
-          </div>
+        <div className="book-overlay">
+          <Spellbook inMatch onHome={() => setMenu('main')} />
         </div>
       )}
     </main>
@@ -1519,9 +1613,12 @@ function LobbyScreen(props: {
           {lobby.seats.length < 2 ? (
             <span className="sub-line">Share the code. Up to 4 players, 2 per team.</span>
           ) : (
-            <button className="cta" onClick={() => arena?.ready()} disabled={me?.ready}>
-              {me?.ready ? 'Ready ✓' : lobby.phase === 'over' ? 'Rematch' : 'Ready'}
-            </button>
+            <span className="ready-wrap">
+              <button className="cta" onClick={() => arena?.ready()} disabled={me?.ready}>
+                {me?.ready ? 'Ready ✓' : lobby.phase === 'over' ? 'Rematch' : 'Ready'}
+              </button>
+              {!me?.ready && <small className="ready-note">Ready turns on your camera</small>}
+            </span>
           )}
           <button className="small" onClick={() => arena?.leave()}>
             Leave room
@@ -1589,10 +1686,15 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
           <div key={s.i} className={`room-seat ${s.here ? '' : 'away'}`}>
             <span className="room-seat-name">{s.i === lobby.you ? 'You' : `Player ${s.i + 1}`}</span>
             {host ? (
-              <label className="room-hp">
-                <input type="range" min={HP_MIN} max={HP_MAX} step={50} value={s.hp} onChange={(e) => arena?.setHp(s.i, Number(e.target.value))} aria-label="HP" />
-                <span>{s.hp} HP</span>
-              </label>
+              <span className="room-hp hp-step" role="group" aria-label={`HP for ${s.i === lobby.you ? 'you' : `player ${s.i + 1}`}`}>
+                <button onClick={() => arena?.setHp(s.i, Math.max(HP_MIN, s.hp - 50))} disabled={s.hp <= HP_MIN} aria-label="Less HP">
+                  −
+                </button>
+                <b>{s.hp} HP</b>
+                <button onClick={() => arena?.setHp(s.i, Math.min(HP_MAX, s.hp + 50))} disabled={s.hp >= HP_MAX} aria-label="More HP">
+                  +
+                </button>
+              </span>
             ) : (
               <span className="room-hp">{s.hp} HP</span>
             )}
@@ -1639,8 +1741,8 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
       </header>
       <div className="dm-body">
         <h3 className="dm-section">Behavior</h3>
-        <div className="dm-rows">
-          <StepRow label="Cast time" value={pace.castPct} min={CAST_PCT.min} max={CAST_PCT.max} step={10} show={`${pace.castPct}%`} onChange={(v) => setPace({ ...pace, castPct: v })}>
+        <div className="dm-rows slab-section">
+          <StepRow label="Cast time" value={pace.castPct} min={CAST_PCT.min} max={CAST_PCT.max} step={10} show={`${pace.castPct}%`} lo="Quick" hi="Slow" onChange={(v) => setPace({ ...pace, castPct: v })}>
             <div className="dm-times">
               <span>Light <b>{secs('line')} s</b></span>
               <span>Heavy <b>{secs('h')} s</b></span>
@@ -1648,16 +1750,16 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
               <span>Combo <b>{combo}</b></span>
             </div>
           </StepRow>
-          <StepRow label="Time between casts" value={pace.gapMs} min={GAP_MS.min} max={GAP_MS.max} step={250} show={gap(pace.gapMs)} onChange={(v) => setPace({ ...pace, gapMs: v })} />
-          <StepRow label="Parry chance" value={pace.parryPct} min={0} max={100} step={5} show={`${pace.parryPct}%`} onChange={(v) => setPace({ ...pace, parryPct: v })} />
+          <StepRow label="Rest" value={pace.gapMs} min={GAP_MS.min} max={GAP_MS.max} step={250} show={gap(pace.gapMs)} lo="Relentless" hi="Relaxed" onChange={(v) => setPace({ ...pace, gapMs: v })} />
+          <StepRow label="Parry chance" value={pace.parryPct} min={0} max={100} step={5} show={`${pace.parryPct}%`} lo="Never" hi="Always" onChange={(v) => setPace({ ...pace, parryPct: v })} />
         </div>
         <h3 className="dm-section">Help</h3>
-        <div className="dm-rows">
+        <div className="dm-rows slab-section">
           <SwitchRow label="Counter hint" on={aids.hint} onChange={(on) => setAids({ ...aids, hint: on })} />
           <SwitchRow label="Parry timer" on={aids.parryTimer} onChange={(on) => setAids({ ...aids, parryTimer: on })} />
         </div>
         <h3 className="dm-section">Dummies</h3>
-        <div className="dm-rows">
+        <div className="dm-rows slab-section">
           <SwitchRow label="How many" on={twoFoes} onChange={setTwoFoes} off="One" onLabel="Two" />
           {twoFoes && <SwitchRow label="Editing spells of" on={which === 1} onChange={(on) => setWhich(on ? 1 : 0)} off="Left" onLabel="Right" />}
         </div>
@@ -1682,47 +1784,17 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
   )
 }
 
-/** A fighting-game style setting row: label, then < value > steppers, with a segmented bar to drag. */
-function StepRow(props: { label: string; value: number; min: number; max: number; step: number; show: string; onChange: (v: number) => void; children?: React.ReactNode }) {
-  const { label, value, min, max, step, show, onChange, children } = props
-  const set = (v: number) => onChange(Math.min(max, Math.max(min, v)))
-  // The meter fills whole segments (12), like a fighting game's gauge; any value lights at least one.
-  const p = (Math.max(value > min ? 1 : 0, Math.round(((value - min) / (max - min)) * 12)) / 12) * 100
+/** A dummy setting as a slab: name, a slider with end words, the value in a box. */
+function StepRow(props: { label: string; value: number; min: number; max: number; step: number; show: string; lo: string; hi: string; onChange: (v: number) => void; children?: React.ReactNode }) {
+  const { label, value, min, max, step, show, lo, hi, onChange, children } = props
   return (
-    <div className="dm-row">
-      <div className="dm-line">
-        <span className="dm-label">{label}</span>
-        <span className="dm-step">
-          <button onClick={() => set(value - step)} disabled={value <= min} aria-label={`Less ${label.toLowerCase()}`}>
-            ◀
-          </button>
-          <b>{show}</b>
-          <button onClick={() => set(value + step)} disabled={value >= max} aria-label={`More ${label.toLowerCase()}`}>
-            ▶
-          </button>
-        </span>
-      </div>
-      <input className="dm-meter" type="range" min={min} max={max} step={step} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={label} style={{ '--p': `${p}%` } as React.CSSProperties} />
+    <SlabSlider label={label} min={min} max={max} step={step} value={value} show={show} lo={lo} hi={hi} onChange={(v) => onChange(Math.min(max, Math.max(min, v)))}>
       {children}
-    </div>
+    </SlabSlider>
   )
 }
 
-/** An Off / On (or any two-choice) segmented switch row. */
+/** An Off / On (or any two-choice) switch, as a slab. */
 function SwitchRow({ label, on, onChange, off = 'Off', onLabel = 'On' }: { label: string; on: boolean; onChange: (on: boolean) => void; off?: string; onLabel?: string }) {
-  return (
-    <div className="dm-row">
-      <div className="dm-line">
-        <span className="dm-label">{label}</span>
-        <span className="dm-seg" role="group" aria-label={label}>
-          <button className={!on ? 'on' : ''} aria-pressed={!on} onClick={() => onChange(false)}>
-            {off}
-          </button>
-          <button className={on ? 'on' : ''} aria-pressed={on} onClick={() => onChange(true)}>
-            {onLabel}
-          </button>
-        </span>
-      </div>
-    </div>
-  )
+  return <SlabChoice label={label} value={on ? 'on' : 'off'} options={[{ v: 'off', name: off }, { v: 'on', name: onLabel }]} onChange={(v) => onChange(v === 'on')} />
 }

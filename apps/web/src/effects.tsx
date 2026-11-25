@@ -802,7 +802,7 @@ export function IconLegend({ keys }: { keys: RowIcon[] }) {
     <ul className="icon-legend">
       {keys.map((k) => (
         <li key={k}>
-          <span className={`st-icon ${k === 'regen' || k === 'mirror' || k === 'shroud' || k === 'guard' || k === 'recover' ? 'good' : 'bad'}`}>
+          <span className={`st-icon ${k === 'regen' || k === 'aegis' || k === 'mirror' || k === 'shroud' || k === 'guard' || k === 'recover' ? 'good' : 'bad'}`}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d={iconPath(k)} />
             </svg>

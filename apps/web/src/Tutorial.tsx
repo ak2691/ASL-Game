@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
-import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_SHOTS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
+import { COUNTER_SILENCE_MS, DOOM_LIFT, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_SHOTS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 import { IconLegend } from './effects'
 import { LEGEND_HAND, type RowIcon } from './statusIcons'
@@ -23,16 +23,17 @@ const TIPS: Record<string, string> = {
   'F line': 'Hold F until it charges, keep holding it while you trace a line, then open all five fingers and push toward the camera.',
   'I w': 'Keep holding I for the whole W. Opening your hand early ends the drawing.',
   'F w': 'Any size works. Just keep the shape.',
-  'F flame': 'Signatures are harder to draw but hit much harder.',
+  'F h': 'Draw it clearly. Messy is fine, but the parts that count must be there: both posts of the H run the full height. That is how the game tells your spells apart.',
+  'F flame': 'Signatures are harder to draw but hit much harder. Every part counts: exactly 4 spikes.',
   'I line': 'Wrong shape or no charge means a fizzle. Wait it out and try again.',
   'W spiral': 'Start in the middle and spiral out.',
-  'E battlements': 'Earthquake knocks your opponent down and their charge is lost.',
+  'E battlements': 'At full Earth power, Earthquake knocks your opponent down and their charge is lost.',
   'L line': 'Lightning static makes their throws fizzle.',
-  'H star': 'Heal yourself.',
+  'H star': 'Heal yourself. At full Angelic power (100%) it also clears every debuff on you.',
   'H hourglass': 'Regen heals a little at a time.',
   'H aegis': 'Aegis soaks the next hits for a few seconds.',
   'H mirror': 'Mirror sends their next hit back at them.',
-  'U scythe': `Doom: they must land a cast within ${secs(DOOM_MS)} or take a big hit.`,
+  'U scythe': `Doom: they must throw a fresh spell (${pct(DOOM_LIFT)} power or more) within ${secs(DOOM_MS)} or take a big hit.`,
   'U veil': 'Shroud hides your charge and drawing from them.',
   'U blade': 'Execute does double damage if they have a curse on them, like a burn or a chill.',
   'magma volcano': 'Combo: sign C, then F and E, then draw. The second element locks the mix.',
@@ -43,7 +44,7 @@ const TIPS: Record<string, string> = {
   'thermal thermo': 'Hits, burns and chills them at once.',
   'plasma plasma': `Burns, knocks their charge off, and wears every element of theirs above ${pct(PLASMA.cap)} down to ${pct(PLASMA.cap)}.`,
   'sunfire sun': 'A long burn that heals you.',
-  'grave tomb': `For ${secs(GRAVE.ms)} they cannot heal or use Angelic spells. An Angelic counterspell still works.`,
+  'grave tomb': `For ${secs(GRAVE.ms)} nothing heals them or gives them armor. Their Heal clears it, but heals nothing that time.`,
   'W circle': `Counterspell: stuns them until your next hit lands (${secs(COUNTER_SILENCE_MS)} at most). Use the element that beats theirs. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.`,
   'W jab': `Interrupt: sign and push, no drawing. It only stops a plain element charge, not a heal or a combo. A hit locks them out for ${secs(INTERRUPT_LOCK_MS)}; a miss locks you out for ${secs(WHIFF_MS)}.`,
   'A circle': 'Angelic beats Unholy. A counterspell of any element also stops a heal charge or a regen still ticking.',
@@ -150,6 +151,28 @@ const STEPS: Step[] = [
   ...(COMBOS_ON ? [{ el: 'CIW', shape: COUNTER }] : []),
 ].map((s) => ({ ...s, tip: TIPS[`${s.el} ${s.shape}`] }))
 
+/** The Spellbook chapter a step belongs to (tag and color on the page). */
+const CHAPTER = {
+  basics: { name: 'Basics', color: '#ff9f1c' },
+  elements: { name: 'Elements', color: '#ff5470' },
+  signatures: { name: 'Signatures', color: '#6c63ff' },
+  magic: { name: 'Magic', color: '#ffd23f' },
+  combos: { name: 'Combos', color: '#2ec4b6' },
+  defense: { name: 'Defense', color: '#4dabf7' },
+  status: { name: 'Status', color: '#b197fc' },
+}
+const chapterOf = (st: Step) =>
+  st.shape === COUNTER || st.shape === QUICK ? CHAPTER.defense
+  : st.el === 'A' || st.el === 'U' ? CHAPTER.magic
+  : st.el in COMBO_SHAPE ? CHAPTER.combos
+  : st.shape === 'line' || st.shape === 'h' ? CHAPTER.elements
+  : CHAPTER.signatures
+const Tag = ({ ch }: { ch: { name: string; color: string } }) => (
+  <span className="book-chapter" style={{ background: ch.color }}>
+    {ch.name}
+  </span>
+)
+
 /** Acts on press (pointer down), so fast clicks never get lost; Enter/Space still work. */
 const press = (fn: () => void) => ({
   onPointerDown: (e: React.PointerEvent) => {
@@ -171,6 +194,21 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
   const [done, setDone] = useState(() => new Set<number>())
   const seen = useRef(new Set<number>())
   const step = STEPS[i]
+  // Page arrows, the same as the Spellbook's: back, page number, forward.
+  const total = LAST + BASICS.length
+  const nav = (
+    <div className="row book-nav tut-nav">
+      <button className="small" {...press(() => go(-1))} disabled={i === -BASICS.length} aria-label="Previous step">
+        ◀
+      </button>
+      <span>
+        {i + BASICS.length + 1} / {total}
+      </span>
+      <button className="small" {...press(() => go(1))} aria-label="Next step">
+        ▶
+      </button>
+    </div>
+  )
   const go = (d: number) => setI((x) => Math.max(-BASICS.length, Math.min(LAST, x + d)))
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -205,12 +243,10 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
     const b = BASICS[i + BASICS.length]
     return (
       <div className="tutorial">
-        <div className="tut-card">
-          <div className="tut-head" style={{ background: 'var(--main)' }}>
+        <div className="tut-card book-card">
+          <Tag ch={CHAPTER.basics} />
+          <div className="tut-head">
             <b className="tut-title">{b.title}</b>
-            <span className="tut-count">
-              Basics {i + BASICS.length + 1} / {BASICS.length}
-            </span>
           </div>
           <div className="tut-body">
             <ul className="tut-basics">
@@ -219,12 +255,7 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
               ))}
             </ul>
             {i === -BASICS.length && <p className="tut-hint">Your camera video stays on your device. It's never saved or shown to anyone.</p>}
-            <div className="row">
-              <button className="small" {...press(() => go(-1))} disabled={i === -BASICS.length} aria-label="Previous step">
-                {'<'}
-              </button>
-              <button {...press(() => go(1))}>{i === -1 ? 'Start casting' : 'Next'}</button>
-            </div>
+            {nav}
           </div>
         </div>
       </div>
@@ -243,8 +274,9 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
       )
     return (
       <div className="tutorial">
-        <div className="tut-card">
-          <div className="tut-head" style={{ background: 'var(--main)' }}>
+        <div className="tut-card book-card">
+          <Tag ch={b.try === 'parry' ? CHAPTER.defense : CHAPTER.status} />
+          <div className="tut-head">
             <b className="tut-title">{b.title}</b>
             <span className="tut-count">
               {i + 1} / {LAST}
@@ -269,12 +301,7 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
                 Try it
               </button>
             )}
-            <div className="row">
-              <button className="small" {...press(() => go(-1))} aria-label="Previous step">
-                {'<'}
-              </button>
-              <button {...press(() => go(1))}>Next</button>
-            </div>
+            {nav}
           </div>
         </div>
         <ProgressBar at={i} done={done} onPick={setI} />
@@ -288,7 +315,7 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
         <b className="result">You're ready!</b>
         <div className="row">
           <button className="small" {...press(() => go(-1))}>
-            {'<'}
+            ◀
           </button>
           <button {...press(onHome)}>Home</button>
         </div>
@@ -300,8 +327,9 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
   const signs = signsFor(step.el)
   return (
     <div className="tutorial">
-      <div className="tut-card" style={{ color: el.color }}>
-        <div className="tut-head" style={{ background: el.color }}>
+      <div className="tut-card book-card" style={{ color: el.color }}>
+        <Tag ch={chapterOf(step)} />
+        <div className="tut-head">
           <b className={`tut-title ${spellName(step.el, step.shape).length > 16 ? 'long' : ''}`}>{spellName(step.el, step.shape)}</b>
           <span className="tut-count">
             {i + 1} / {LAST}
@@ -336,12 +364,7 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
             </figure>
           </div>
           {step.tip && <p className="tut-tip">{step.tip}</p>}
-          <div className="row">
-            <button className="small" {...press(() => go(-1))} aria-label="Previous step">
-              {'<'}
-            </button>
-            <button {...press(() => go(1))}>Next</button>
-          </div>
+          {nav}
         </div>
       </div>
       <ProgressBar at={i} done={done} onPick={setI} />

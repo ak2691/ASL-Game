@@ -163,7 +163,7 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .side-status { position: absolute; top: 50%; left: 0; right: 0; text-align: center; z-index: 2; }
 .stage-overlay { position: absolute; left: 16px; bottom: 14px; z-index: 2; pointer-events: none; text-shadow: 0 2px 6px #000; }
 .dummy-bar { display: flex; gap: 8px; align-items: center; }
-.dummy-bar .icon-btn { width: 34px; min-width: 0; height: 34px; padding: 0 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.dummy-bar .icon-btn { width: 34px; min-width: 0; height: 34px; padding: 0 !important; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
 .dummy-bar .icon-btn svg { width: 18px; height: 18px; flex: none; }
 .corner-bar { position: fixed; bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); z-index: 5; display: flex; gap: 8px; align-items: center; }
 .dealt-line { font-size: 13px; color: var(--sub); }
@@ -367,7 +367,7 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tag.static.gap { background: var(--sub-alt); color: #ffe14d; opacity: 0.45; }
 .fighter-name { white-space: nowrap; }
 .tag.chill { background: #1d3a4a; color: #8fd8ff; }
-.guide-sub { color: var(--sub); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px; }
+.guide-sub { color: var(--sub); font-size: 12px; letter-spacing: 0.02em; margin-top: 8px; }
 
 /* Home */
 .home { min-height: 100vh; min-height: 100dvh; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
@@ -405,7 +405,7 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tut-head .tut-count { color: #15132e; opacity: 0.7; }
 .tut-body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px; }
 .tut-list { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: color-mix(in srgb, var(--bg) 80%, transparent); border-radius: 14px; text-align: left; color: var(--text); }
-.tut-list-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sub); }
+.tut-list-title { font-size: 0.85rem; letter-spacing: 0.02em; color: var(--sub); }
 .tut-row { display: flex; align-items: center; gap: 6px; }
 .tut-row-name { width: 78px; font-size: 0.85rem; }
 .tut-row.all .tut-row-name { color: var(--sub); text-decoration: line-through; }
@@ -516,7 +516,7 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .home { position: relative; }
 .home-corner { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; z-index: 3; }
 .corner-icons { display: flex; gap: 8px; }
-html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { width: 46px !important; min-width: 0; height: 46px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0; }
+html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { width: 46px !important; min-width: 0; height: 46px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 0; }
 .home .icon-btn.on { outline: 3px solid var(--main); }
 .settings-panel { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 220px; padding: 12px 14px; border-radius: 14px; background: var(--bg); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); color: var(--text); text-align: left; }
 .home .settings-panel button { width: auto; font-size: 0.95rem; padding: 8px; }
@@ -526,33 +526,51 @@ html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { 
 .tut-example :is(img, svg, .tut-push) { width: 110px; height: 110px; }
 
 /* Tutorial: which hand does each box */
-.tut-hand { font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text, #ddd); }
+.tut-hand { font-size: 0.9rem; letter-spacing: 0.02em; color: var(--text, #ddd); }
 
-/* Practice ladder: a wizard tower, Pebble at the door, Lich at the spire. */
+/* Practice ladder (Nov 24): a cut-away wizard tower. Stone walls; each floor is a room with a wooden ledge and
+   the bot in an arched window; tier bands (Apprentice stone, Adept violet, Master gold) split the floors; the
+   chosen floor's window is lit. */
 .tower-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; --tower-roof: #6b4fa8; }
 .tower {
-  width: 270px; max-height: min(48vh, 420px); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; will-change: scroll-position; contain: content;
-  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 0;
-  background: repeating-linear-gradient(0deg, #4a4560 0 22px, #3d3852 22px 24px);
+  width: 290px; max-height: min(48vh, 440px); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; will-change: scroll-position; contain: content;
+  display: flex; flex-direction: column; gap: 0; padding: 8px 10px 0;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.35), transparent 10px, transparent calc(100% - 10px), rgba(0,0,0,.35)),
+    repeating-linear-gradient(0deg, transparent 0 20px, #2a2640 20px 22px),
+    repeating-linear-gradient(90deg, #4c4766 0 38px, #2a2640 38px 40px);
   border: 3px solid #1d1b2e; border-top: none; border-radius: 0 0 6px 6px;
 }
-.tower-wrap .spire { width: 280px; height: 44px; margin-bottom: -6px; display: block; }
+.tower-wrap .spire { width: 300px; height: 48px; margin-bottom: -6px; display: block; }
+.tower .tier-band { flex: none; margin: 6px -10px 6px; padding: 3px 0 4px; text-align: center; font-family: var(--title, inherit); font-size: 17px; font-weight: normal;
+  letter-spacing: 0.06em; color: #fffaf0; -webkit-text-stroke: 4px #1d1b2e; paint-order: stroke fill; border-block: 3px solid #1d1b2e; }
+.tower .tier-band.apprentice { background: #9aa3c7; }
+.tower .tier-band.adept { background: #a98bf0; }
+.tower .tier-band.master { background: #ffd24d; }
 .tower .floor {
-  display: flex; align-items: center; gap: 8px; padding: 4px 8px; flex: none;
-  background: #2b2840; border: 2px solid #1d1b2e; border-radius: 22px 22px 6px 6px;
-  box-shadow: none; text-align: left; color: var(--text);
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px; flex: none; margin-bottom: 6px;
+  background: #24213a; border: 2px solid #1d1b2e; border-bottom: 6px solid #7a5534; border-radius: 6px 6px 3px 3px;
+  box-shadow: inset 0 8px 14px rgba(0,0,0,.35); text-align: left; color: var(--text);
 }
-.tower .floor.wizard { background: #332a4d; }
-.tower .floor:hover { border-color: #ffd24d; }
-.tower .floor.active { background: #ffd24d; color: #1d1b2e; border-color: #1d1b2e; }
+.tower .floor.adept { background: #2c2347; }
+.tower .floor.master { background: #33283a; }
+.tower .floor:hover { border-color: #ffd24d; border-bottom-color: #7a5534; }
+.tower .floor.active { background: #ffd24d; color: #1d1b2e; border-color: #1d1b2e; border-bottom-color: #7a5534; box-shadow: 0 0 18px rgba(255,210,77,.55); }
 .tower .rung { width: 16px; font-size: 12px; opacity: 0.6; text-align: center; }
-.tower .portrait { width: 46px; height: 46px; flex: none; }
-.tower .floor-name { flex: 1; font-weight: 700; }
+.tower .window { flex: none; display: grid; place-items: center; width: 50px; height: 52px; border-radius: 25px 25px 4px 4px; border: 3px solid #1d1b2e;
+  background: radial-gradient(circle at 50% 60%, #3d3866, #15132e); }
+.tower .floor.active .window { background: radial-gradient(circle at 50% 60%, #fff3b0, #f0a830); }
+.tower .floor.master .window { border-color: #b8902c; }
+.tower .portrait { width: 44px; height: 44px; flex: none; }
+.tower .floor-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.tower .floor-name { font-weight: 700; }
+.tower .trait { font-size: 13px; font-family: var(--title, inherit); font-weight: normal; letter-spacing: 0.02em; color: #ffd24d; }
+.tower .floor.active .trait { color: #7a4a00; }
 .tower .els { display: flex; gap: 2px; }
 .tower .els i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid #1d1b2e; }
 .tower-wrap > .sub-line { margin-top: 6px; }
 .tower .els i.all { width: 30px; border-radius: 4px; }
-.tower .tower-door { height: 14px; width: 40px; margin: 0 auto; flex: none; background: #1d1b2e; border-radius: 20px 20px 0 0; }
+.tower .tower-door { height: 18px; width: 44px; margin: 0 auto; flex: none; background: #1d1b2e; border-radius: 22px 22px 0 0; box-shadow: inset 0 0 0 3px #7a5534; }
 
 /* Thunderbolt: a storm cloud gathers over the target during the flight time, crackling, then the strike. */
 .sig-cloud { position: absolute; left: -10%; right: -10%; top: -8%; height: 34%; opacity: 0; animation: cloud-gather var(--t) ease-in; animation-fill-mode: none !important;
@@ -764,6 +782,7 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   .info-card { padding: 12px; overflow-x: auto; }
   .info-table { font-size: 13px; }
   .info-table th, .info-table td { padding: 4px 5px; overflow-wrap: anywhere; }
+  .info-table th { overflow-wrap: normal; white-space: nowrap; } /* headers stay whole words */
 }
 
 /* Small phones: the in-game privacy line (already on the home screen) gives way to the controls. */
@@ -777,6 +796,7 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   .tower { max-height: max(84px, calc(100cqh - 230px)); border-top: 3px solid #1d1b2e; border-radius: 6px; padding-top: 6px; }
   .tower .floor { padding: 2px 8px; }
   .tower .portrait { width: 34px; height: 34px; }
+  .tower .window { width: 38px; height: 40px; }
 }
 /* Phone landscape: the whole home menu fits without scrolling. */
 @media (max-height: 500px) {
@@ -809,11 +829,28 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   html[data-theme] .tut-dot { width: 32px; height: 32px; min-height: 32px; }
   html[data-theme] .tower .floor { padding: 8px 10px; }
 }
-/* Phone portrait, picking a practice opponent: the tower's half gets most of the screen (you aren't signing yet). */
+/* Picking a practice opponent (Nov 24, phone first, same on desktop): the tower takes the whole opponent half.
+   The opponent's HUD hides (no fight yet; the tower shows who you picked), the floors get full width and
+   taller rows (easy to tap), and Start battle sits at the bottom under the quote, clear of Menu. */
+.duel-side.opp:has(.tower-wrap) > .side-hud { display: none; }
+.duel:has(.tower-wrap) .duel-side.you .hp-bar { visibility: hidden; } /* no fight yet: no health bars (your charge readout stays, to test signs) */
+.duel-side.opp > .stage-center:has(.tower-wrap) { padding: 16px 12px 72px; gap: 10px; justify-content: flex-start; }
+.stage-center .tower-wrap { width: 100%; max-width: 460px; flex: 1; min-height: 0; }
+.stage-center .tower-wrap .spire, .stage-center .tower .tower-door { display: none; } /* inside the tower: no roof, no door */
+.stage-center .tower-wrap .tower { width: 100%; max-height: none; flex: 1; min-height: 0; border: none; background: none; padding: 4px 2px 0; }
+.stage-center .tower-wrap > .sub-line { display: block; font-size: 14px; }
+.stage-center .tower .floor { padding: 8px 10px; }
+.stage-center .tower .window { width: 50px; height: 52px; }
+.stage-center .tower .portrait { width: 44px; height: 44px; }
+.stage-center .tower .floor-name { font-size: 16px; }
+.stage-center:has(.tower-wrap) > .cta, .stage-center:has(.tower-wrap) > .countdown { flex: none; }
+/* Phone portrait: your camera half shrinks while you pick (you aren't signing yet). */
 @media (max-width: 800px) and (orientation: portrait) {
-  .duel:has(.tower-wrap) { grid-template-rows: minmax(0, 1fr) minmax(0, 2.2fr); }
-  .duel:has(.tower-wrap) .tower { max-height: calc(100cqh - 320px); }
+  .duel:has(.tower-wrap) { grid-template-rows: minmax(0, 1fr) minmax(0, 3fr); }
   .duel:has(.tower-wrap) .privacy-note { display: none; }
+  .duel-side.opp > .stage-center:has(.tower-wrap) { padding: 10px 10px 64px; gap: 8px; }
+  .stage-center .tower-wrap > .sub-line { font-size: 13px; }
+}
 }
 
 /* Interrupted (or whiffed): locked out for a moment. The half greys and shakes, a bar drains to free. */
@@ -840,7 +877,7 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
    over a dummy's status. */
 .dummy-dock { position: absolute; left: 10px; bottom: 10px; z-index: 4; pointer-events: auto; }
 
-.corner-bar .menu-btn { width: 44px; height: 44px; min-width: 0; padding: 0 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.corner-bar .menu-btn { width: 44px; height: 44px; min-width: 0; padding: 0 !important; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
 .corner-bar .menu-btn svg { width: 22px; height: 22px; }
 
 /* Status row: every effect on a fighter as a same-size icon under its health bar. Red edge = bad for them,
@@ -880,7 +917,7 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 .dm { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .dm-head { padding: 14px 18px 4px; }
 .dm-body { overflow: auto; padding: 0 18px 16px; min-height: 0; flex: 1; }
-.dm-section { margin: 14px 0 6px; font-size: 13px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--main); display: flex; align-items: center; gap: 8px; }
+.dm-section { margin: 14px 0 6px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; color: var(--main); display: flex; align-items: center; gap: 8px; }
 .dm-section::before { content: ''; width: 4px; height: 14px; border-radius: 2px; background: var(--main); }
 .dm-rows { display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--ink, #000) 22%, transparent); }
 .dm-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
@@ -921,3 +958,349 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   .dm-count { white-space: nowrap; }
   .dm-foot .dm-done { padding: 8px 16px; }
 }
+
+/* Practice: one tip for the floor you just lost to, under Fight again. */
+.loss-tip { max-width: 300px; margin: 0; padding: 8px 12px; border-radius: 10px; text-align: center; font-size: 14px; font-weight: 700; color: var(--text);
+  background: color-mix(in srgb, var(--main) 18%, transparent); border: 2px solid var(--main); }
+
+/* Practice opponent's line: a speech bubble just below its HUD (it never pushes the HUD around or covers its
+   charge), pointing up at it. Fades in, then out. */
+.chat-bubble { position: absolute; top: calc(100% - 12px); left: 14px; max-width: min(320px, 85%); margin: 0; padding: 7px 12px; border-radius: 14px;
+  background: #fffaf0; color: #1d1b2e; font-size: 14px; font-weight: 700; line-height: 1.3; border: 3px solid #1d1b2e; box-shadow: 0 3px 0 #1d1b2e;
+  pointer-events: none; z-index: 4; animation: chat-in 0.25s ease-out; }
+.chat-bubble::before { content: ''; position: absolute; top: -10px; left: 18px; border: 8px solid transparent; border-bottom-color: #1d1b2e; border-top: 0; }
+.chat-bubble::after { content: ''; position: absolute; top: -5px; left: 21px; border: 5px solid transparent; border-bottom-color: #fffaf0; border-top: 0; }
+@keyframes chat-in { from { opacity: 0; transform: translateY(-4px) scale(0.96); } }
+.tower-quote { font-style: italic; max-width: 290px; text-align: center; }
+
+/* Inside the tower (Nov 24): the opponent half is the tower's inside while you pick. Brick walls edge to edge,
+   darker toward the edges, a wooden beam across the top. When the countdown starts the floors lift and fade;
+   when the fight starts the room fades away. */
+.tower-room { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.7s ease;
+  background:
+    linear-gradient(#5a3b22, #5a3b22) top / 100% 14px no-repeat,
+    linear-gradient(#1d1b2e, #1d1b2e) 0 14px / 100% 3px no-repeat,
+    radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(10, 8, 24, 0.65) 100%),
+    repeating-linear-gradient(0deg, transparent 0 26px, #2a2640 26px 29px),
+    repeating-linear-gradient(90deg, #4c4766 0 52px, #2a2640 52px 55px); }
+.tower-room.on { opacity: 1; }
+.duel-side.opp > .stage-center:has(.tower-wrap) { padding-top: 26px; }
+.stage-center.leaving .tower-wrap, .stage-center.leaving > .loss-tip { animation: tower-leave 0.6s ease-in forwards; }
+@keyframes tower-leave { to { opacity: 0; transform: translateY(-14px) scale(1.04); } }
+.stage-center .tower .tier-band { margin: 8px 0 8px; border: 3px solid #1d1b2e; border-radius: 6px; box-shadow: 0 3px 0 #1d1b2e; }
+.stage-center .tower .floor { box-shadow: inset 0 8px 14px rgba(0,0,0,.35), 0 4px 0 rgba(0,0,0,.35); }
+.stage-center .tower-wrap .tower { scrollbar-color: #7a5534 transparent; -webkit-mask: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent); mask: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent); }
+
+/* The tower needs no scrollbar (it still scrolls by wheel, drag and touch), so the floors sit centered. */
+.stage-center .tower-wrap .tower { scrollbar-width: none; }
+.stage-center .tower-wrap .tower::-webkit-scrollbar { display: none; }
+
+/* In-match menu (Nov 24): title, a big Resume, settings rows (switches, push sizes, a volume gauge), then
+   small secondary buttons in a row; leaving buttons in the foe color. */
+.menu-card.pause-menu.dm { max-width: 400px; width: 100%; gap: 10px; padding: 18px 18px 16px; }
+.pause-menu .pm-title { text-align: center; font-size: 24px; }
+.pause-menu .pm-resume { width: 100%; font-size: 18px; padding: 12px; background: var(--you); color: var(--ink, #111); }
+.pause-menu .dm-section { margin: 6px 0 0; }
+.pause-menu .dm-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.pause-menu .dm-row > .dm-line { flex: 1; }
+.pause-menu .dm-row > .dm-meter { flex: 1; max-width: 200px; }
+.pause-menu .pm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pause-menu .pm-actions button { flex: 1; width: auto; min-width: 0; font-size: 14px; padding: 9px 10px; }
+.pause-menu .pm-actions button.pm-danger { background: var(--foe); color: #fff; }
+@media (max-width: 500px) { .pause-menu .dm .dm-seg button, .pause-menu .dm-seg button { min-width: 0; padding: 8px 8px; } }
+
+/* Tutorial on short phones (Nov 24): tighter, and the Next / Back row keeps clear of the floating Menu button. */
+@media (max-width: 800px) {
+  html[data-theme] .tut-body > .row { padding-right: 58px; }
+}
+@media (max-width: 800px) and (max-height: 700px) {
+  html[data-theme] .tut-body .tut-hint { font-size: 12px; line-height: 1.3; margin: 0; }
+  html[data-theme] .tut-body .tut-basics { gap: 3px; margin: 0; }
+  html[data-theme] .tut-body > .row { padding-top: 4px; padding-bottom: 6px; }
+}
+@media (max-width: 800px) and (orientation: portrait) and (max-height: 700px) {
+  .duel:has(.tut-body) { grid-template-rows: minmax(0, 0.82fr) minmax(0, 1fr); }
+}
+
+/* The camera card (Nov 24): shown in your half until you turn the camera on; says why and that it stays local. */
+.cam-gate { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px 20px;
+  text-align: center; color: var(--text); background: rgba(20, 18, 34, 0.88); backdrop-filter: blur(4px); }
+.cam-gate svg { width: 56px; height: 56px; color: var(--main); }
+.cam-gate b { font-family: var(--title, inherit); font-weight: normal; font-size: 24px; }
+.cam-gate p { max-width: 340px; margin: 0; color: var(--sub); font-size: 14px; line-height: 1.4; }
+.cam-gate button { margin-top: 6px; }
+.ready-wrap { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+.ready-note { font-size: 12px; color: var(--sub); }
+
+/* Push setting: exact percent slider with a one-line hint. */
+.push-setting { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.push-pct { min-width: 3ch; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.push-hint { margin: 0; max-width: 260px; font-size: 12px; line-height: 1.3; color: var(--sub); text-align: center; }
+.pause-menu .dm-row:has(.push-setting) { flex-direction: column; align-items: stretch; }
+.pause-menu .push-setting .volume { justify-content: space-between; }
+.pause-menu .push-setting .volume input { flex: 1; width: auto; }
+.pause-menu .push-hint { max-width: none; text-align: left; }
+@media (pointer: coarse) { .push-setting input[type='range'] { height: 32px; } }
+
+/* How to cast and Spell Info (Nov 25): the home's night sky and tower behind them, and the content slides in
+   from the right, one block after another. No scrollbar, so nothing pops in during the slide. */
+html:has(.info-page) { scrollbar-width: none; }
+html:has(.info-page)::-webkit-scrollbar, body:has(.info-page)::-webkit-scrollbar { display: none; }
+/* In: each block comes from the right in turn and overshoots a touch. Out: everything slides left and fades. */
+.info-page > *, .home .home-brand, .home .mode-bar, .home .home-privacy { animation: page-slide-in 380ms cubic-bezier(.2, .9, .3, 1.12) backwards; }
+.info-page > :nth-child(2), .home .mode-bar:nth-child(1) { animation-delay: 50ms; }
+.info-page > :nth-child(3), .home .mode-bar:nth-child(2) { animation-delay: 100ms; }
+.info-page > :nth-child(4), .home .mode-bar:nth-child(3) { animation-delay: 150ms; }
+.info-page > :nth-child(5), .home .mode-bar:nth-child(4) { animation-delay: 200ms; }
+.info-page > :nth-child(n + 6), .home .home-privacy { animation-delay: 250ms; }
+@keyframes page-slide-in { from { opacity: 0; transform: translateX(min(40vw, 320px)); } to { opacity: 1; transform: none; } }
+body.page-leaving .info-page > *, body.page-leaving .home .home-brand, body.page-leaving .home .mode-bar, body.page-leaving .home .home-privacy {
+  animation: page-slide-out 180ms ease-in both; }
+@keyframes page-slide-out { to { opacity: 0; transform: translateX(-60px); } }
+@media (prefers-reduced-motion: reduce) { .info-page > *, .home .home-brand, .home .mode-bar, .home .home-privacy, body.page-leaving * { animation: none !important; } }
+
+.push-setting { width: 100%; }
+.push-setting .volume { width: 100%; }
+.push-setting .volume input { flex: 1; width: auto; min-width: 0; }
+.push-setting .push-hint { max-width: none; }
+
+/* Spellbook (Nov 25): cartoon book, parchment pages, ink outlines, colored chapter ribbons. Phone first: one page
+   (art on top, words below) that fills the screen; 900px+ opens into a two-page spread. */
+.book-page { display: flex; flex-direction: column; gap: 10px; height: 100vh; height: 100dvh; max-width: 980px; padding-bottom: 12px; overflow: hidden; }
+.book-page .info-top { margin: 0; }
+.book-ribbons { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; padding: 2px 2px 6px; }
+.book-ribbons::-webkit-scrollbar { display: none; }
+.book-ribbons button { flex: none; width: auto; min-width: 0; padding: 7px 12px 9px; font-size: 14px; color: #1d1b2e; border: 3px solid #1d1b2e;
+  border-radius: 10px 10px 4px 4px; box-shadow: 0 3px 0 #1d1b2e; transform: translateY(3px); transition: transform 0.15s; font-family: var(--title, inherit); }
+.book-ribbons button.on { transform: translateY(-2px); box-shadow: 0 6px 0 #1d1b2e; }
+.book { position: relative; flex: 1; min-height: 0; perspective: 1600px; touch-action: pan-y; user-select: none; }
+.book-spread { position: absolute; inset: 0; display: flex; flex-direction: column; border: 4px solid #1d1b2e; border-radius: 18px;
+  background: #3b2a1f; padding: 8px; gap: 0; box-shadow: 0 8px 0 #1d1b2e; }
+.book-leaf { background: #fbf1d6; color: #2a2238; position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.book-leaf.left { flex: 1 1 50%; align-items: center; justify-content: center; border-radius: 10px 10px 0 0; padding: 30px 14px 10px;
+  background: radial-gradient(ellipse at 50% 45%, #fff8e6, #f3e2b8); }
+.book-leaf.right { flex: 1 1 50%; border-radius: 0 0 10px 10px; padding: 14px 18px; gap: 8px; border-top: 2px dashed #c9b38a; overflow-y: auto; scrollbar-width: none; }
+.book-leaf.right h2 { margin: 0; font-family: var(--title, inherit); font-weight: normal; font-size: 30px; line-height: 1; -webkit-text-stroke: 1.5px #1d1b2e; paint-order: stroke fill; }
+.book-how { margin: 0; font-weight: 800; font-size: 17px; line-height: 1.35; }
+.book-does { margin: 0; font-size: 16px; line-height: 1.4; color: #4a3f5c; }
+.book-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
+.book-chips span { padding: 4px 10px; border: 2.5px solid #1d1b2e; border-radius: 999px; background: #ffd24d; font-weight: 800; font-size: 14px; color: #1d1b2e; }
+.book-chapter { position: absolute; top: 0; left: 14px; padding: 3px 10px 5px; font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
+  color: #1d1b2e; border: 2.5px solid #1d1b2e; border-top: none; border-radius: 0 0 8px 8px; }
+.book-art { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.book-shape { width: min(150px, 22vh); height: min(150px, 22vh); filter: drop-shadow(0 3px 0 rgba(29, 27, 46, .35)); }
+.book-art .book-shape { stroke-width: 3; }
+.book-signs { display: flex; align-items: center; gap: 6px; }
+.book-signs b { margin: 0 4px; font-size: 20px; color: #6a5a40; }
+.book-signs.wrap { flex-wrap: wrap; justify-content: center; max-width: 260px; }
+.book-sign { background: #fff; border: 2.5px solid #1d1b2e; border-radius: 10px; padding: 3px; object-fit: contain; }
+.book-cycle { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 280px; }
+.book-cycle span { display: flex; flex-direction: column; align-items: center; font-weight: 800; font-size: 12px; }
+.book-cycle span:not(:last-child)::after { content: '→'; color: #6a5a40; font-size: 16px; position: relative; top: -34px; left: 28px; height: 0; }
+.book-push { font-size: min(96px, 14vh); line-height: 1; }
+.book-meter { display: flex; flex-direction: column; gap: 8px; width: 180px; }
+.book-meter i { display: block; height: 16px; border: 2.5px solid #1d1b2e; border-radius: 6px; background: #ff9f1c; }
+.book-leaf .icon-legend { max-height: 100%; overflow-y: auto; scrollbar-width: none; color: #2a2238; font-size: 13px; }
+.book-nav { display: flex; align-items: center; justify-content: center; gap: 18px; flex: none; color: var(--text); font-weight: 800; }
+.book-nav button { width: 56px; height: 44px; font-size: 18px; }
+/* Page turn: a blank sheet lifts off and swings over (next: right to left; back: left to right). */
+.book-turn { position: absolute; inset: 8px; border-radius: 10px; background: linear-gradient(90deg, #e9d7a8, #fbf1d6 40%, #fff8e6); pointer-events: none;
+  backface-visibility: hidden; box-shadow: 0 0 30px rgba(0,0,0,.35); }
+.book-turn.next { transform-origin: left center; animation: leaf-next 480ms ease-in both; }
+.book-turn.prev { transform-origin: right center; animation: leaf-prev 480ms ease-in both; }
+@keyframes leaf-next { from { transform: rotateY(0); opacity: 1; } to { transform: rotateY(-100deg); opacity: 0.6; } }
+@keyframes leaf-prev { from { transform: rotateY(0); opacity: 1; } to { transform: rotateY(100deg); opacity: 0.6; } }
+.book-spread { animation: book-ink 300ms 120ms ease-out backwards; }
+@keyframes book-ink { from { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) { .book-turn { display: none; } .book-spread { animation: none; } }
+@media (min-width: 900px) {
+  .book-spread { flex-direction: row; padding: 10px; }
+  .book-leaf.left { border-radius: 10px 0 0 10px; padding: 40px 24px 20px; box-shadow: inset -18px 0 24px -16px rgba(80, 50, 20, .35); }
+  .book-leaf.right { border-radius: 0 10px 10px 0; border-top: none; padding: 40px 34px 24px; gap: 14px; justify-content: center;
+    box-shadow: inset 18px 0 24px -16px rgba(80, 50, 20, .35); }
+  .book-leaf.right h2 { font-size: 44px; }
+  .book-how { font-size: 21px; }
+  .book-does { font-size: 19px; }
+  .book-chips { margin-top: 6px; }
+  .book-shape { width: min(220px, 30vh); height: min(220px, 30vh); }
+  .book-turn { inset: 10px 10px 10px 50%; border-radius: 0 10px 10px 0; }
+  .book-turn.prev { inset: 10px 50% 10px 10px; border-radius: 10px 0 0 10px; }
+  .book-ribbons { justify-content: center; }
+}
+/* Spellbook over a match (Esc menu): fills the screen over a dark veil; the fight stays paused behind. */
+.book-overlay { position: fixed; inset: 0; z-index: 50; background: linear-gradient(#140f33, #2b1f5c 60%, #3d2a73); display: flex; justify-content: center; }
+.book-overlay .book-page { width: 100%; margin: 0 auto; padding: 12px 12px; }
+html[data-theme] .book-overlay .info-page::before { display: none; }
+
+/* Setting slabs (Nov 25, reference: TETR.IO config, drawn in the cartoon style). Phone first: name + value on top,
+   the control full width under them; 560px+ puts name | control | value on one row. */
+.slab-section { display: flex; flex-direction: column; gap: 6px; }
+.slab-section h3 { margin: 6px 0 0; padding-left: 10px; border-left: 5px solid #ffd24d; font-family: var(--title, inherit); font-weight: normal;
+  font-size: 15px; letter-spacing: 0.02em; color: #ffd24d; }
+.slab { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'label value' 'ctrl ctrl' 'hint hint'; align-items: center; gap: 4px 10px;
+  padding: 8px 10px 8px 12px; background: #24213a; border: 3px solid #1d1b2e; border-radius: 12px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+.slab-label { grid-area: label; font-family: var(--title, inherit); font-size: 18px; letter-spacing: 0.04em; color: #fffaf0; }
+.slab-track, .slab-choice { grid-area: ctrl; }
+.slab-value { grid-area: value; min-width: 64px; padding: 2px 8px; text-align: right; font-family: var(--title, inherit); font-weight: normal; font-size: 22px;
+  color: #fffaf0; background: #141226; border: 2px solid #1d1b2e; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.slab-value small { margin-left: 2px; font-size: 13px; color: #9aa3c7; }
+.slab-hint { grid-area: hint; margin: 0; font-size: 12px; line-height: 1.3; color: #9aa3c7; }
+.slab-ends { display: flex; justify-content: space-between; margin-top: 2px; }
+.slab-ends small { font-size: 10px; font-weight: 800; letter-spacing: 0.02em; color: #8a83ad; }
+.slab input[type='range'] { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 30px; margin: 0; background: transparent; cursor: pointer; }
+.slab input[type='range']::-webkit-slider-runnable-track { height: 14px; border: 2.5px solid #1d1b2e; border-radius: 7px;
+  background: linear-gradient(90deg, #ff9f1c var(--fill), #141226 var(--fill)); }
+.slab input[type='range']::-moz-range-track { height: 9px; border: 2.5px solid #1d1b2e; border-radius: 7px; background: linear-gradient(90deg, #ff9f1c var(--fill), #141226 var(--fill)); }
+.slab input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 28px; margin-top: -9px; border: 3px solid #1d1b2e; border-radius: 7px;
+  background: #fffaf0; box-shadow: 0 3px 0 #1d1b2e; }
+.slab input[type='range']::-moz-range-thumb { width: 18px; height: 22px; border: 3px solid #1d1b2e; border-radius: 7px; background: #fffaf0; box-shadow: 0 3px 0 #1d1b2e; }
+.slab:has(.slab-choice) { grid-template-areas: 'label ctrl'; }
+.slab-choice { display: flex; justify-self: end; border: 3px solid #1d1b2e; border-radius: 10px; overflow: hidden; }
+html[data-theme] .slab-choice button, .slab-choice button { width: auto; min-width: 64px; margin: 0; padding: 7px 12px; border: none; border-radius: 0; box-shadow: none;
+  transform: none; font-size: 15px; background: #141226; color: #9aa3c7; }
+html[data-theme] .slab-choice button + button { border-left: 3px solid #1d1b2e; }
+html[data-theme] .slab-choice button.on { background: #ffd24d; color: #1d1b2e; }
+/* One row only when the panel itself is wide (a narrow menu card on desktop stays stacked). */
+.slab-section { container-type: inline-size; }
+@container (min-width: 460px) {
+  .slab { grid-template-columns: 120px 1fr auto; grid-template-areas: 'label ctrl value' 'hint hint hint'; }
+  .slab:has(.slab-choice) { grid-template-columns: 120px 1fr; grid-template-areas: 'label ctrl'; }
+  .slab-hint { padding-left: 130px; }
+}
+/* In-match menu and home Settings around the slabs. */
+.menu-card.pause-menu.dm { gap: 8px; }
+.pause-menu .pm-title, .settings-panel .pm-title { text-align: center; font-family: var(--title, inherit); font-weight: normal; font-size: 30px; color: #fffaf0;
+  -webkit-text-stroke: 4px #1d1b2e; paint-order: stroke fill; }
+.pause-menu .pm-resume { margin-top: 6px; }
+.home .settings-panel { width: min(400px, calc(100vw - 24px)); gap: 6px; padding: 12px; background: #2b2840; border: 4px solid #1d1b2e; border-radius: 18px;
+  box-shadow: 0 6px 0 #1d1b2e; }
+@media (min-width: 900px) { .menu-card.pause-menu.dm { max-width: 540px; } }
+/* Dummy settings: same section headers as the slab menus; the light/heavy times sit under the cast time slider. */
+html[data-theme] .dm .dm-section { margin: 10px 0 2px; padding-left: 10px; border-left: 5px solid #ffd24d; font-family: var(--title, inherit); font-weight: normal;
+  font-size: 15px; letter-spacing: 0.02em; color: #ffd24d; }
+.dm .dm-rows.slab-section { gap: 6px; }
+.slab .dm-times { display: flex; flex-wrap: wrap; gap: 4px 12px; color: #9aa3c7; }
+.slab .dm-times b { color: #fffaf0; }
+html[data-theme] .dm .dm-section { border-left: none; padding-left: 0; }
+
+/* Tutorial as Spellbook pages (Nov 25): parchment, ink outline, a leather edge, the chapter tag, and a page turn
+   on every step change. The spell's color stays on the title and drawing. */
+html[data-theme] .tut-card.book-card { position: relative; background: radial-gradient(ellipse at 50% 35%, #fff8e6, #f3e2b8); color: inherit;
+  border: 4px solid #1d1b2e; border-radius: 14px; box-shadow: 0 0 0 6px #3b2a1f, 0 0 0 9px #1d1b2e, 0 10px 0 6px #1d1b2e; overflow: hidden; perspective: 1400px; }
+html[data-theme] .book-card .tut-head { background: none; justify-content: center; padding: 30px 14px 0; }
+html[data-theme] .book-card .tut-head .tut-title { color: currentColor; font-family: var(--title, inherit); font-weight: normal; font-size: 28px;
+  -webkit-text-stroke: 1.5px #1d1b2e; paint-order: stroke fill; }
+html[data-theme] .book-card:not([style]) .tut-head .tut-title { color: #2a2238; -webkit-text-stroke: 0; }
+html[data-theme] .book-card .tut-head .tut-count { display: none; }
+html[data-theme] .book-card .tut-body { color: inherit; }
+html[data-theme] .book-card :is(.tut-tip, .tut-demo figcaption, .tut-basics, .tut-hint) { color: #3d3350; text-shadow: none; }
+html[data-theme] .book-card .tut-hand { color: #6a5a40; }
+html[data-theme] .book-card .tut-demo img { border: 2.5px solid #1d1b2e; }
+html[data-theme] .book-card .icon-legend { color: #2a2238; }
+.book-card > .book-chapter { z-index: 2; }
+.book-card > .book-turn { inset: 0; border-radius: 10px; z-index: 3; }
+@media (min-width: 900px) { .book-card > .book-turn, .book-card > .book-turn.prev { inset: 0; border-radius: 10px; } }
+html[data-theme] .book-card .tut-body > .row { background: #f3e2b8; }
+
+/* Nov 25 round 2: no pills, no small caps labels (skills.md "Game look"). */
+.book-chapter { text-transform: none; letter-spacing: 0.02em; font-family: var(--title, inherit); font-weight: normal; font-size: 15px; padding: 2px 12px 4px; border-radius: 0 0 6px 6px; }
+.book-chips span { border-radius: 6px; padding: 4px 10px; box-shadow: 0 3px 0 #1d1b2e; }
+.slab-ends small { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 700; }
+.slab-section h3, html[data-theme] .dm .dm-section { text-transform: none; letter-spacing: 0.03em; font-size: 18px; }
+.book-sign-cap { display: flex; flex-direction: column; align-items: center; gap: 2px; font-weight: 800; font-size: 13px; }
+.book-signs.wrap { max-width: 360px; gap: 10px; }
+.book-cycle-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.book-cycle { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; max-width: 420px; }
+.book-cycle-item { display: flex; align-items: center; gap: 4px; }
+.book-cycle span { display: flex; flex-direction: column; align-items: center; font-weight: 800; font-size: 13px; }
+.book-cycle span:not(:last-child)::after { content: none; }
+.book-arrow { font-size: 26px; color: #6a5a40; line-height: 1; }
+.book-arrow.back { font-family: var(--title, inherit); font-weight: normal; font-size: 16px; color: #4dabf7; }
+.book-push-sign { position: relative; display: grid; place-items: center; }
+.book-push-sign .book-sign { transform: scale(1.1); box-shadow: 0 10px 0 rgba(29, 27, 46, .25); animation: push-at-you 1.4s ease-in-out infinite; }
+.book-push-lines { position: absolute; inset: -18px; border: 4px dashed currentColor; border-radius: 22px; opacity: .6; animation: push-lines 1.4s ease-out infinite; }
+@keyframes push-at-you { 0%, 30% { transform: scale(0.85); } 60%, 100% { transform: scale(1.15); } }
+@keyframes push-lines { 0%, 40% { transform: scale(0.8); opacity: 0; } 70% { opacity: .7; } 100% { transform: scale(1.15); opacity: 0; } }
+.book-parry { position: relative; display: flex; gap: 6px; padding: 26px; }
+.book-palm { width: 64px; height: 76px; }
+.book-parry-ring { position: absolute; left: 50%; top: 50%; width: 150px; aspect-ratio: 1; border-radius: 50%; border: 5px solid #ff9f1c;
+  transform: translate(-50%, -50%) scale(2); animation: book-parry 2.2s linear infinite; }
+@keyframes book-parry { 0% { transform: translate(-50%, -50%) scale(2); opacity: 0; } 10% { opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1.05); border-color: #ff9f1c; box-shadow: none; }
+  72%, 90% { transform: translate(-50%, -50%) scale(1); border-color: #fff; border-width: 8px; box-shadow: 0 0 22px #fff, inset 0 0 22px #fff; opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+.book-wear { display: flex; flex-direction: column; gap: 10px; width: min(240px, 70vw); }
+.book-wear-row { display: flex; align-items: center; gap: 10px; }
+.book-wear-row b { min-width: 48px; font-family: var(--title, inherit); font-weight: normal; font-size: 20px; color: #2a2238; }
+.book-wear-bar { display: block; height: 22px; border: 3px solid #1d1b2e; border-radius: 6px; box-shadow: inset 0 4px 0 rgba(255,255,255,.35); }
+@media (prefers-reduced-motion: reduce) { .book-push-sign .book-sign, .book-push-lines, .book-parry-ring { animation: none; } }
+html[data-theme] .tut-body > .tut-nav { justify-content: center; gap: 18px; color: #2a2238; font-weight: 800; }
+html[data-theme] .tut-body > .tut-nav > button, html[data-theme] .tut-body > .tut-nav > button:last-child { width: 56px; min-width: 56px; height: 44px; font-size: 18px; padding: 0; }
+/* Paused menu tiles: equal squares-ish, icon over word, in one row (2 x 2 when there are four). */
+.pm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin-top: 8px; }
+html[data-theme] .pm-tiles .pm-tile { width: 100%; min-width: 0; height: 78px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; font-size: 16px; border-radius: 10px; }
+.pm-tile svg { width: 26px; height: 26px; stroke-width: 2.5; }
+html[data-theme] .pm-tile.go { background: #5ad46a; color: #1d1b2e; }
+html[data-theme] .pm-tile.stop { background: #ff5470; color: #fff; }
+.book-signs.wrap { max-width: 330px; gap: 8px 10px; }
+.book-leaf.left { justify-content: safe center; }
+@media (max-width: 899px) { .book-sign-cap .book-sign { width: 62px !important; height: 62px !important; } .book-cycle .book-sign { width: 48px !important; height: 48px !important; } }
+.book-cycle .book-cycle-item { flex-direction: row; align-items: center; gap: 2px; }
+.book-cycle .book-cycle-item .book-arrow { margin-bottom: 16px; }
+.book-cycle { flex-wrap: nowrap; }
+@media (max-width: 899px) { .book-cycle .book-sign { width: 44px !important; height: 44px !important; } .book-arrow { font-size: 18px; } .book-cycle span small { font-size: 11px; } }
+.book-cycle { flex-wrap: wrap; }
+.book-arrow.back { flex-basis: 100%; text-align: center; margin-top: 2px; }
+@media (max-width: 899px) { .book-cycle { gap: 0 2px; } .book-cycle .book-sign { width: 42px !important; height: 42px !important; } .book-cycle .book-arrow { font-size: 15px; } }
+.book-cycle-wrap { width: 100%; } .book-cycle { max-width: none; }
+@media (max-width: 899px) { .book-cycle { gap: 0; } .book-cycle .book-cycle-item { gap: 1px; } }
+.book-cycle > .book-arrow:not(.back) { margin: 0 10px 16px; font-size: 24px; }
+.book-spread { animation: none; }
+.book-leaf > * { animation: book-ink 200ms ease-out backwards; }
+@keyframes book-ink { from { opacity: 0; } }
+.book-hand { object-fit: contain; display: block; }
+.book-two-hands { display: flex; align-items: flex-end; gap: 10px; }
+.book-back-hand { opacity: 0.85; filter: saturate(0.8); margin-bottom: 8px; }
+.book-parry { align-items: center; }
+.book-parry { gap: 0; } .book-parry .book-hand { margin: 0 -8px; }
+.book-parry .book-hand { margin: 0 2px; }
+.book-parry .book-hand { margin: 0 6px; }
+/* Parry: the camera view's light-blue circle around each palm, pulsing like a push. */
+.book-parry-hand { position: relative; display: grid; place-items: center; width: 110px; height: 120px; }
+.book-parry-hand::after { content: ''; position: absolute; left: 50%; top: 52%; width: 104px; aspect-ratio: 1; border: 6px solid #7fd8ff; border-radius: 50%;
+  transform: translate(-50%, -50%); animation: book-parry-flash 1.6s ease-out infinite; }
+@keyframes book-parry-flash { 0%, 45% { opacity: 0; transform: translate(-50%, -50%) scale(0.85); } 55% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
+.book-parry .book-hand { margin: 0; }
+.book-parry { padding: 10px; gap: 4px; }
+/* Wear: the in-fight chips, a little bigger. */
+.book-wear-demo { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 280px; text-align: center; }
+.book-wear-demo .wear-chips { justify-content: center; }
+.book-wear-demo .wear-chips span { font-size: 20px; padding: 4px 10px; }
+.book-wear-demo small { color: #4a3f5c; font-size: 13px; font-weight: 700; }
+/* Draw: fingertip on the start dot. The cut-out's fingertip sits ~62% across its top. */
+.book-draw-demo { position: relative; }
+.book-fingertip { position: absolute; width: 0; height: 0; }
+.book-fingertip img { position: absolute; left: -24px; top: -6px; width: 39px; height: auto; }
+@media (prefers-reduced-motion: reduce) { .book-parry-hand::after { animation: none; opacity: 1; } }
+.book-fingertip img { top: -10px; }
+/* Draw demo: the '1' cut-out's fingertip is 58.5% across and ~6% down; that point sits on the dot. */
+.book-fingertip img { width: 56px; left: -32.8px; top: -6.5px; }
+/* The pushed hand (a sign or the open 5) grows toward you; the wrapper animates so a flip on the image stays. */
+.book-pusher { display: inline-block; animation: push-at-you 1.4s ease-in-out infinite; }
+.book-pusher .book-sign { animation: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { .book-pusher { animation: none; } }
+/* Draw demo: the drawing fills its box at every screen size, and the fingertip is placed in % of it. */
+.book-draw-demo .book-shape { width: 100% !important; height: 100% !important; }
+@media (min-width: 900px) { .book-draw-demo { width: 200px !important; height: 200px !important; } }
+/* Spellbook Home/Back: the Paused menu's red Home tile, small, with its icon. */
+html[data-theme] .book-home { display: inline-flex; align-items: center; gap: 6px; background: #ff5470; color: #fff; padding: 6px 14px 6px 10px; font-size: 15px; }
+.book-home svg { width: 20px; height: 20px; stroke-width: 2.5; }
+/* The hand sits in front of the drawing, for clarity. */
+.book-draw-demo .book-shape { position: relative; z-index: 1; }
+.book-draw-demo .book-fingertip { z-index: 2; }
+/* Parry: hands and circles share one 1.6 s loop; the circles flash when the push lands (50%) and stay while held. */
+.book-parry .book-pusher { animation: parry-push 1.6s ease-in-out infinite; }
+.book-parry-hand::after { animation: parry-ring 1.6s ease-in-out infinite; }
+@keyframes parry-push { 0%, 25% { transform: scale(0.85); } 50%, 85% { transform: scale(1.15); } 100% { transform: scale(0.85); } }
+@keyframes parry-ring { 0%, 48% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); } 52%, 85% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+/* Parry color (Nov 25): white with a glow, not light blue (that was Ice's color). On paper it gets an ink outline. */
+.book-parry-hand::after { border-color: #fff; box-shadow: 0 0 0 3px #1d1b2e, inset 0 0 0 3px #1d1b2e, 0 0 18px 4px rgba(255, 255, 255, 0.9); }

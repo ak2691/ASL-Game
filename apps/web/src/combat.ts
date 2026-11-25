@@ -15,7 +15,8 @@ export const COUNTER_SILENCE_MS = 3000 // a landed counterspell: stunned until t
 export const INTERRUPT_LOCK_MS = 750
 export const WHIFF_MS = 1000
 export const PRISON_SILENCE_MS = 1000 // Frozen Prison (works on any element, so shorter)
-export const CHILL_MS = 4000
+export const CHILL_MS = 4000 // an Ice light's chill (Thermal's too)
+export const CHILL_HEAVY_MS = 5000 // Nov 25: an Ice heavy's and Frozen Prison's: room to land a heavy after it
 export const PRISON_CHILL = 0.6 // Frozen Prison also chills: +60% on the next hit they take within CHILL_MS
 // Angelic buffs, Unholy curses, combos. First guesses, to tune in playtests.
 export const AEGIS_HP = 45 // Aegis: armor that soaks direct-hit damage...
@@ -23,6 +24,7 @@ export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be rec
 export const MIRROR_MS = 4000 // Mirror: the next direct-damage spell within this time flies back
 export const DOOM_MS = 2500 // Doom: land a cast within this time...
 export const DOOM_DMG = 30 // ...or take this
+export const DOOM_LIFT = 0.7 // ...and the cast that lifts it must be at this power or more (wear)
 export const SHROUD_MS = 6000 // Shroud: they can't see your charge or your drawing (Nov 24: was 5 s; now worn by wear)
 export const SHROUD_MIN_MS = 3000 // a worn Shroud never drops below this
 // Execute (Nov 24): no longer about HP (it took over every late game). Double damage on a cursed target:
@@ -49,10 +51,10 @@ export const THERMAL = { hit: 38, burn: 22, chill: 0.5 } // a hit, a burn and a 
 // elements to `cap` power at most (lower ones stay where they are).
 export const PLASMA = { hit: 46, burn: 20, cap: 0.5 }
 export const SUNFIRE: [number, number] = [20, 55] // hit, then a 6 s burn that heals you what it deals
-export const GRAVE = { hit: 34, ms: 10000 } // no healing (Water's mend included) and no Angelic spells (a Angelic counterspell still works)
+export const GRAVE = { hit: 34, ms: 10000 } // no healing or armor from anything (Water's mend, regen, Aegis, Sunfire included); a Heal clears it but heals nothing
 export const TIDAL_HEAL = 28 // Tidal Wave heals its caster this much
-export const HEAL = 34 // Angelic star: right away
-export const REGEN = { amount: 9, ticks: 5 } // Angelic hourglass: every 0.5 s
+export const HEAL = 42 // Angelic star: right away, and cleanses (Nov 25: was 34)
+export const REGEN = { amount: 12, ticks: 5 } // Angelic hourglass: every 0.5 s (Nov 25: was 9; the big slow heal, star is the cleanse)
 // Casting rules. The browser only reports what it recognized (a held letter, a finished shape, a
 // push); these decide what that does. Online, only the server runs them.
 /** A fizzle (failed drawing, or a readied spell that faded) locks all throws this long; the charge stays. */
@@ -448,11 +450,11 @@ export class Combat {
 
   /** Chill doesn't stack: one at a time. A stronger (or equal) chill replaces it and restarts the clock;
    *  a weaker one changes nothing. */
-  private chillOn(side: Fid, pct: number, now: number) {
+  private chillOn(side: Fid, pct: number, now: number, ms = CHILL_MS) {
     pct *= this.landScale
     const c = this.chill[side]
     if (c && c.until > now && c.pct > pct) return
-    this.chill[side] = { pct, until: now + CHILL_MS }
+    this.chill[side] = { pct, until: now + ms }
   }
 
   /** An effect's length, shrunk by the landing spell's power (wear), never below `min`. */
@@ -638,10 +640,6 @@ export class Combat {
     this.ready[caster] = null
     this.note(caster, spellName(el, shape), FORMS[shape] ?? '', color, true, now)
     const self = (el === 'A' && shape !== COUNTER) || shape === 'veil' // spells on yourself (Angelic, and Shroud); a Angelic counterspell flies
-    if (this.doomAt[caster]) {
-      this.doomAt[caster] = 0
-      this.float(caster, 'Doom lifted', ELEMENTS.U.color, now)
-    }
     const kind = shape === COUNTER || shape === QUICK ? 'counter' : self ? 'heal' : 'hit'
     const bolt = this.bolt(caster, target, spellName(el, shape), color, kind, now, el, shape)
     // Heals take effect at once; everything else flies across and acts when it lands.
@@ -657,8 +655,23 @@ export class Combat {
       const els = el in COMBO_MIX ? COMBO_MIX[el] : el in ELEMENTS ? [el] : []
       if (els.length) wear = els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length
       // Capped at the floor: 30% is the bottom, and recovery starts right away (no hidden stacks under it).
-      for (const e of els) this.wear[caster][e] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(caster, e, now) + (shape === 'line' ? 0.5 : 1)), at: now }
+      // Lights and Angelic (heal, regen, Aegis: one element, nothing to rotate to; Nov 25) add half a stack.
+      const step = shape === 'line' || el === 'A' ? 0.5 : 1
+      for (const e of els) this.wear[caster][e] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(caster, e, now) + step), at: now }
       if (wear < 1) bolt.power = wear
+    }
+    // Doom (Nov 25): only a spell at DOOM_LIFT power or more lifts it (a combo: its average power). Spamming one
+    // worn element can't save you. A counterspell adds no wear, but it's judged by its element's power too
+    // (a combo counterspell: the average of its two), so a worn counter isn't a way out.
+    const liftPower =
+      kind === 'counter'
+        ? ((els) => (els.length ? els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length : 1))(isMixCounter(el) ? [el[1], el[2]] : el in ELEMENTS ? [el] : [])
+        : wear
+    if (this.doomAt[caster]) {
+      if (liftPower >= DOOM_LIFT) {
+        this.doomAt[caster] = 0
+        this.float(caster, 'Doom lifted', ELEMENTS.U.color, now)
+      } else this.float(caster, 'Too worn to lift Doom', ELEMENTS.U.color, now)
     }
     if (bolt.parryable) bolt.parryMs = parryMs(bolt)
     this.flying.push({ caster, target, el, shape, landAt, bolt, miss, wear })
@@ -697,8 +710,8 @@ export class Combat {
     const reflects = f.reflects ?? 0
     if (reflects >= REFLECT_POWER.length) {
       // The last parry of a chain: the spell is destroyed (nothing goes back).
-      this.float(side, 'Destroyed!', '#7fd8ff', now)
-      this.note(side, 'Destroyed!', `${f.bolt.name} broke apart`, '#7fd8ff', true, now)
+      this.float(side, 'Destroyed!', '#ffffff', now)
+      this.note(side, 'Destroyed!', `${f.bolt.name} broke apart`, '#ffffff', true, now)
       return 'ended'
     }
     const power = REFLECT_POWER[reflects]
@@ -709,8 +722,8 @@ export class Combat {
     back.fly = Math.round(back.fly / REFLECT_SPEED)
     back.parryMs = PARRY_WINDOW_MS
     this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, wear: f.wear, reflects: reflects + 1 })
-    this.float(side, 'Reflected!', '#7fd8ff', now)
-    this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%`, '#7fd8ff', true, now)
+    this.float(side, 'Reflected!', '#ffffff', now)
+    this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%`, '#ffffff', true, now)
     return 'reflected'
   }
 
@@ -795,18 +808,33 @@ export class Combat {
     }
 
     if (el === 'A') {
-      // Grave: no Angelic spell works on them (heals, Aegis, Mirror).
-      if (this.noHealUntil[target] > now) {
-        this.float(target, 'Angelic blocked (Grave)', COMBO_CHARGES.grave.color, now)
-        return
-      }
+      // Grave (Nov 25): no healing or armor from anything while it lasts; other Angelic spells still work.
+      const graved = this.noHealUntil[target] > now
       // On yourself, or (team modes) on a teammate.
       // Wear (landScale) weakens heals too.
-      if (shape === 'star') this.changeHp(target, Math.round(HEAL * this.landScale), color, now)
+      if (shape === 'star') {
+        // Cleanse (Nov 25): only at full Angelic power (100%, not worn), so spamming heals can't keep you clean.
+        // It clears every debuff: burns, chill, static, Doom, Exposed, fog and Grave. Against Grave it clears
+        // the Grave but heals nothing (the heal lands while it's still on).
+        const cleanse = this.landWear >= 1
+        if (graved) this.float(target, cleanse ? 'Grave cleared' : 'No healing', COMBO_CHARGES.grave.color, now)
+        else this.changeHp(target, Math.round(HEAL * this.landScale), color, now)
+        if (cleanse) {
+        this.ticking = this.ticking.filter((t) => !(t.side === target && t.amount < 0))
+        this.chill[target] = null
+        this.static[target] = null
+        this.doomAt[target] = 0
+        this.exposedUntil[target] = 0
+        this.fogUntil[target] = 0
+        this.fogShots[target] = 0
+        this.noHealUntil[target] = 0
+        }
+      }
       else if (shape === 'hourglass') this.ticking.push({ side: target, by: caster, amount: Math.round(REGEN.amount * this.landScale), left: REGEN.ticks, next: now, color })
       else if (shape === 'aegis') {
-        // Armor doesn't stack or refresh: a new Aegis only takes once the old armor is gone.
-        if (this.armor(target, now) > 0) this.float(target, 'Armor still up', color, now)
+        // Armor doesn't stack or refresh: a new Aegis only takes once the old armor is gone. Grave blocks it.
+        if (graved) this.float(target, 'No armor (Grave)', COMBO_CHARGES.grave.color, now)
+        else if (this.armor(target, now) > 0) this.float(target, 'Armor still up', color, now)
         else {
           this.shield[target] = { hp: Math.round(AEGIS_HP * this.landScale), at: now }
           this.float(target, 'Aegis', color, now)
@@ -860,7 +888,7 @@ export class Combat {
       const dealt = this.hit(target, PUNCH[el][p], color, now)
       if (el === 'F') this.burn(target, BURN[p], 3, color, now)
       if (el === 'W') this.changeHp(caster, Math.floor(dealt / 2), color, now)
-      if (el === 'I') this.chillOn(target, CHILL[p], now)
+      if (el === 'I') this.chillOn(target, CHILL[p], now, p ? CHILL_HEAVY_MS : CHILL_MS)
       // Static doesn't chain: a hit while it's still running does damage but doesn't restart it.
       if (el === 'L' && this.landWear >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
       return
@@ -875,15 +903,16 @@ export class Combat {
       case 'cage': // Frozen Prison: a short silence on any element
         this.hit(target, 24, color, now)
         this.silence(target, this.dur(PRISON_SILENCE_MS, STUN_MIN_MS), now, caster)
-        this.chillOn(target, PRISON_CHILL, now) // and chilled
+        this.chillOn(target, PRISON_CHILL, now, CHILL_HEAVY_MS) // and chilled
         this.float(target, 'Frozen!', color, now)
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
         this.hit(target, 28, color, now)
         if (this.landWear >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
         break
-      case 'battlements': // Earthquake: huge hit, knocks their charge off
+      case 'battlements': // Earthquake: huge hit; knocks their charge off only at full Earth power (Nov 25)
         this.hit(target, 38, color, now)
+        if (this.landWear < 1) break
         this.charge[target] = null
         this.ready[target] = null
         this.knocked[target]++

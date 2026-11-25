@@ -1,5 +1,5 @@
-// Chunky mobile-brawler portraits (reference: Brawl Stars / Clash Royale icons): a colored badge with a
-// rim, a big character head, thick ink outline, cel shading (one hard shadow tone + a highlight).
+// Chunky cartoon portraits of the practice opponents (the wizard-school cast): a colored badge with a rim,
+// a big character head, thick ink outline, cel shading (one hard shadow tone + a highlight).
 import { useId } from 'react'
 
 const INK = '#1d1b2e'
@@ -57,177 +57,190 @@ function Eye({ x, y, r = 4, look = 0.8, brow = 0, lid = 0 }: { x: number; y: num
 }
 
 export function brawlerPortrait(id: string) {
-  switch (id) {
-    case 'pebble':
-      return (
-        <>
-          <Badge bg="#5b8f4a" hi="#9fd27f" />
-          <path d="M8 38 Q6 22 18 16 Q30 11 39 19 Q45 27 41 38 Q24 44 8 38 Z" fill="#b58a4c" {...O} />
-          <path d="M30 14 Q42 18 41 38 Q32 41 24 41 Q34 30 30 14 Z" fill="#8a6634" />
-          <path d="M14 21 Q18 17 23 17" fill="none" stroke="#e2bd80" strokeWidth="2.6" strokeLinecap="round" />
-          <path d="M15 16 q2 -6 6 -3 q2 -5 6 -1 q4 -2 4 3" fill="#6fc35a" {...O} strokeWidth={2} />
-          <g color="#b58a4c">
-            <Eye x={19} y={28} r={4} look={0.4} lid={1.6} />
-            <Eye x={30} y={28} r={4} look={0.4} lid={1.6} />
-          </g>
-          <path d="M21 36 q3 1.5 6 0" fill="none" {...O} strokeWidth={2} />
-          <path d="M39 9 q3 4 0 6 q-3 -2 0 -6 Z" fill="#3d8bff" {...O} strokeWidth={1.6} />
-        </>
-      )
-    case 'ember':
-      return (
-        <>
-          <Badge bg="#8a2a2a" hi="#e0623a" />
-          <path d="M24 4 Q30 13 34 10 Q41 20 40 30 Q39 42 24 43 Q9 42 8 30 Q8 20 15 15 Q16 22 19 20 Q17 11 24 4 Z" fill="#ff6a3d" {...O} />
-          <path d="M33 13 Q41 22 39 32 Q36 41 26 43 Q36 32 33 13 Z" fill="#d8431f" />
-          <path d="M24 22 Q31 29 30 37 Q24 42 18 37 Q18 30 24 22 Z" fill="#ffd24d" />
-          <Eye x={18} y={27} r={3.8} look={1} brow={-1.6} />
-          <Eye x={29} y={27} r={3.8} look={1} brow={1.6} />
-          <path d="M18 34 Q24 40 31 34 Z" fill={INK} {...O} strokeWidth={1.8} />
-          <path d="M20 34.4 h9" stroke="#fff" strokeWidth="1.6" />
-          <path d="M41 6 l-4 6 h4 l-4 6" fill="none" stroke="#ffe14d" strokeWidth="2.2" strokeLinejoin="round" />
-        </>
-      )
-    case 'frost':
-      return (
-        <>
-          <Badge bg="#2d5a8a" hi="#8fd8ff" />
-          <path d="M24 9 L38 17 L38 33 L24 42 L10 33 L10 17 Z" fill="#cdeeff" {...O} />
-          <path d="M24 9 L38 17 L38 33 L24 42 Z" fill="#8fd8ff" />
-          <path d="M24 9 L10 17 L17 21 Z" fill="#fff" opacity="0.9" />
-          <path d="M11 16 L14 4 L19 13 L24 2 L29 13 L34 4 L37 16" fill="#e9f8ff" {...O} />
-          <Eye x={18} y={26} r={3.6} look={-0.8} brow={1.2} />
-          <path d="M26 25.5 q3 -2 6 0" fill="none" {...O} strokeWidth={2.4} />
-          <path d="M19 35 q5 2 10 -2" fill="none" {...O} strokeWidth={2.2} />
-          <path d="M40 36 q4 -2 4 -8" fill="none" stroke="#ff6a3d" strokeWidth="2.6" strokeLinecap="round" />
-        </>
-      )
-    case 'cleric':
-      return (
-        <>
-          <Badge bg="#2f6e55" hi="#9de8b4" />
-          <ellipse cx="24" cy="9" rx="11" ry="3.4" fill="none" stroke={INK} strokeWidth="5" />
-          <ellipse cx="24" cy="9" rx="11" ry="3.4" fill="none" stroke="#ffd24d" strokeWidth="2.6" />
-          <path d="M24 13 Q39 28 37 35 Q34 44 24 44 Q14 44 11 35 Q9 28 24 13 Z" fill="#3d8bff" {...O} />
-          <path d="M28 18 Q39 29 37 35 Q34 43 26 44 Q34 34 28 18 Z" fill="#2563c9" />
-          <ellipse cx="18" cy="27" rx="2.6" ry="4" fill="#bfe0ff" />
-          <path d="M16 31 q3 -3 6 0 M26 31 q3 -3 6 0" fill="none" {...O} strokeWidth={2.4} />
-          <ellipse cx="15.5" cy="36" rx="2.4" ry="1.4" fill="#ff8fb1" />
-          <ellipse cx="32.5" cy="36" rx="2.4" ry="1.4" fill="#ff8fb1" />
-          <path d="M21 37 q3 3 6 0" fill="none" {...O} strokeWidth={2} />
-          <path d="M40 17 h6 M43 14 v6" stroke={INK} strokeWidth="4.6" strokeLinecap="round" />
-          <path d="M40 17 h6 M43 14 v6" stroke="#6be38a" strokeWidth="2.4" strokeLinecap="round" />
-        </>
-      )
-    case 'hexer':
-      return (
-        <>
-          <Badge bg="#3b2350" hi="#8a5cc2" />
-          <path d="M6 46 Q6 16 24 4 Q42 16 42 46 Z" fill="#a05cd6" {...O} />
-          <path d="M24 4 Q42 16 42 46 L32 46 Q36 22 24 4 Z" fill="#7a3fb0" />
-          <ellipse cx="24" cy="29" rx="11" ry="12" fill="#1a0f26" {...O} strokeWidth={2} />
-          <path d="M16 25 L22 28 L16 29 Z M32 25 L26 28 L32 29 Z" fill="#e6c2ff" />
-          <circle cx="18" cy="27.4" r="1.2" fill="#fff" />
-          <circle cx="30" cy="27.4" r="1.2" fill="#fff" />
-          <path d="M19 35 l2 -1.5 l2 1.5 l2 -1.5 l2 1.5 l2 -1.5" fill="none" stroke="#e6c2ff" strokeWidth="1.6" />
-          <circle cx="40" cy="39" r="5" fill="#b58a4c" {...O} strokeWidth={2} />
-          <path d="M38 37 l3 2 l-1 3" fill="none" stroke={INK} strokeWidth="1.4" />
-        </>
-      )
-    case 'tide':
-      return (
-        <>
-          <Badge bg="#1f4f86" hi="#7fbcff" />
-          <path d="M5 44 Q4 22 18 14 Q32 6 41 15 Q44 22 38 24 Q36 18 30 19 Q24 21 27 28 Q31 34 44 34 L44 44 Z" fill="#3d8bff" {...O} />
-          <path d="M18 14 Q28 8 38 13 Q30 13 24 18 Q14 26 14 44 L5 44 Q4 22 18 14 Z" fill="#6fa8ff" opacity="0.6" />
-          <path d="M6 44 q4 -4 8 0 q4 -4 8 0 q4 -4 8 0 q4 -4 8 0" fill="none" stroke="#e9f8ff" strokeWidth="2.4" strokeLinecap="round" />
-          <Eye x={15} y={30} r={3.6} look={1} brow={-1.2} />
-          <Eye x={25} y={31} r={3.6} look={1} brow={1.2} />
-          <path d="M15 38 Q20 41 26 38" fill="none" {...O} strokeWidth={2.2} />
-          <path d="M39 4 l-2 5 h3 l-2 5" fill="none" stroke="#ffe14d" strokeWidth="2.2" />
-          <path d="M8 8 l4 4 m0 -4 l-4 4" stroke="#e9f8ff" strokeWidth="2.2" strokeLinecap="round" />
-        </>
-      )
-    case 'zealot':
-      return (
-        <>
-          <Badge bg="#4a2f2a" hi="#c98a5a" />
-          <path d="M24 8 A17 17 0 0 1 24 42 Z" fill="#a05cd6" {...O} />
-          <path d="M24 8 A17 17 0 0 0 24 42 Z" fill="#6be38a" {...O} />
-          <path d="M24 8 A17 17 0 0 1 41 25 Q32 22 24 30 Z" fill="#c58bff" opacity="0.5" />
-          <path d="M33 10 Q38 2 40 9 L36 13 Z" fill="#3a1f4f" {...O} strokeWidth={1.8} />
-          <ellipse cx="15" cy="7" rx="7" ry="2.4" fill="none" stroke="#ffd24d" strokeWidth="2.2" />
-          <path d="M18 9 Q22 2 24 8 Q26 2 30 9" fill="#ff6a3d" {...O} strokeWidth={1.8} />
-          <Eye x={17} y={24} r={3.6} look={0.6} brow={1} />
-          <path d="M27.5 22 L34 25 L27.5 26.5 Z" fill="#ffe14d" {...O} strokeWidth={1.4} />
-          <path d="M16 33 Q24 38 32 31" fill="none" {...O} strokeWidth={2.2} />
-        </>
-      )
-    case 'warden':
-      return (
-        <>
-          <Badge bg="#4a4f5a" hi="#a8afbd" />
-          <path d="M8 12 L40 12 L42 40 L6 40 Z" fill="#9aa1ad" {...O} />
-          <path d="M30 12 L40 12 L42 40 L32 40 Z" fill="#6f7682" />
-          <path d="M10 15 L22 15" stroke="#d6dbe3" strokeWidth="2.4" strokeLinecap="round" />
-          <path d="M6 20 h36" {...O} strokeWidth={2} />
-          {['#ff6a3d', '#8fd8ff', '#3d8bff', '#b58a4c', '#ffe14d'].map((c, i) => (
-            <circle key={c} cx={12 + i * 6} cy="16.5" r="2" fill={c} stroke={INK} strokeWidth="1" />
-          ))}
-          <rect x="11" y="25" width="26" height="5" rx="1.5" fill={INK} />
-          <rect x="13" y="26" width="8" height="3" rx="1" fill="#ffd24d" />
-          <rect x="27" y="26" width="8" height="3" rx="1" fill="#ffd24d" />
-          <path d="M16 35 h16" {...O} strokeWidth={2.6} />
-          <path d="M14 40 v-3 M34 40 v-3" {...O} strokeWidth={2} />
-        </>
-      )
-    default:
-      return wizard(id)
-  }
+  return person(id)
 }
 
-const WIZ: Record<string, { bg: string; hi: string; hat: string; shade: string; band: string; beard?: string; skull?: boolean }> = {
-  adept: { bg: '#2c4a8a', hi: '#7aa0ff', hat: '#5b8def', shade: '#3a63c4', band: '#ffd24d' },
-  magus: { bg: '#4a2a7a', hi: '#a77ae6', hat: '#9b5de5', shade: '#6f39b8', band: '#8fd8ff', beard: '#c9c9c9' },
-  archmage: { bg: '#7a1f2c', hi: '#e8606f', hat: '#d7263d', shade: '#9c1528', band: '#ffd24d', beard: '#f4f4f4' },
-  lich: { bg: '#1c2a24', hi: '#4f8a6a', hat: '#2a1838', shade: '#140a1e', band: '#8cff9a', skull: true },
-  ascendant: { bg: '#2a2340', hi: '#ffe9a8', hat: '#f4efe0', shade: '#c9c0a6', band: '#c8a2ff', beard: '#ffffff' }, // placeholder look
+/** The wizard-school cast (Nov 24, plans/ai-personalities.md): one drawing with parts picked per character. */
+type Person = {
+  bg: string
+  hi: string
+  skin: string
+  shade: string
+  hat?: { kind: 'wizard' | 'witch' | 'hood' | 'cap'; color: string; shade: string; band?: string }
+  hair?: { kind: 'spiky' | 'bun' | 'fringe' | 'long' | 'tonsure' | 'tufts'; color: string }
+  beard?: { kind: 'bushy' | 'goatee' | 'mustache'; color: string }
+  glasses?: boolean
+  halo?: boolean
+  split?: string // a half mask in this color (Tamsin)
+  eyes: 'normal' | 'narrow' | 'closed' | 'glow' | 'wide'
+  glow?: string
+  brow?: number
+  mouth: 'smile' | 'flat' | 'grin' | 'smirk' | 'none'
+  prop?: 'bolt' | 'snow' | 'plus' | 'mark' | 'book' | 'mirror' | 'star' | 'rock' | 'drop' | 'clock'
 }
 
-function wizard(id: string) {
-  const w = WIZ[id]
+const PEOPLE: Record<string, Person> = {
+  // Old Bram, the groundskeeper: bald, bushy grey beard, sleepy eyes, a rock.
+  pebble: { bg: '#4f6e3a', hi: '#9fd27f', skin: '#e0b48a', shade: '#c08d62', hair: { kind: 'tufts', color: '#c9c9c9' }, beard: { kind: 'bushy', color: '#d9d9d9' }, eyes: 'narrow', mouth: 'smile', prop: 'rock' },
+  // Pip, first-year: spiky yellow hair, wide eyes, big grin, a lightning bolt.
+  ember: { bg: '#2c2a6e', hi: '#ffe14d', skin: '#f7d2ae', shade: '#e0ad84', hair: { kind: 'spiky', color: '#ffd24d' }, eyes: 'wide', mouth: 'grin', prop: 'bolt' },
+  // Miss Hollis: icy bun, polite raised brow, a snowflake.
+  frost: { bg: '#2d5a8a', hi: '#8fd8ff', skin: '#f4e1d6', shade: '#d9bfb0', hair: { kind: 'bun', color: '#dff4ff' }, eyes: 'narrow', brow: 1.2, mouth: 'smirk', prop: 'snow' },
+  // Brother Alden: tonsure, halo, happy closed eyes, a green cross.
+  cleric: { bg: '#2f6e55', hi: '#9de8b4', skin: '#e8b88f', shade: '#c9946a', hair: { kind: 'tonsure', color: '#7a5534' }, halo: true, eyes: 'closed', mouth: 'smile', prop: 'plus' },
+  // Morwen: witch hat, long black hair, knowing smirk, a curse mark.
+  hexer: { bg: '#3b2350', hi: '#a77ae6', skin: '#e9dccf', shade: '#cbb8a6', hat: { kind: 'witch', color: '#5a2f82', shade: '#3e1f5c', band: '#c58bff' }, hair: { kind: 'long', color: '#2a2233' }, eyes: 'narrow', brow: -1, mouth: 'smirk', prop: 'mark' },
+  // Master Ito: bald, long white mustache, calm closed eyes, a drop of water.
+  tide: { bg: '#1f5a6e', hi: '#7fd8e8', skin: '#e3b98f', shade: '#c4956a', beard: { kind: 'mustache', color: '#f4f4f4' }, eyes: 'closed', mouth: 'flat', prop: 'drop' },
+  // Nyx: a deep hood, only glowing eyes.
+  zealot: { bg: '#1a1630', hi: '#5a4f9a', skin: '#15132e', shade: '#15132e', hat: { kind: 'hood', color: '#2e2850', shade: '#1d1938' }, eyes: 'glow', glow: '#7ff0ff', mouth: 'none' },
+  // Proctor Vell: mortarboard, glasses, stern brow, a clock.
+  warden: { bg: '#3f4652', hi: '#a8afbd', skin: '#efd0b4', shade: '#d3ad8c', hat: { kind: 'cap', color: '#2b2f38', shade: '#1d2027', band: '#ffd24d' }, hair: { kind: 'fringe', color: '#8a8f99' }, glasses: true, eyes: 'normal', brow: -1.4, mouth: 'flat', prop: 'clock' },
+  // Rook, top of the class: blue cap with a tassel, smug smirk, a book.
+  adept: { bg: '#2c4a8a', hi: '#7aa0ff', skin: '#c98e62', shade: '#a8714a', hat: { kind: 'cap', color: '#3a63c4', shade: '#2a4b99', band: '#ffd24d' }, hair: { kind: 'fringe', color: '#2a1d14' }, eyes: 'normal', brow: 0.8, mouth: 'smirk', prop: 'book' },
+  // Gideon: dark red wizard hat, goatee, narrowed eyes.
+  magus: { bg: '#5a1f2c', hi: '#e8606f', skin: '#e8c09a', shade: '#c99a72', hat: { kind: 'wizard', color: '#9c1528', shade: '#6e0d1c', band: '#ffd24d' }, beard: { kind: 'goatee', color: '#2a1d14' }, eyes: 'narrow', brow: -1.6, mouth: 'smirk' },
+  // Tamsin: a half mask, two-tone hair, a wide grin, a star.
+  archmage: { bg: '#5a2050', hi: '#ff7ad9', skin: '#f2c9a0', shade: '#d9a479', hair: { kind: 'fringe', color: '#6be38a' }, split: '#a05cd6', eyes: 'wide', mouth: 'grin', prop: 'star' },
+  // Lady Glass: long silver hair, cool smirk, a hand mirror.
+  lich: { bg: '#1c3a3a', hi: '#8fe0d0', skin: '#ece4f2', shade: '#cfc2d9', hair: { kind: 'long', color: '#d8dde8' }, eyes: 'narrow', brow: 0.6, mouth: 'smirk', prop: 'mirror' },
+  // The Archwizard: white and gold hat, long white beard, a gold star.
+  ascendant: { bg: '#2a2340', hi: '#ffe9a8', skin: '#f2c9a0', shade: '#d9a479', hat: { kind: 'wizard', color: '#f4efe0', shade: '#c9c0a6', band: '#ffd24d' }, beard: { kind: 'bushy', color: '#ffffff' }, eyes: 'normal', brow: 0.4, mouth: 'none', prop: 'star' },
+}
+
+const STAR = 'l1.2 2.4 l2.6 .4 l-1.9 1.8 l.5 2.6 l-2.4 -1.3 l-2.4 1.3 l.5 -2.6 l-1.9 -1.8 l2.6 -.4 Z'
+
+function person(id: string) {
+  const p = PEOPLE[id]
+  if (!p) return null
+  const hood = p.hat?.kind === 'hood'
   return (
     <>
-      <Badge bg={w.bg} hi={w.hi} />
+      <Badge bg={p.bg} hi={p.hi} />
+      {/* behind the face: long hair, the hood */}
+      {p.hair?.kind === 'long' && <path d="M10 28 Q9 15 24 14 Q39 15 38 28 L40 45 Q34 43 33 36 L15 36 Q14 43 8 45 Z" fill={p.hair.color} {...O} />}
+      {hood && <path d="M6 47 Q4 15 24 6 Q44 15 42 47 Z" fill={p.hat!.color} {...O} />}
       {/* face */}
-      <path d="M13 26 Q13 40 24 41 Q35 40 35 26 Z" fill={w.skull ? '#e8e4d8' : '#f2c9a0'} {...O} />
-      <path d="M29 26 Q35 26 35 30 Q34 39 26 41 Q31 34 29 26 Z" fill={w.skull ? '#b9b2a0' : '#d9a479'} />
-      {w.skull ? (
+      <ellipse cx="24" cy="30" rx="11" ry="11.5" fill={p.skin} {...O} />
+      {!hood && <path d="M30 20 Q36 26 35 32 Q33 40 26 41.5 Q32 34 30 20 Z" fill={p.shade} />}
+      {p.split && <path d="M24 18.5 A11 11.5 0 0 1 24 41.5 Z" fill={p.split} {...O} strokeWidth={1.8} />}
+      {hood && <path d="M12 46 Q11 22 24 16 Q37 22 36 46" fill="none" stroke={p.hat!.shade} strokeWidth="3" />}
+      {/* hair on top */}
+      {p.hair?.kind === 'spiky' && <path d="M12 27 L11 16 L16 20 L17 10 L22 17 L25 8 L28 17 L33 10 L33 20 L38 15 L36 27 Q30 21 24 21 Q18 21 12 27 Z" fill={p.hair.color} {...O} />}
+      {p.hair?.kind === 'bun' && (
         <>
-          <ellipse cx="19" cy="30" rx="3.4" ry="3.8" fill={INK} />
-          <ellipse cx="29" cy="30" rx="3.4" ry="3.8" fill={INK} />
-          <circle cx="19" cy="30.5" r="1.6" fill="#8cff9a" />
-          <circle cx="29" cy="30.5" r="1.6" fill="#8cff9a" />
-          <path d="M18 37 h12 M21 35.5 v3 M24 35.5 v3 M27 35.5 v3" stroke={INK} strokeWidth="1.4" />
-        </>
-      ) : (
-        <>
-          <Eye x={19} y={30} r={3.2} look={0.7} brow={id === 'archmage' ? 1.4 : id === 'magus' ? 0.8 : -0.6} />
-          <Eye x={29} y={30} r={3.2} look={0.7} brow={id === 'archmage' ? -1.4 : id === 'magus' ? -0.8 : 0.6} />
-          {w.beard ? (
-            <path d="M14 34 Q24 52 34 34 Q29 38 24 37 Q19 38 14 34 Z" fill={w.beard} {...O} strokeWidth={2} />
-          ) : (
-            <path d="M20 36.5 q4 2.5 8 0" fill="none" {...O} strokeWidth={2} />
-          )}
+          <circle cx="24" cy="12" r="5.5" fill={p.hair.color} {...O} />
+          <path d="M13 27 Q12 16 24 16 Q36 16 35 27 Q30 21 24 21 Q18 21 13 27 Z" fill={p.hair.color} {...O} />
         </>
       )}
-      {/* hat: brim, cone with a fold, band, star */}
-      <path d="M5 26 Q24 18 43 26 Q24 31 5 26 Z" fill={w.hat} {...O} />
-      <path d="M12 24 Q16 10 22 6 Q27 3 31 1 Q30 8 33 12 Q36 18 36 23 Q24 20 12 24 Z" fill={w.hat} {...O} />
-      <path d="M31 1 Q30 8 33 12 Q36 18 36 23 Q31 22 28 22 Q31 12 31 1 Z" fill={w.shade} />
-      <path d="M12.5 22.5 Q24 18.5 35.5 21.5" fill="none" stroke={w.band} strokeWidth="3" />
-      <path d="M20 13 l1.2 2.4 l2.6 .4 l-1.9 1.8 l.5 2.6 l-2.4 -1.3 l-2.4 1.3 l.5 -2.6 l-1.9 -1.8 l2.6 -.4 Z" fill={w.band} stroke={INK} strokeWidth="1" />
-      {w.skull && <path d="M16 20 l2 -5 l3 3.5 l3 -6 l3 6 l3 -3.5 l2 5 Z" fill="#ffd24d" {...O} strokeWidth={1.4} />}
+      {(p.hair?.kind === 'fringe' || p.hair?.kind === 'long') && <path d="M13 27 Q12 17 24 16 Q36 17 35 27 Q32 22 28 23 Q26 20 22 23 Q18 21 13 27 Z" fill={p.hair.color} {...O} />}
+      {p.hair?.kind === 'tonsure' && <path d="M13 31 Q12 22 16 20 L16 27 Z M35 31 Q36 22 32 20 L32 27 Z" fill={p.hair.color} {...O} strokeWidth={1.8} />}
+      {p.hair?.kind === 'tufts' && (
+        <>
+          <ellipse cx="13" cy="27" rx="2.8" ry="3.6" fill={p.hair.color} {...O} strokeWidth={1.8} />
+          <ellipse cx="35" cy="27" rx="2.8" ry="3.6" fill={p.hair.color} {...O} strokeWidth={1.8} />
+        </>
+      )}
+      {/* eyes */}
+      {p.eyes === 'glow' ? (
+        <>
+          <path d="M15.5 28 L22 30.5 L16 31.5 Z M32.5 28 L26 30.5 L32 31.5 Z" fill={p.glow} />
+          <circle cx="18.5" cy="30.2" r="0.9" fill="#fff" />
+          <circle cx="29.5" cy="30.2" r="0.9" fill="#fff" />
+        </>
+      ) : p.eyes === 'closed' ? (
+        <path d="M16 30.5 q3 -3 6 0 M26 30.5 q3 -3 6 0" fill="none" {...O} strokeWidth={2.4} />
+      ) : (
+        <g color={p.skin}>
+          <Eye x={19} y={30} r={p.eyes === 'wide' ? 3.8 : 3.2} look={0.6} brow={p.brow ?? 0} lid={p.eyes === 'narrow' ? 1.4 : 0} />
+          <Eye x={29} y={30} r={p.eyes === 'wide' ? 3.8 : 3.2} look={0.6} brow={-(p.brow ?? 0)} lid={p.eyes === 'narrow' ? 1.4 : 0} />
+        </g>
+      )}
+      {p.glasses && (
+        <>
+          <circle cx="19" cy="30" r="4.6" fill="rgba(255,255,255,0.2)" stroke={INK} strokeWidth="1.8" />
+          <circle cx="29" cy="30" r="4.6" fill="rgba(255,255,255,0.2)" stroke={INK} strokeWidth="1.8" />
+          <path d="M23.6 30 h0.8" stroke={INK} strokeWidth="1.8" />
+        </>
+      )}
+      {/* mouth and beard */}
+      {p.beard?.kind === 'bushy' && <path d="M14 34 Q24 52 34 34 Q29 38 24 37 Q19 38 14 34 Z" fill={p.beard.color} {...O} strokeWidth={2} />}
+      {p.beard?.kind === 'goatee' && <path d="M21 38 Q24 45 27 38 Q24 39.5 21 38 Z" fill={p.beard.color} {...O} strokeWidth={1.8} />}
+      {p.beard?.kind === 'mustache' && <path d="M24 35.5 Q19 34 16 37 Q14 41 15 46 M24 35.5 Q29 34 32 37 Q34 41 33 46" fill="none" stroke={p.beard.color} strokeWidth="2.6" strokeLinecap="round" />}
+      {p.mouth === 'smile' && !p.beard?.kind.startsWith('bushy') && <path d="M20 36.5 q4 2.5 8 0" fill="none" {...O} strokeWidth={2} />}
+      {p.mouth === 'smile' && p.beard?.kind === 'bushy' && <path d="M21 38.5 q3 1.6 6 0" fill="none" {...O} strokeWidth={1.8} />}
+      {p.mouth === 'flat' && <path d="M21 37.5 h6" {...O} strokeWidth={2} />}
+      {p.mouth === 'smirk' && <path d="M21 37.5 q4 1 7 -2" fill="none" {...O} strokeWidth={2} />}
+      {p.mouth === 'grin' && (
+        <>
+          <path d="M18.5 35 Q24 41.5 29.5 35 Z" fill={INK} {...O} strokeWidth={1.8} />
+          <path d="M20 35.4 h8" stroke="#fff" strokeWidth="1.4" />
+        </>
+      )}
+      {/* hats */}
+      {p.hat?.kind === 'wizard' && (
+        <>
+          <path d="M5 23 Q24 15 43 23 Q24 28 5 23 Z" fill={p.hat.color} {...O} />
+          <path d="M12 21 Q16 8 22 4 Q27 1 31 -1 Q30 6 33 10 Q36 16 36 20 Q24 17 12 21 Z" fill={p.hat.color} {...O} />
+          <path d="M31 -1 Q30 6 33 10 Q36 16 36 20 Q31 19 28 19 Q31 9 31 -1 Z" fill={p.hat.shade} />
+          <path d="M12.5 19.5 Q24 15.5 35.5 18.5" fill="none" stroke={p.hat.band} strokeWidth="3" />
+          <path d={`M20 10 ${STAR}`} fill={p.hat.band} stroke={INK} strokeWidth="1" />
+        </>
+      )}
+      {p.hat?.kind === 'witch' && (
+        <>
+          <path d="M3 22 Q24 14 45 22 Q24 27 3 22 Z" fill={p.hat.color} {...O} />
+          <path d="M13 20 Q16 9 24 5 Q31 1 38 4 Q32 6 31 10 Q33 15 35 19 Q24 16 13 20 Z" fill={p.hat.color} {...O} />
+          <path d="M38 4 Q32 6 31 10 Q33 15 35 19 Q31 18 28 18 Q29 8 38 4 Z" fill={p.hat.shade} />
+          <path d="M13.5 18.5 Q24 15 34.5 17.5" fill="none" stroke={p.hat.band} strokeWidth="2.6" />
+        </>
+      )}
+      {p.hat?.kind === 'cap' && (
+        <>
+          <path d="M14 19 Q24 23 34 19 L34 23 Q24 27 14 23 Z" fill={p.hat.shade} {...O} strokeWidth={2} />
+          <path d="M6 15 L24 8 L42 15 L24 21 Z" fill={p.hat.color} {...O} />
+          <path d="M24 14.5 L38 17 L38 25" fill="none" stroke={p.hat.band} strokeWidth="1.8" />
+          <circle cx="38" cy="26" r="1.8" fill={p.hat.band} stroke={INK} strokeWidth="1" />
+        </>
+      )}
+      {p.halo && (
+        <>
+          <ellipse cx="24" cy="10" rx="11" ry="3.4" fill="none" stroke={INK} strokeWidth="5" />
+          <ellipse cx="24" cy="10" rx="11" ry="3.4" fill="none" stroke="#ffd24d" strokeWidth="2.6" />
+        </>
+      )}
+      {/* a small prop that hints at how they play */}
+      {p.prop === 'bolt' && <path d="M42 3 l-4 6 h4 l-4 6" fill="none" stroke="#ffe14d" strokeWidth="2.4" strokeLinejoin="round" />}
+      {p.prop === 'snow' && <path d="M40 4 v10 M35.7 6.5 l8.6 5 M35.7 11.5 l8.6 -5" stroke="#e9f8ff" strokeWidth="2" strokeLinecap="round" />}
+      {p.prop === 'plus' && (
+        <>
+          <path d="M37 9 h7 M40.5 5.5 v7" stroke={INK} strokeWidth="4.6" strokeLinecap="round" />
+          <path d="M37 9 h7 M40.5 5.5 v7" stroke="#6be38a" strokeWidth="2.4" strokeLinecap="round" />
+        </>
+      )}
+      {p.prop === 'mark' && (
+        <>
+          <circle cx="40" cy="40" r="5" fill="#2a1638" stroke="#c58bff" strokeWidth="1.6" />
+          <path d="M37.5 40 Q40 37.5 42.5 40 Q40 42.5 37.5 40 Z" fill="#c58bff" />
+        </>
+      )}
+      {p.prop === 'drop' && <path d="M40 3 Q44 9 44 11 A4 4 0 0 1 36 11 Q36 9 40 3 Z" fill="#3d8bff" {...O} strokeWidth={1.6} />}
+      {p.prop === 'clock' && (
+        <>
+          <circle cx="40" cy="40" r="5" fill="#fffaf0" stroke={INK} strokeWidth="1.6" />
+          <path d="M40 40 v-3 M40 40 h2.4" stroke={INK} strokeWidth="1.4" strokeLinecap="round" />
+        </>
+      )}
+      {p.prop === 'book' && <path d="M35 38 L40 40 L45 38 L45 45 L40 47 L35 45 Z M40 40 V47" fill="#ffd24d" {...O} strokeWidth={1.4} />}
+      {p.prop === 'mirror' && (
+        <>
+          <path d="M40 46 v-4" stroke="#b8902c" strokeWidth="2.4" strokeLinecap="round" />
+          <ellipse cx="40" cy="38" rx="3.6" ry="4.4" fill="#cfefff" stroke="#b8902c" strokeWidth="1.8" />
+          <path d="M38.6 36.4 l1.6 -1.4" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" />
+        </>
+      )}
+      {p.prop === 'star' && <path d={`M40 3 ${STAR}`} transform="translate(40 3) scale(1.4) translate(-40 -3)" fill="#ffd24d" stroke={INK} strokeWidth="0.9" />}
+      {p.prop === 'rock' && <path d="M35 45 Q34 39 39 38 Q44 37 45 42 Q45 46 40 46 Z" fill="#a8885a" {...O} strokeWidth={1.6} />}
     </>
   )
 }

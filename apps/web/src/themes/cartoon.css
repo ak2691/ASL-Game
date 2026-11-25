@@ -55,13 +55,14 @@
   100% { opacity: 0; transform: translate(-50%, 20%) rotate(10deg) scale(0.6, 0.3); }
 }
 
-/* Buttons: fat rounded pill, thick outline, chunky bottom edge that squishes on press. */
+/* Buttons (Nov 25): chunky game slabs, not pills. Small corners, thick outline, a light stripe along the top and a
+   deep bottom edge that squishes on press. */
 [data-theme='cartoon'] button {
   background: #6c63ff;
   color: #fff;
   border: 3px solid var(--ink);
-  border-radius: 999px;
-  box-shadow: 0 5px 0 var(--ink), inset 0 -4px 0 rgba(0, 0, 0, 0.2), inset 0 3px 0 rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 5px 0 var(--ink), inset 0 -5px 0 rgba(0, 0, 0, 0.22), inset 0 4px 0 rgba(255, 255, 255, 0.28);
   font-family: var(--title);
   font-weight: normal;
   font-size: 17px;
@@ -70,7 +71,7 @@
   transition: transform 0.25s var(--bounce), background 0.1s;
 }
 [data-theme='cartoon'] button.small { font-size: 13px; padding: 6px 14px; }
-[data-theme='cartoon'] button:hover { background: #8279ff; transform: translateY(-2px) rotate(-1.5deg) scale(1.04); }
+[data-theme='cartoon'] button:hover { filter: brightness(1.1); transform: translateY(-2px); }
 [data-theme='cartoon'] button:active { transform: translateY(4px) scale(1.05, 0.92); box-shadow: 0 1px 0 var(--ink); transition-duration: 0.05s; }
 [data-theme='cartoon'] button.active { background: var(--main); color: var(--ink); }
 [data-theme='cartoon'] button:disabled { transform: none; }
@@ -105,7 +106,7 @@
 @keyframes toon-in { from { transform: scale(0.6) rotate(-4deg); opacity: 0; } }
 [data-theme='cartoon'] .pause-menu button { width: 100%; }
 [data-theme='cartoon'] .shape-card { background: var(--bg); border: 3px solid var(--ink); border-radius: 16px; }
-[data-theme='cartoon'] .tag { border: 2px solid var(--ink); border-radius: 999px; padding: 1px 8px; font-weight: 800; }
+[data-theme='cartoon'] .tag { border: 2px solid var(--ink); border-radius: 5px; padding: 1px 8px; font-weight: 800; }
 [data-theme='cartoon'] .code-input { border: 3px solid var(--ink); border-radius: 12px; font-family: var(--title); background: #fff; color: var(--ink); }
 
 /* Bars: fat rounded tubes with an outline and a shiny stripe. */
@@ -163,7 +164,7 @@
 [data-theme='cartoon'] .tut-card { border: 4px solid var(--ink); border-radius: 24px; box-shadow: 0 8px 0 var(--ink); background: var(--sub-alt); }
 [data-theme='cartoon'] .tut-head { border-bottom: 4px solid var(--ink); padding: 10px 18px; }
 [data-theme='cartoon'] .tut-head .tut-title { color: #fff; font-size: 30px; transform: none; }
-[data-theme='cartoon'] .tut-head .tut-count { color: var(--ink); font-family: var(--title); font-size: 16px; opacity: 1; background: #fffaf0; border: 3px solid var(--ink); border-radius: 999px; padding: 0 10px; }
+[data-theme='cartoon'] .tut-head .tut-count { color: var(--ink); font-family: var(--title); font-size: 16px; opacity: 1; background: #fffaf0; border: 3px solid var(--ink); border-radius: 6px; padding: 0 10px; }
 [data-theme='cartoon'] .tut-list { background: rgba(21, 19, 46, 0.55); border: 3px solid rgba(255, 250, 240, 0.25); border-radius: 20px; }
 [data-theme='cartoon'] .tut-list-title { font-family: var(--title); font-size: 16px; color: var(--main); letter-spacing: 0.04em; }
 [data-theme='cartoon'] .tut-row-name { font-weight: 800; }
@@ -193,7 +194,7 @@
 [data-theme='cartoon'] .result-banner {
   padding: 10px 44px 14px;
   border: 4px solid var(--ink);
-  border-radius: 999px;
+  border-radius: 12px;
   font-family: var(--title);
   font-weight: normal;
   font-size: 56px;
@@ -235,3 +236,226 @@
 [data-theme='cartoon'] .online-toast { border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
 [data-theme='cartoon'] .room-team.one { border-top: 7px solid var(--you); }
 [data-theme='cartoon'] .room-team.two { border-top: 7px solid var(--foe); }
+
+/* Nov 24: the HUD status ("no charge", "Fire charged", "seeing") and menu headings use the title font, not the
+   body font with a stroke and wide spacing (that read as a default font). */
+[data-theme='cartoon'] .status-strip { font-family: var(--title); font-weight: normal; letter-spacing: 0.03em; word-spacing: 0.08em; }
+[data-theme='cartoon'] .status-strip .charge { font-weight: normal; }
+[data-theme='cartoon'] .dm-section { font-family: var(--title); font-weight: normal; font-size: 17px; letter-spacing: 0.04em; text-transform: none; }
+[data-theme='cartoon'] .pause-menu .pm-title, [data-theme='cartoon'] .dm-head .leave-title { font-family: var(--title); font-weight: normal; font-size: 26px; }
+
+/* ---- One tower (Nov 24): the whole site is the wizard tower. ---------------------------------------------
+   Stone: warm purple-tinted bricks in offset rows, dark mortar, lit by orange torch glows from the sides
+   (a slow flicker). Home: the tower outside at night. Practice: its floors. Custom game: its dueling hall,
+   the room code carved on a stone plaque, the teams as hanging cloth banners. */
+[data-theme='cartoon'] {
+  --stone-bricks: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='32'%3E%3Crect width='64' height='32' fill='%23231a38'/%3E%3Crect x='1.5' y='1.5' width='29' height='13' rx='2' fill='%234e3f6e'/%3E%3Crect x='33.5' y='1.5' width='29' height='13' rx='2' fill='%23493b67'/%3E%3Crect x='-14.5' y='17.5' width='29' height='13' rx='2' fill='%23493b67'/%3E%3Crect x='17.5' y='17.5' width='29' height='13' rx='2' fill='%23524372'/%3E%3Crect x='49.5' y='17.5' width='29' height='13' rx='2' fill='%23493b67'/%3E%3Crect x='3' y='2.5' width='24' height='2' rx='1' fill='%23ffffff' opacity='.06'/%3E%3Crect x='19' y='18.5' width='24' height='2' rx='1' fill='%23ffffff' opacity='.06'/%3E%3C/svg%3E");
+  --torchlight: radial-gradient(circle at 0% 42%, rgba(255, 150, 60, 0.32), transparent 38%), radial-gradient(circle at 100% 42%, rgba(255, 150, 60, 0.32), transparent 38%);
+  --stone-vignette: radial-gradient(ellipse at 50% 45%, transparent 50%, rgba(12, 8, 26, 0.6) 100%);
+}
+@keyframes torch-flicker { 0%, 100% { opacity: 1; } 45% { opacity: 0.82; } 60% { opacity: 0.95; } 80% { opacity: 0.86; } }
+
+/* Practice: inside the tower, on the warm stone. */
+[data-theme='cartoon'] .tower-room {
+  background:
+    linear-gradient(#5a3b22, #5a3b22) top / 100% 14px no-repeat,
+    linear-gradient(#1d1b2e, #1d1b2e) 0 14px / 100% 3px no-repeat,
+    var(--stone-vignette), var(--stone-bricks);
+}
+[data-theme='cartoon'] .tower-room::after { content: ''; position: absolute; inset: 0; background: var(--torchlight); animation: torch-flicker 3.2s ease-in-out infinite; }
+
+/* Home: the tower outside at night. A deep purple sky, stars, a moon, the tower's silhouette behind the menu. */
+[data-theme='cartoon'] body:has(.home), [data-theme='cartoon'] body:has(.info-page) {
+  background:
+    radial-gradient(1.5px 1.5px at 10% 20%, #fff 50%, transparent 51%) 0 0 / 180px 140px,
+    radial-gradient(1px 1px at 60% 70%, #fff 50%, transparent 51%) 0 0 / 130px 110px,
+    radial-gradient(1.5px 1.5px at 35% 45%, #ffe9a8 50%, transparent 51%) 0 0 / 240px 200px,
+    linear-gradient(#140f33, #2b1f5c 60%, #3d2a73);
+  background-attachment: fixed;
+}
+[data-theme='cartoon'] .home::before, [data-theme='cartoon'] .info-page::before {
+  content: ''; position: fixed; left: 50%; bottom: 0; width: min(560px, 96vw); height: min(74vh, 680px); transform: translateX(-50%); z-index: 0; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 300' preserveAspectRatio='xMidYMax meet'%3E%3Cpath d='M38 300 L42 104 L24 104 L100 14 L176 104 L158 104 L162 300 Z' fill='%23120d2b'/%3E%3Cpath d='M100 14 L104 2 L100 -2 L96 2 Z' fill='%23120d2b'/%3E%3Cpath d='M38 104 h124 v8 h-124 Z' fill='%230c0920'/%3E%3Crect x='50' y='140' width='12' height='20' rx='6' fill='%23ffb04a' opacity='.75'/%3E%3Crect x='138' y='176' width='12' height='20' rx='6' fill='%23ffb04a' opacity='.6'/%3E%3Crect x='52' y='236' width='12' height='20' rx='6' fill='%23ffb04a' opacity='.5'/%3E%3C/svg%3E") bottom center / contain no-repeat;
+  opacity: 0.9;
+}
+[data-theme='cartoon'] .home > * { position: relative; z-index: 1; }
+[data-theme='cartoon'] .info-page::before { opacity: 0.55; } /* dimmer behind reading pages */
+[data-theme='cartoon'] .info-page > * { position: relative; z-index: 1; }
+[data-theme='cartoon'] .info-page .logo, [data-theme='cartoon'] .info-page .info-lead { color: #fffaf0; }
+[data-theme='cartoon'] .home > .home-corner { position: absolute; z-index: 3; }
+
+/* Custom game: the tower's dueling hall. */
+[data-theme='cartoon'] .lobby-screen { background: var(--stone-vignette), var(--stone-bricks), #231a38; }
+[data-theme='cartoon'] .lobby-screen::before { content: ''; position: fixed; inset: 0; background: var(--torchlight); pointer-events: none; animation: torch-flicker 3.2s ease-in-out infinite; }
+[data-theme='cartoon'] .lobby-card { position: relative; background: none; border: none; box-shadow: none; padding: 16px 8px; gap: 18px; }
+/* The room code, carved on a stone plaque. */
+[data-theme='cartoon'] .lobby-code, [data-theme='cartoon'] .lobby-join {
+  padding: 12px 28px 14px; border-radius: 10px; background: linear-gradient(#7a6a9a, #5f507f); border: 4px solid var(--ink);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.18), inset 0 -4px 0 rgba(0, 0, 0, 0.25), 0 6px 0 var(--ink);
+}
+[data-theme='cartoon'] .lobby-code .sub-line { color: #e3d9f5; font-family: var(--title); letter-spacing: 0.06em; }
+[data-theme='cartoon'] .lobby-code .room-code { color: #2a2040; -webkit-text-stroke: 0; text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35) !important; letter-spacing: 0.18em; }
+[data-theme='cartoon'] .lobby-join .sub-line { color: #e3d9f5; }
+/* The teams: cloth banners hanging from a wooden rod, notched at the bottom, in the team's color. */
+[data-theme='cartoon'] .lobby-card .room-teams { gap: 22px; align-items: flex-start; }
+[data-theme='cartoon'] .lobby-card .room-team {
+  position: relative; flex: 1 1 220px; max-width: 300px; min-height: 200px; padding: 26px 16px 46px; border: none; box-shadow: none; border-radius: 0; gap: 10px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 26px), 0 100%);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18)), #2f7a3c;
+}
+[data-theme='cartoon'] .lobby-card .room-team.two { background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18)), #9a2f42; }
+[data-theme='cartoon'] .lobby-card .room-team::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 12px; background: #7a5534; border-bottom: 3px solid var(--ink); }
+[data-theme='cartoon'] .lobby-card .room-team { border-top: none; }
+[data-theme='cartoon'] .lobby-card .room-team-name { text-align: center; font-size: 22px; color: #fffaf0; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
+[data-theme='cartoon'] .lobby-card .room-seat { color: #fffaf0; background: rgba(0, 0, 0, 0.22); padding: 6px 8px; border-radius: 8px; }
+[data-theme='cartoon'] .lobby-card .room-team .sub-line { color: rgba(255, 250, 240, 0.75); text-align: center; }
+[data-theme='cartoon'] .lobby-card .room-ready { color: rgba(255, 250, 240, 0.75); }
+[data-theme='cartoon'] .lobby-card .room-ready.on { color: #b8ffb0; }
+[data-theme='cartoon'] .lobby-card .room-hp { color: #fffaf0; }
+[data-theme='cartoon'] .lobby-card .lobby-actions .sub-line { color: #e3d9f5; }
+[data-theme='cartoon'] .lobby-home { position: fixed; left: 14px; bottom: 14px; }
+/* Bigger bricks (less busy). */
+[data-theme='cartoon'] .lobby-screen { background-size: auto, 96px 48px, auto; }
+[data-theme='cartoon'] .tower-room { background-size: 100% 14px, 100% 3px, auto, 96px 48px; }
+[data-theme='cartoon'] .lobby-card .room-seat { flex-wrap: wrap; row-gap: 4px; }
+[data-theme='cartoon'] .lobby-card .room-hp { flex: 1 1 120px; }
+
+/* Custom game HP (Nov 24): a stepper (- 350 HP +) instead of a slider. */
+[data-theme='cartoon'] .hp-step { display: inline-flex; align-items: center; gap: 6px; }
+[data-theme='cartoon'] .hp-step b { min-width: 72px; text-align: center; font-family: var(--title); font-weight: normal; font-size: 16px; color: #fffaf0; }
+[data-theme='cartoon'] .hp-step button { all: unset; cursor: pointer; box-sizing: border-box; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px;
+  font-family: var(--title); font-size: 20px; line-height: 1; color: var(--ink); background: #fffaf0; border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
+[data-theme='cartoon'] .hp-step button:hover:not(:disabled) { background: var(--main); }
+[data-theme='cartoon'] .hp-step button:disabled { opacity: 0.35; cursor: default; }
+[data-theme='cartoon'] .hp-step button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+@media (pointer: coarse) { [data-theme='cartoon'] .hp-step button { width: 40px; height: 40px; } }
+
+/* Lobby contrast (Nov 24): the wall steps back (darker, a dark pool of shadow behind the middle) so the title,
+   plaque and banners pop; banners get the ink outline (an ink layer, the cloth inset on top), the plaque is
+   lighter with dark carved letters. */
+[data-theme='cartoon'] .lobby-screen {
+  background: radial-gradient(ellipse at 50% 50%, rgba(10, 6, 24, 0.62) 0 38%, rgba(10, 6, 24, 0.35) 75%), var(--stone-vignette), var(--stone-bricks), #231a38;
+  background-size: auto, auto, 96px 48px, auto;
+}
+[data-theme='cartoon'] .lobby-code, [data-theme='cartoon'] .lobby-join { background: linear-gradient(#b4a6d4, #9384b8); }
+[data-theme='cartoon'] .lobby-code .sub-line, [data-theme='cartoon'] .lobby-join .sub-line { color: #2a2040; }
+[data-theme='cartoon'] .lobby-code .room-code { color: #1d1b2e; text-shadow: 0 2px 0 rgba(255, 255, 255, 0.45) !important; }
+[data-theme='cartoon'] .lobby-card .room-team, [data-theme='cartoon'] .lobby-card .room-team.two { background: var(--ink); }
+[data-theme='cartoon'] .lobby-card .room-team::after {
+  content: ''; position: absolute; inset: 12px 4px 4px; z-index: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 25px), 0 100%);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18)), #2f7a3c;
+}
+[data-theme='cartoon'] .lobby-card .room-team.two::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18)), #9a2f42; }
+[data-theme='cartoon'] .lobby-card .room-team > * { position: relative; z-index: 1; }
+[data-theme='cartoon'] .lobby-card .room-team::before { z-index: 2; }
+[data-theme='cartoon'] .lobby-card .lobby-actions .sub-line { color: #fffaf0; font-weight: 700; }
+
+/* Home menu (Nov 24, reference: TETR.IO): wide bars stacked on one side, each with a big title, a line saying
+   what it is, its own color and an icon. Desktop: the brand and bars on the left, the tower gets the right
+   side. Phone: brand on top, bars full width below, the tower's top peeking out above them. */
+[data-theme='cartoon'] .home-brand { display: flex; flex-direction: column; align-items: center; }
+[data-theme='cartoon'] .home-menu { display: flex; flex-direction: column; gap: 12px; width: min(460px, 100%); }
+[data-theme='cartoon'] .home .mode-bar {
+  width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 18px 10px 10px; text-align: left;
+  border: 4px solid var(--ink); border-radius: 18px; box-shadow: 0 6px 0 var(--ink); color: #fffaf0; transition: transform 0.15s var(--bounce);
+}
+[data-theme='cartoon'] .home .mode-bar:hover { transform: translateX(8px); }
+[data-theme='cartoon'] .home .mode-bar:active { transform: translate(4px, 3px); box-shadow: 0 3px 0 var(--ink); }
+[data-theme='cartoon'] .home .mode-bar.mode-practice { background: #ff5470; }
+[data-theme='cartoon'] .home .mode-bar.mode-online { background: #6c63ff; }
+[data-theme='cartoon'] .home .mode-bar.mode-dummy { background: #2ec4b6; }
+[data-theme='cartoon'] .home .mode-bar.mode-tutorial { background: #ff9f1c; }
+[data-theme='cartoon'] .mode-icon { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 14px; background: rgba(0, 0, 0, 0.22); color: #fffaf0; }
+[data-theme='cartoon'] .mode-icon svg { width: 44px; height: 44px; }
+[data-theme='cartoon'] .mode-icon .portrait { width: 52px; height: 52px; }
+[data-theme='cartoon'] .mode-text { display: flex; flex-direction: column; min-width: 0; }
+[data-theme='cartoon'] .mode-text b { font-family: var(--title); font-weight: normal; font-size: 28px; line-height: 1.05; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
+[data-theme='cartoon'] .mode-text small { font-size: 14px; font-weight: 700; opacity: 0.92; }
+@media (min-width: 900px) {
+  [data-theme='cartoon'] .home { align-items: flex-start; justify-content: center; padding-left: max(6vw, 40px); }
+  [data-theme='cartoon'] .home-brand { width: min(460px, 100%); }
+  [data-theme='cartoon'] .home::before, [data-theme='cartoon'] .info-page::before { left: 74%; width: min(560px, 46vw); height: 86vh; }
+  [data-theme='cartoon'] .home .home-privacy { text-align: left; }
+}
+@media (max-width: 899px) {
+  [data-theme='cartoon'] .home .mode-bar { padding: 8px 14px 8px 8px; }
+  [data-theme='cartoon'] .mode-icon { width: 46px; height: 46px; }
+  [data-theme='cartoon'] .mode-icon svg { width: 36px; height: 36px; }
+  [data-theme='cartoon'] .mode-icon .portrait { width: 42px; height: 42px; }
+  [data-theme='cartoon'] .mode-text b { font-size: 23px; }
+  [data-theme='cartoon'] .mode-text small { font-size: 13px; }
+}
+@media (min-width: 900px) {
+  [data-theme='cartoon'] .home { gap: 14px; }
+  [data-theme='cartoon'] .home-brand { flex-direction: row; align-items: center; gap: 12px; }
+  [data-theme='cartoon'] .home .home-brand .hero-logo { height: clamp(70px, 13vh, 130px); margin: 0; }
+  [data-theme='cartoon'] .home .home-brand .logo { font-size: clamp(2.6rem, 4.6vw, 4rem); white-space: nowrap; margin: 0; }
+}
+/* Home fits on one screen at any size (Nov 24): short phones get slimmer bars; phones on their side get the
+   brand on the left and the four modes in a 2x2 grid on the right. */
+@media (max-width: 899px) and (max-height: 700px) {
+  [data-theme='cartoon'] .home { gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+  [data-theme='cartoon'] .home .hero-logo { height: clamp(48px, 13vh, 90px); }
+  [data-theme='cartoon'] .home .logo { font-size: 1.7rem; margin: 0; }
+  [data-theme='cartoon'] .home-menu { gap: 8px; }
+  [data-theme='cartoon'] .home .mode-bar { padding: 5px 12px 5px 6px; border-width: 3px; box-shadow: 0 4px 0 var(--ink); }
+  [data-theme='cartoon'] .mode-icon { width: 40px; height: 40px; }
+  [data-theme='cartoon'] .mode-icon svg { width: 30px; height: 30px; }
+  [data-theme='cartoon'] .mode-icon .portrait { width: 36px; height: 36px; }
+  [data-theme='cartoon'] .mode-text b { font-size: 20px; }
+  [data-theme='cartoon'] .mode-text small { font-size: 12px; }
+  [data-theme='cartoon'] .home .home-privacy { font-size: 11px; margin-top: 2px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  [data-theme='cartoon'] .home { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); grid-template-rows: 1fr auto; align-items: center; justify-items: center;
+    column-gap: 20px; row-gap: 6px; padding: 10px 70px 8px 16px; }
+  [data-theme='cartoon'] .home-brand { grid-column: 1; grid-row: 1; flex-direction: column; }
+  [data-theme='cartoon'] .home .home-brand .hero-logo { height: clamp(50px, 24vh, 110px); }
+  [data-theme='cartoon'] .home .home-brand .logo { font-size: 1.8rem; }
+  [data-theme='cartoon'] .home-menu { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+  [data-theme='cartoon'] .home .mode-bar { padding: 6px 10px 6px 6px; border-width: 3px; box-shadow: 0 4px 0 var(--ink); }
+  [data-theme='cartoon'] .mode-icon { width: 38px; height: 38px; }
+  [data-theme='cartoon'] .mode-icon svg { width: 28px; height: 28px; }
+  [data-theme='cartoon'] .mode-icon .portrait { width: 34px; height: 34px; }
+  [data-theme='cartoon'] .mode-text b { font-size: 18px; }
+  [data-theme='cartoon'] .mode-text small { font-size: 11px; }
+  [data-theme='cartoon'] .home .home-privacy { grid-column: 1 / -1; grid-row: 2; margin: 0; font-size: 11px; max-width: none; }
+  [data-theme='cartoon'] .home::before { height: 96vh; }
+}
+/* Short screens (phones on their side): the in-match menu goes two columns so every setting shows (it can
+   still scroll if needed); the tower drops its quote and slims its floors. */
+[data-theme='cartoon'] .menu-card.pause-menu.dm { overflow: auto; }
+@media (max-height: 500px) {
+  [data-theme='cartoon'] .menu-card.pause-menu.dm { max-width: 680px; display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); grid-template-rows: auto auto 1fr;
+    column-gap: 16px; row-gap: 8px; padding: 12px 14px; align-items: start; }
+  [data-theme='cartoon'] .pause-menu .pm-title { grid-column: 1; grid-row: 1; font-size: 22px; }
+  [data-theme='cartoon'] .pause-menu .pm-tiles { grid-column: 1; grid-row: 2 / span 2; align-content: start; grid-template-columns: 1fr 1fr; }
+  [data-theme='cartoon'] .pause-menu .pm-actions { grid-column: 1; grid-row: 3; flex-direction: column; }
+  [data-theme='cartoon'] .pause-menu .slab-section { grid-column: 2; }
+  [data-theme='cartoon'] .pause-menu .slab-section:nth-of-type(1) { grid-row: 1 / span 2; }
+  [data-theme='cartoon'] .pause-menu .slab-section:nth-of-type(2) { grid-row: 3; }
+  [data-theme='cartoon'] .pause-menu .dm-rows { grid-column: 2; grid-row: 2 / span 2; }
+  [data-theme='cartoon'] .pause-menu .dm-row { padding: 6px 10px; }
+  [data-theme='cartoon'] .stage-center .tower-wrap > .sub-line.tower-quote { display: none; }
+  [data-theme='cartoon'] .duel-side.opp > .stage-center:has(.tower-wrap) { padding: 22px 10px 54px; gap: 6px; }
+  [data-theme='cartoon'] .stage-center .tower .floor { padding: 3px 8px; margin-bottom: 4px; }
+  [data-theme='cartoon'] .stage-center .tower .window { width: 38px; height: 40px; }
+  [data-theme='cartoon'] .stage-center .tower .portrait { width: 34px; height: 34px; }
+  [data-theme='cartoon'] .stage-center .tower .tier-band { margin: 4px 0; font-size: 15px; }
+}
+/* Tutorial on short phones: tighter text so a step fits without scrolling, and the Next / Back row keeps clear
+   of the floating Menu button in the bottom-right corner. */
+@media (max-width: 800px) {
+  [data-theme='cartoon'] .tut-body > .row { padding-right: 58px; box-sizing: border-box; }
+}
+@media (max-width: 800px) and (max-height: 700px) {
+  [data-theme='cartoon'] .tut-body { font-size: 14px; line-height: 1.3; }
+  [data-theme='cartoon'] .tut-body li { margin-bottom: 2px; }
+  [data-theme='cartoon'] .tut-body ul { margin: 4px 0; padding-left: 18px; }
+}
+[data-theme='cartoon'] body:has(.home), [data-theme='cartoon'] body:has(.info-page) { min-height: 100vh; min-height: 100dvh; }
+/* Home bars (Nov 25): the line under each mode gets the same ink outline as its title, so it reads on yellow and teal. */
+[data-theme='cartoon'] .mode-text small { font-weight: 800; opacity: 1; color: #fffaf0; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; letter-spacing: 0.03em; }
+[data-theme='cartoon'] .mode-text b { letter-spacing: 0.02em; }
+@media (max-width: 899px) and (min-height: 640px) { [data-theme='cartoon'] .mode-text small { font-size: 14.5px; } }

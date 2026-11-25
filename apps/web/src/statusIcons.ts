@@ -68,7 +68,7 @@ export const ICON_NAMES: Record<RowIcon, string> = {
   guard: 'Guarded: take less damage',
   exposed: 'Exposed: take more damage',
   fog: 'Steam: your next attacks miss',
-  noHeal: 'Grave: no healing',
-  doom: 'Doom: cast before it ends (seconds)',
+  noHeal: 'Grave: no healing or armor',
+  doom: 'Doom: before it ends, throw a spell at 70% power or higher',
   glacier: 'Glacier on its way',
 }

@@ -51,3 +51,20 @@ export async function openCamera(): Promise<{ stream: MediaStream; info: () => C
     },
   }
 }
+
+/** Whether the player turned the camera on earlier in this browser session (then it starts without asking again). */
+const CAM_OK = 'cam-ok'
+export function camAllowed() {
+  try {
+    return sessionStorage.getItem(CAM_OK) === '1'
+  } catch {
+    return false
+  }
+}
+export function allowCamera() {
+  try {
+    sessionStorage.setItem(CAM_OK, '1')
+  } catch {
+    /* not saved */
+  }
+}

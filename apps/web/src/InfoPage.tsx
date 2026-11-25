@@ -1,6 +1,6 @@
 // Spell info: every spell's damage and effects. Attack numbers come straight from combat.ts;
 // signature and heal numbers are written here (keep them in sync with land() in combat.ts).
-import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STEAM_SHOTS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, STATIC_CUTOFF, STUN_MIN_MS, SHROUD_MIN_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS } from './combat'
+import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STEAM_SHOTS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, DOOM_LIFT, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, STATIC_CUTOFF, STUN_MIN_MS, SHROUD_MIN_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 import { IconLegend } from './effects'
 import { LEGEND_HAND, ROW_ICONS, type RowIcon } from './statusIcons'
@@ -27,7 +27,7 @@ const SIGNATURES = [
 ]
 
 const UNHOLY = [
-  { name: 'Doom', draw: 'Scythe: blade, then two lines across the handle', effect: `They must land a cast within ${s(DOOM_MS)} or take ${DOOM_DMG}.` },
+  { name: 'Doom', draw: 'Scythe: blade, then two lines across the handle', effect: `They must throw a spell at ${DOOM_LIFT * 100}% power or more within ${s(DOOM_MS)} or take ${DOOM_DMG}. A worn element won't lift it.` },
   { name: 'Shroud', draw: 'Three loops', effect: `For ${s(SHROUD_MS)} they can't see your charge or your drawing.` },
   { name: 'Execute', draw: 'Guillotine', effect: `${EXECUTE.base}, or ${EXECUTE.cursed} if they're cursed when it lands (burning, chilled, static, Doomed, Exposed, fogged or no healing). If a counterspell catches it readied, you take half of what it would do to you.` },
 ]
@@ -118,7 +118,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
             <tr>
               <td>Heal</td>
               <td>Star</td>
-              <td>+{HEAL} HP right away</td>
+              <td>+{HEAL} HP right away, and clears your burns, chill and static</td>
             </tr>
             <tr>
               <td>Regen</td>
@@ -210,9 +210,9 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
           <li><b>Burning:</b> extra damage ticks every 0.5 s.</li>
           <li><b>Knocked down:</b> your charge is gone. Sign your element again.</li>
           <li><b>Armor (Aegis):</b> direct hits are soaked first. It drains over time.</li>
-          <li><b>Doomed:</b> a countdown. Land any cast before it ends.</li>
+          <li><b>Doomed:</b> a countdown. Throw a spell at {DOOM_LIFT * 100}% power or more before it ends.</li>
           <li><b>Shrouded:</b> your opponent can't see your charge or drawing.</li>
-          <li><b>Worn:</b> every throw takes {WEAR_STEP * 100}% off its element's power (a light, half that), down to {WEAR_FLOOR * 100}%. Power means damage, heals and effects. Wear also shrinks chills, stuns, timed effects and Doom (a stun never below {s(STUN_MIN_MS)}, Shroud never below {s(SHROUD_MIN_MS)}). Lightning below {STATIC_CUTOFF * 100}% adds no static. A worn element recovers {WEAR_STEP * 100}% every {s(WEAR_DECAY_MS)}. A combo hits at the average of its two elements and wears both. Mix your elements.</li>
+          <li><b>Worn:</b> every throw takes {WEAR_STEP * 100}% off its element's power (a light or an Angelic spell, half that), down to {WEAR_FLOOR * 100}%. Power means damage, heals and effects. Wear also shrinks chills, stuns, timed effects and Doom (a stun never below {s(STUN_MIN_MS)}, Shroud never below {s(SHROUD_MIN_MS)}). Lightning below {STATIC_CUTOFF * 100}% adds no static. A worn element recovers {WEAR_STEP * 100}% every {s(WEAR_DECAY_MS)}. A combo hits at the average of its two elements and wears both. Mix your elements.</li>
         </ul>
         <h3>Icons</h3>
         <p className="info-note">When you can't act, your hand shows this with a red ring that drains, and a word under it saying why. After a good parry: a green shield.</p>

@@ -286,9 +286,10 @@ export function bladeCurve(points: Pt[]) {
   return best
 }
 
-/** A complete H: each post reaches both the top and bottom fifth of the drawing, and a crossbar
- *  crosses the middle. Posts = the left and right thirds; the crossbar = the middle third, between
- *  30% and 70% of the height. */
+/** A complete H: each post reaches both the top and bottom quarter of the drawing, and a crossbar
+ *  crosses the middle. Posts = the left and right 38%; the crossbar = the middle 30%, between 25% and 75%
+ *  of the height. (Nov 25: loosened from fifths and thirds: a messy but whole H passes, a half-drawn post
+ *  still fails.) */
 export function fullH(points: Pt[]) {
   const xs = points.map((p) => p.x)
   const ys = points.map((p) => p.y)
@@ -296,12 +297,12 @@ export function fullH(points: Pt[]) {
   const w = x1 - x0 || 1
   const h = y1 - y0 || 1
   const at = (fx: (x: number) => boolean, fy: (y: number) => boolean) => points.some((p) => fx((p.x - x0) / w) && fy((p.y - y0) / h))
-  const left = (x: number) => x < 1 / 3
-  const right = (x: number) => x > 2 / 3
-  const top = (y: number) => y < 0.2
-  const bottom = (y: number) => y > 0.8
+  const left = (x: number) => x < 0.38
+  const right = (x: number) => x > 0.62
+  const top = (y: number) => y < 0.25
+  const bottom = (y: number) => y > 0.75
   const posts = at(left, top) && at(left, bottom) && at(right, top) && at(right, bottom)
-  const bar = at((x) => x > 0.4 && x < 0.6, (y) => y > 0.3 && y < 0.7)
+  const bar = at((x) => x > 0.35 && x < 0.65, (y) => y > 0.25 && y < 0.75)
   return posts && bar
 }
 
@@ -359,4 +360,25 @@ export function spiralPoints(): Pt[] {
     pts.push({ x: r * Math.cos(th), y: r * Math.sin(th) })
   }
   return pts
+}
+
+/** The parts that count (the same rules recognizeShape applies when a shape is its top guess): a complete H,
+ *  4 Meteor spikes, 8 Sunfire points, 3 Plasma petals, a Doom blade that really curves. */
+export function passesRules(name: string, points: Pt[]) {
+  if (name === 'h') return fullH(points)
+  if (name === 'flame') return spikeCount(points) === 4
+  if (name === 'sun') return sunTips(points) === 8
+  if (name === 'plasma') return plasmaPetals(points) === 3
+  if (name === 'scythe') return bladeCurve(points) >= DOOM_CURVE
+  return true
+}
+
+/** Charge-aware reading (Nov 25): with a charge up, only the spells that charge can cast (plus "none", the
+ *  scribble detector) compete, at lower minimums. Shapes you couldn't cast anyway no longer take votes away
+ *  from yours. The best candidate must beat "none", reach its minimum, and pass its rule check; else null. */
+export function matchAmong(m: { top: { name: string; prob: number }[] }, points: Pt[], candidates: string[], minFor: (name: string) => number) {
+  const none = m.top.find((t) => t.name === 'none')?.prob ?? 0
+  const best = m.top.filter((t) => candidates.includes(t.name)).sort((a, b) => b.prob - a.prob)[0]
+  if (!best || best.prob <= none || best.prob < minFor(best.name) || !passesRules(best.name, points)) return null
+  return best.name
 }
