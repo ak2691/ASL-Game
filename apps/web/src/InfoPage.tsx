@@ -3,9 +3,9 @@
 import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, STATIC_CUTOFF, STUN_MIN_MS, SHROUD_MIN_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 import { IconLegend } from './effects'
-import { HAND_ICONS, ROW_ICONS, type RowIcon } from './statusIcons'
+import { LEGEND_HAND, ROW_ICONS, type RowIcon } from './statusIcons'
 
-const HAND_KEYS = Object.keys(HAND_ICONS) as RowIcon[]
+const HAND_KEYS = LEGEND_HAND
 const ROW_KEYS = Object.keys(ROW_ICONS) as RowIcon[]
 
 const s = (ms: number) => `${ms / 1000} s`
@@ -215,7 +215,7 @@ export function InfoPage({ onHome }: { onHome: () => void }) {
           <li><b>Worn:</b> every throw wears its element (a light half as much). Each stack takes {WEAR_STEP * 100}% off that element's damage and heals, down to {WEAR_FLOOR * 100}%. Wear also shrinks chills, stuns, timed effects and Doom (a stun never below {s(STUN_MIN_MS)}, Shroud never below {s(SHROUD_MIN_MS)}). Lightning below {STATIC_CUTOFF * 100}% adds no static. A stack fades every {s(WEAR_DECAY_MS)}. A combo hits at the average of its two elements and wears both. Mix your elements.</li>
         </ul>
         <h3>Icons</h3>
-        <p className="info-note">When you can't act, the reason shows on your hand: a red ring that drains, with one of these in the middle.</p>
+        <p className="info-note">When you can't act, your hand shows this with a red ring that drains, and a word under it saying why. After a good parry: a green shield.</p>
         <IconLegend keys={HAND_KEYS} />
         <p className="info-note">Everything else shows as icons under a fighter's health bar. Red edge: bad for them. Green: good. The bar under each runs down with its time.</p>
         <IconLegend keys={ROW_KEYS} />

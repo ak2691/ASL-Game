@@ -11,7 +11,7 @@ import { loadShapeModel, pathLength, recognizeShape, shapeFeatures, type Pt } fr
 import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
 import { Tower } from './Ladder'
 import { DummyArena, PracticeArena, beaterOf, dummyTimes, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
-import { HAND_ICONS } from './statusIcons'
+import { HAND_ICONS, HAND_WORDS } from './statusIcons'
 import { BoltLayer, Impacts, ParryRings, StatusFx, StatusRow, canActState, setLocalBoltClock, useShake } from './effects'
 import { INTERRUPT_LOCK_MS, PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
@@ -712,6 +712,24 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               ctx.strokeStyle = '#fff'
               ctx.stroke(new Path2D(HAND_ICONS[cs.k]))
               ctx.restore()
+              // The cause, in the theme's title font, under the ring.
+              const word = HAND_WORDS[cs.k]
+              if (word) {
+                ctx.save()
+                ctx.translate(cx, cy + r + 0.03 * W)
+                ctx.scale(-1, 1)
+                const title = getComputedStyle(document.documentElement).getPropertyValue('--title').trim() || 'sans-serif'
+                ctx.font = `${Math.round(0.032 * W)}px ${title}`
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.lineWidth = Math.max(3, 0.007 * W)
+                ctx.lineJoin = 'round'
+                ctx.strokeStyle = '#000'
+                ctx.strokeText(word, 0, 0)
+                ctx.fillStyle = '#fff'
+                ctx.fillText(word, 0, 0)
+                ctx.restore()
+              }
             }
             // A parry just landed: "Reflected" or "Destroyed" on the hand, where you're looking.
             const pf = parryFlash.current
@@ -1018,6 +1036,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     <div className="fighter">
       <div className="fighter-name">
         {name ?? (side === 'player' ? 'You' : oppName)}
+        {/* Every status as icons, on the name row (a fixed height, so nothing below ever moves). Your own
+            "can't act" ones are on your hand. Too many: the first few and "+N". */}
+        <StatusRow view={fight} side={side} hand={side === 'player'} max={side.startsWith('ally') || (isTeam && side !== 'player') ? 3 : 5} />
       </div>
       <div className="hp-bar">
         <div
@@ -1037,8 +1058,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             </span>
           ))}
       </div>
-      {/* Every status, one row of icons, the same on every fighter. Your "can't act" ones are on your hand. */}
-      <StatusRow view={fight} side={side} hand={side === 'player'} />
     </div>
   )
   // Team modes.

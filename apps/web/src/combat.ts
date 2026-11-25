@@ -72,7 +72,8 @@ const REFLECT_POWER = [0.5, 0.35]
 // and adds a stack to each.
 export const WEAR_STEP = 0.3
 export const WEAR_FLOOR = 0.3 // Nov 24: was 0.4
-export const WEAR_DECAY_MS = 5000
+export const WEAR_DECAY_MS = 8000 // Nov 24: was 5000 (two elements alternated recovered fully; three in rotation still do)
+const WEAR_MAX_STACKS = (1 - WEAR_FLOOR) / WEAR_STEP // stacks that reach the floor
 // Wear also shrinks effects (Nov 24): chill %, stun and silence lengths (never below STUN_MIN_MS), timed
 // effects (Twilight, fog, no-heal, Shroud), Doom and Storm damage. Lightning is the exception: below
 // STATIC_CUTOFF power its hits still land but add no static. Earthquake's knockdown and Doom's timer don't change.
@@ -633,7 +634,8 @@ export class Combat {
     if (kind !== 'counter') {
       const els = el in COMBO_MIX ? COMBO_MIX[el] : el in ELEMENTS ? [el] : []
       if (els.length) wear = els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length
-      for (const e of els) this.wear[caster][e] = { n: this.wearOf(caster, e, now) + (shape === 'line' ? 0.5 : 1), at: now }
+      // Capped at the floor: 30% is the bottom, and recovery starts right away (no hidden stacks under it).
+      for (const e of els) this.wear[caster][e] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(caster, e, now) + (shape === 'line' ? 0.5 : 1)), at: now }
       if (wear < 1) bolt.power = wear
     }
     if (bolt.parryable) bolt.parryMs = parryMs(bolt)

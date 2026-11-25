@@ -7,7 +7,7 @@ import type { Snapshot } from './battle'
 import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 import { IconLegend } from './effects'
-import { HAND_ICONS, type RowIcon } from './statusIcons'
+import { LEGEND_HAND, type RowIcon } from './statusIcons'
 
 interface Step {
   el: string
@@ -98,10 +98,10 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two'; icons?: Row
   {
     title: 'Status',
     points: [
-      "Can't act? Your hand shows why, with a ring that runs down:",
+      "Can't act? Your hand shows this, a ring that runs down, and a word saying why:",
       'Other effects show as icons under the health bar. Red: bad. Green: good. The full list is on the Info page.',
     ],
-    icons: Object.keys(HAND_ICONS) as RowIcon[],
+    icons: LEGEND_HAND,
   },
   {
     title: 'Wear',

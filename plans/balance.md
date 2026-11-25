@@ -7,7 +7,7 @@ Goal: winning takes variety. Mix lights and heavies (jab, then hook when there's
 
 | Rule | Value |
 |---|---|
-| Wear | By element. Light +½ stack; heavy, signature, Angelic/Unholy +1. Each stack −30% damage and heals, floor 30% (Nov 24: was 40%). A stack fades every 5 s. Damage only. |
+| Wear | By element. Light +½ stack; heavy, signature, Angelic/Unholy +1. Each stack −30% damage and heals, floor 30% (Nov 24: was 40%). A stack fades every 8 s (Nov 24: was 5 s; two elements alternated recovered fully). Stacks cap at the floor. Damage only. |
 | Combo wear | Hits at the average of its two elements' power, adds 1 stack to each. |
 | Heavy | No wind-up. Stricter H (both posts full height, crossbar between): ~1.1 s to draw. |
 | Parry windows | Light 100 ms, heavy 150, signature 200, combo 150 (Nov 25: tightened after a playtest; signatures were ~100% parryable when focused). Glacier can't be parried. |

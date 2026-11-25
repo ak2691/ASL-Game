@@ -1,16 +1,27 @@
 // Status icons: one small line drawing each (24×24, stroked, round caps), used everywhere a status shows:
-// on your hand (canvas, Path2D) and in the status row under every health bar (SVG). Pictures, not words,
-// so the fight reads the same in any language. The Info page and the tutorial's Status card list them.
+// on your hand (canvas, Path2D) and in the status row under every health bar (SVG). Pictures first; the only
+// words are the short cause under a "can't act" ring. The Info page and the tutorial's Status card list them.
 
-/** "Can't act" causes: shown on your hand (a draining ring + this symbol), or in others' status rows. */
+/** "Can't act": one symbol for every cause (a circle with a slash), a ring that drains as the timer, and a
+ *  word under it saying why. Recovering after a good parry is the one exception: a green shield, no word. */
+const BLOCKED = 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M5.6 5.6l12.8 12.8'
 export const HAND_ICONS = {
-  fizzled: 'M12 3v4 M12 17v4 M3 12h4 M17 12h4 M5.6 5.6l2.8 2.8 M15.6 15.6l2.8 2.8 M5.6 18.4l2.8-2.8 M15.6 8.4l2.8-2.8', // a poof: it fell apart
-  staggered: 'M12 12a1.5 1.5 0 1 1 1.5 1.5 a3.5 3.5 0 1 1 3.5-3.5 a6 6 0 1 1-6-6', // dizzy swirl
-  interrupted: 'M3 13 L8 9 L11 14 L15 7 L18 12 L21 10', // a crack: hit mid-cast
-  whiffed: 'M4 17 Q10 5 20 9 M16.5 5.5 L20.5 9 L16 11', // an empty swing
-  silenced: 'M7.5 11V8a4.5 4.5 0 0 1 9 0v3 M5 11h14v10H5Z M12 15v2.5', // locked
-  recover: 'M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z M9 12l2 2 4-4', // just blocked
+  fizzled: BLOCKED,
+  staggered: BLOCKED,
+  interrupted: BLOCKED,
+  whiffed: BLOCKED,
+  silenced: BLOCKED,
+  recover: 'M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z M9 12l2 2 4-4',
 } as const
+/** The word under the ring (none for a parry's recovery). */
+export const HAND_WORDS: Record<keyof typeof HAND_ICONS, string> = {
+  fizzled: 'FIZZLED',
+  staggered: 'STAGGERED',
+  interrupted: 'INTERRUPTED',
+  whiffed: 'WHIFFED',
+  silenced: 'SILENCED',
+  recover: '',
+}
 export type HandState = keyof typeof HAND_ICONS
 
 /** Passive effects (and buffs) in the status row. */
@@ -33,6 +44,10 @@ export const ROW_ICONS = {
 export type RowIcon = keyof typeof ROW_ICONS | HandState
 
 export const iconPath = (k: RowIcon): string => (k in HAND_ICONS ? HAND_ICONS[k as HandState] : ROW_ICONS[k as keyof typeof ROW_ICONS])
+
+/** The one "can't act" symbol, for the legends (every cause shares it). */
+export const CANT_ACT_NAME = "Can't act: the word under it says why (fizzled, staggered, interrupted, whiffed, silenced)"
+export const LEGEND_HAND: RowIcon[] = ['fizzled', 'recover']
 
 /** What each one means, for the Info page legend and the tutorial's Status card. */
 export const ICON_NAMES: Record<RowIcon, string> = {

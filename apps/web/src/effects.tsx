@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement, type RefObject } from 'react'
 import { INTERRUPT_LOCK_MS, type Bolt, type CombatView, type Fid, type Side } from './combat'
 import { COMBO_MIX, isMixCounter } from './spells'
-import { ICON_NAMES, iconPath, type HandState, type RowIcon } from './statusIcons'
+import { CANT_ACT_NAME, ICON_NAMES, iconPath, type HandState, type RowIcon } from './statusIcons'
 
 const SHAKE = { light: { px: 4, ms: 180 }, heavy: { px: 10, ms: 320 }, signature: { px: 22, ms: 650 } }
 const COUNT = { light: 6, heavy: 14, signature: 30 }
@@ -32,9 +32,13 @@ export function BoltLayer({ bolts, team = false }: { bolts: Bolt[]; team?: boole
           // Earthquake: a crack races along the ground from your half to theirs.
           <div key={b.id}>
             {[21, 43, 65, 87].map((top, n) => (
-              <svg key={n} className={`quake-run from-${b.from}`} viewBox="0 0 100 10" preserveAspectRatio="none" style={{ '--fly': `${b.fly}ms`, '--row': `${top}%`, scale: `1 ${n % 2 ? -1 : 1}` } as Vars}>
-                <polyline className="glow" points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
-                <polyline points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
+              <svg key={n} className={`quake-run from-${b.from}`} viewBox="0 0 100 10" preserveAspectRatio="none" style={{ '--fly': `${b.fly}ms`, '--row': `${top}%` } as Vars}>
+                {/* Every other crack's zigzag is mirrored for variety, inside the drawing: flipping the whole
+                    element would also flip which way it runs once portrait turns it top to bottom. */}
+                <g transform={n % 2 ? 'matrix(1 0 0 -1 0 10)' : undefined}>
+                  <polyline className="glow" points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
+                  <polyline points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
+                </g>
               </svg>
             ))}
           </div>
@@ -725,7 +729,7 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
  *  green, a bar under each that drains with its time (sized from when it started, so wear or early ends never
  *  confuse it). A number where it matters: chill's bonus, Doom's seconds. `hand`: your own "can't act"
  *  states are drawn on your hand instead, so they're left out here. */
-export function StatusRow({ view, side, hand = false }: { view: CombatView; side: Fid; hand?: boolean }) {
+export function StatusRow({ view, side, hand = false, max = 5 }: { view: CombatView; side: Fid; hand?: boolean; max?: number }) {
   const peaks = useRef<Record<string, number>>({})
   type It = { k: RowIcon; ms?: number; n?: string | number; good?: boolean; dim?: boolean }
   const st = view.static[side]
@@ -755,9 +759,11 @@ export function StatusRow({ view, side, hand = false }: { view: CombatView; side
   for (const k of Object.keys(peaks.current)) if (!seen.has(k as RowIcon)) delete peaks.current[k]
   for (const t of items) if (t.ms !== undefined && t.ms > (peaks.current[t.k] ?? 0)) peaks.current[t.k] = t.ms
   if (!items.length) return null
+  const shown = items.length > max ? items.slice(0, max - 1) : items
+  const more = items.length - shown.length
   return (
     <div className="status-row">
-      {items.map((t) => (
+      {shown.map((t) => (
         <span key={t.k} className={`st-icon ${t.good ? 'good' : 'bad'} ${t.dim ? 'dim' : ''}`} title={ICON_NAMES[t.k]}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d={iconPath(t.k)} />
@@ -768,6 +774,11 @@ export function StatusRow({ view, side, hand = false }: { view: CombatView; side
           )}
         </span>
       ))}
+      {more > 0 && (
+        <span className="st-more" title={items.slice(shown.length).map((t) => ICON_NAMES[t.k]).join(', ')}>
+          +{more}
+        </span>
+      )}
     </div>
   )
 }
@@ -785,6 +796,8 @@ export function canActState(view: CombatView, side: Fid, whiff = false): { k: Ha
 
 /** The icons and what they mean (Info page, tutorial). `hand`: drawn as on your hand (red ring). */
 export function IconLegend({ keys }: { keys: RowIcon[] }) {
+  // The "can't act" causes share one symbol: listed once, as that.
+  const name = (k: RowIcon) => (k === 'fizzled' && keys.includes('recover') ? CANT_ACT_NAME : ICON_NAMES[k])
   return (
     <ul className="icon-legend">
       {keys.map((k) => (
@@ -794,7 +807,7 @@ export function IconLegend({ keys }: { keys: RowIcon[] }) {
               <path d={iconPath(k)} />
             </svg>
           </span>
-          <span>{ICON_NAMES[k]}</span>
+          <span>{name(k)}</span>
         </li>
       ))}
     </ul>
