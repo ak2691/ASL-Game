@@ -1,6 +1,6 @@
 // Spell info: every spell's damage and effects. Attack numbers come straight from combat.ts;
 // signature and heal numbers are written here (keep them in sync with land() in combat.ts).
-import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, STATIC_CUTOFF, STUN_MIN_MS, SHROUD_MIN_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS } from './combat'
+import { HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STEAM_SHOTS, STORM, SUNFIRE, THERMAL, TWILIGHT_MS, DOOM_DMG, DOOM_MS, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, MAX_HP, PRISON_CHILL, PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, STATIC_CUTOFF, STUN_MIN_MS, SHROUD_MIN_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS } from './combat'
 import { COMBOS_ON, COMBO_CHARGES, ELEMENTS } from './spells'
 import { IconLegend } from './effects'
 import { LEGEND_HAND, ROW_ICONS, type RowIcon } from './statusIcons'
@@ -37,9 +37,9 @@ const COMBO_ROWS = [
   { c: 'storm', mix: 'C, W, L', draw: 'Cloud with a bolt', dmg: `${STORM.hit}`, effect: `${STORM.count} static pulses, ${STORM.pulse} damage each. A throw in a pulse fizzles and takes ${STORM.zap}.` },
   { c: 'glacier', mix: 'C, I, E', draw: 'Iceberg', dmg: `${GLACIER_DMG}`, effect: `Takes ${s(GLACIER_MS)} to arrive. Only a Fire + Ice combo counterspell stops it.` },
   { c: 'twilight', mix: 'C, A, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take double damage.` },
-  { c: 'steam', mix: 'C, F, W', draw: 'Puffy cloud', dmg: `${STEAM_HIT}`, effect: `For ${s(STEAM_MS)} their attacks have a 50% chance to miss.` },
+  { c: 'steam', mix: 'C, F, W', draw: 'Puffy cloud', dmg: `${STEAM_HIT}`, effect: `Their next ${STEAM_SHOTS} attacks within ${s(STEAM_MS)} miss. Spells already flying still land.` },
   { c: 'thermal', mix: 'C, F, I', draw: 'Thermometer with a crack', dmg: `${THERMAL.hit}`, effect: `+${THERMAL.burn} burn, and chills them: their next hit does +${THERMAL.chill * 100}%.` },
-  { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Stuns up to ${s(PLASMA.stun)} and burns +${PLASMA.burn}.` },
+  { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Burns +${PLASMA.burn}, knocks their charge off, and drops all their elements to ${PLASMA.cap * 100}% power or less.` },
   { c: 'sunfire', mix: 'C, A, F', draw: 'Sun', dmg: `${SUNFIRE[0]}`, effect: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
   { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `For ${s(GRAVE.ms)} they can't heal or use any Angelic spell. An Angelic counterspell still works.` },
 ]

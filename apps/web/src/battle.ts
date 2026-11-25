@@ -1,6 +1,6 @@
 // Arenas: what the Spells page fights in. Practice = an AI enemy in the browser; online = a real
 // opponent through the server (online.ts). Both give the page the same Snapshot to draw.
-import { Combat, FIZZLE_LOCK_MS, MAX_HP, PARRY_WINDOW_MS, type CombatView, type Fid } from './combat'
+import { Combat, FIZZLE_LOCK_MS, MAX_HP, PARRY_WINDOW_MS, STATIC_CUTOFF, type CombatView, type Fid } from './combat'
 import { BEATS, canQuick, chargeInfo, COMBOS_ON, COMBO_MIX, COMBO_SHAPE, COUNTER, QUICK, SIGNATURE, mixCounter, signsFor, spellName } from './spells'
 import { samplePath } from './shapePaths'
 import { spiralPoints } from './shapes'
@@ -105,11 +105,11 @@ export const AI: Record<Difficulty, AiStyle> = {
   // spam punished everywhere. Single-element bots got a second element (wear would cripple them otherwise).
   pebble: { ...BOT, every: 2000, speed: 1.0, els: ['E', 'W'], moves: { line: 10, h: 70, signature: 20 }, order: 'alternate', react: 0.05, spamCounter: 0.25, hintMs: 0 },
   ember: { ...BOT, every: 1800, speed: 0.95, els: ['F', 'L'], moves: LHS, order: 'fresh', react: 0.1, spamCounter: 0.35, hintMs: 0 },
-  frost: { ...BOT, every: 1700, speed: 0.9, els: ['I', 'F'], moves: LHS, react: 0.2, spamCounter: 0.5, combos: ['thermal'], comboRate: 0.15, hintMs: 0 },
-  cleric: { ...BOT, every: 1600, speed: 0.9, els: ['W', 'I'], moves: LHS, healBelow: 0.6, magic: ['aegis'], utility: 0.15, smart: 0.3, react: 0.15, spamCounter: 0.5, parry: 0.1, parrySig: 0.15, parryAim: 0.32, hintMs: 0 },
-  hexer: { ...BOT, every: 1450, speed: 0.85, els: ['E', 'L'], moves: LHS, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.25, reactMs: [1100, 1500], spamCounter: 0.55, combos: ['grave'], comboRate: 0.14, parry: 0.12, parrySig: 0.15, parryAim: 0.34, hintMs: 300 },
-  tide: { ...BOT, every: 1300, speed: 0.8, els: ['W', 'I', 'L'], moves: LHS, healBelow: 0.3, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['storm'], comboRate: 0.17, parry: 0.15, parrySig: 0.2, parryAim: 0.36, hintMs: 900 },
-  zealot: { ...BOT, every: 1250, speed: 0.78, els: ['F', 'E'], moves: LHS, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['sunfire', 'twilight'], comboRate: 0.17, parry: 0.18, parrySig: 0.2, parryAim: 0.38, hintMs: 900 },
+  frost: { ...BOT, order: 'fresh', every: 1700, speed: 0.9, els: ['I', 'F'], moves: LHS, react: 0.2, spamCounter: 0.5, combos: ['thermal'], comboRate: 0.15, hintMs: 0 },
+  cleric: { ...BOT, order: 'fresh', every: 1600, speed: 0.9, els: ['W', 'I'], moves: LHS, healBelow: 0.6, magic: ['aegis'], utility: 0.15, smart: 0.3, react: 0.15, spamCounter: 0.5, parry: 0.1, parrySig: 0.15, parryAim: 0.32, hintMs: 0 },
+  hexer: { ...BOT, order: 'fresh', every: 1450, speed: 0.85, els: ['E', 'L'], moves: LHS, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.25, reactMs: [1100, 1500], spamCounter: 0.55, combos: ['grave'], comboRate: 0.14, parry: 0.12, parrySig: 0.15, parryAim: 0.34, hintMs: 300 },
+  tide: { ...BOT, order: 'fresh', every: 1300, speed: 0.8, els: ['W', 'I', 'L'], moves: LHS, healBelow: 0.3, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['storm'], comboRate: 0.17, parry: 0.15, parrySig: 0.2, parryAim: 0.36, hintMs: 900 },
+  zealot: { ...BOT, order: 'fresh', every: 1250, speed: 0.78, els: ['F', 'E'], moves: LHS, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['sunfire', 'twilight'], comboRate: 0.17, parry: 0.18, parrySig: 0.2, parryAim: 0.38, hintMs: 900 },
   warden: { ...BOT, every: 1150, speed: 0.75, healBelow: 0.25, react: 0.38, reactMs: [1000, 1300], spamCounter: 0.75, stun: 0.2, read: 0.25, magic: ALL_MAGIC, utility: 0.03, smart: 0.15, combos: ['magma', 'glacier'], comboRate: 0.12, parry: 0.2, parrySig: 0.25, parryAim: 0.4, comboHintMs: 1500 },
   adept: { parry: 0.22, parrySig: 0.28, parryAim: 0.42, reparry: 0.02, spamAt: 3, every: 950, speed: 0.68, ramp: false, healBelow: 0.3, react: 0.4, reactMs: [900, 1200], circle: 0.3, miss: 0.05, capitalize: false, reroll: 0, spamCounter: 0.8, stun: 0.3, read: 0.3, heal: 0.25, dodge: 0, healPunish: false, drop: 0.05, utility: 0.08, smart: 0.3, combos: ['magma', 'steam'], comboRate: 0.15, comboCounter: 0.1 },
   magus: { parry: 0.3, parrySig: 0.35, parryAim: 0.45, reparry: 0.04, spamAt: 3, every: 800, speed: 0.62, ramp: false, healBelow: 0.33, react: 0.48, reactMs: [800, 1050], circle: 0.35, miss: 0.1, capitalize: true, reroll: 2400, spamCounter: 0.85, stun: 0.35, read: 0.45, heal: 0.5, dodge: 0.05, healPunish: false, drop: 0.15, utility: 0.12, smart: 0.5, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.17, comboCounter: 0.25 },
@@ -456,6 +456,8 @@ export class PracticeArena implements Arena {
         return spellOf(el, SIGNATURE[el], sp)
       }
     }
+    // Steam fogged it: smart ones burn the misses off with quick lights instead of wasting a big spell.
+    if (v.fogShots.enemy > 0 && s.smart >= 0.3 && Math.random() < lerp(0.3, 1, s.smart)) return spellOf(this.nextEl(), 'line', sp)
     // Your armor is up: quick light hits wear it down faster than waiting on a big spell.
     if (v.shield.player > 0 && (!s.moves || s.moves.line) && Math.random() < lerp(0.1, 0.6, s.smart)) return spellOf(this.anyEl(), 'line', sp)
     // You're repeating yourself and getting away with it: throw something that stuns you or knocks
@@ -463,7 +465,8 @@ export class PracticeArena implements Arena {
     const repeating = predict(this.moves) !== null || predict(this.history) !== null
     const stun = s.stun * (predict(this.moves) === 'L' ? 1.3 : 1)
     if (repeating && this.unanswered >= 2 && Math.random() < stun && !(v.hp.player / v.maxHp.player < 0.2)) {
-      const stoppers = ANTI_LIGHT.filter(([el]) => this.els.includes(el))
+      // Lightning too worn for static (under STATIC_CUTOFF) can't stop anything.
+      const stoppers = ANTI_LIGHT.filter(([el]) => this.els.includes(el) && (el !== 'L' || this.combat.powerOf('enemy', 'L', now) >= STATIC_CUTOFF))
       if (stoppers.length) {
         const [el, shape] = stoppers[Math.floor(Math.random() * stoppers.length)]
         return spellOf(el, shape, sp)
@@ -877,7 +880,7 @@ export class PracticeArena implements Arena {
         this.reactAt = null
         this.switchTo = null
       }
-      // Stunned (your counter, Prison or Plasma landed): whatever it was casting is gone. It starts again
+      // Stunned (your counter or Prison landed): whatever it was casting is gone. It starts again
       // shortly after the stun ends (which can be early: your next hit ends it).
       if (this.combat.isSilenced('enemy', now)) {
         this.nextEnemyAt = Math.max(this.nextEnemyAt, now + 300)

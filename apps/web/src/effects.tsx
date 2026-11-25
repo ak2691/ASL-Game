@@ -746,7 +746,7 @@ export function StatusRow({ view, side, hand = false, max = 5 }: { view: CombatV
     st && { k: view.storm[side] ? 'storm' : 'static', dim: st === 'gap' },
     view.burning[side] && { k: 'burn' },
     view.exposed[side] > 0 && { k: 'exposed', ms: view.exposed[side] },
-    view.fog[side] > 0 && { k: 'fog', ms: view.fog[side] },
+    view.fog[side] > 0 && { k: 'fog', ms: view.fog[side], n: view.fogShots?.[side] },
     view.noHeal[side] > 0 && { k: 'noHeal', ms: view.noHeal[side] },
     view.glacier[side] > 0 && { k: 'glacier', ms: view.glacier[side] },
     view.regen[side] && { k: 'regen', good: true },

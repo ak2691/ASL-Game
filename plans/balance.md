@@ -137,3 +137,80 @@ Still open: loosen the circle (testers struggled to draw it) and show a big stun
 - Circle: needs 50% confidence (was 70%), and a closed loop that leans circle (30%+) counts when the drawing would otherwise fizzle.
 - Training dummy: combos sign C and both letters 100 ms apart (longer at slower cast times), then draw; the cast-time setting lists combo times; the counter hint covers combos.
 - Interrupts (Nov 25): landed = 0.75 s full lockout on them; missed = 1 s lockout on you ("Whiffed"). Missed counterspells have no extra cost. Re-holding the same letter after a throw recharges after 0.1 s (was 0.4 s).
+
+## Rundown after wear passives, Plasma, Grave (Nov 24, late)
+
+Cast time = sign + draw + ready, at a person's pace (sign 0.7 s, combo letters 1.2 s, ready 0.5 s; draw from
+battle.ts DRAW_MS). "Value" = damage + heal + a rough worth for the effect. All fresh (100% power).
+
+### Elements (light 1.8 s, heavy 3.0 s)
+| El | Light | Heavy | Why it's viable |
+|---|---|---|---|
+| E | 10 | 24 | Hardest raw hits, no effect. The baseline. |
+| F | 7+4 | 18+8 | Most damage over time; burn now worn too. |
+| W | 6 (+3) | 16 (+8) | Lower hit, heals half. Best sustain. |
+| L | 5 +1 pulse | 16 +3 pulses | Lowest hit; static stops their throws. Only at 70%+ power, so only the first L every ~5 s. |
+| I | 5 +25% | 12 +50% | Lowest hit; chill boosts your next hit (scaled by wear). |
+Heavies land at 8-9 value/s, lights 5.5-6/s but are hard to counter and wear half as much. Fine.
+
+### Signatures (3.2-3.7 s)
+| Spell | Value | /s | Note |
+|---|---|---|---|
+| Meteor | 50 | 13.5 | Most damage. |
+| Tidal Wave | 25 + 28 heal | 15.6 | **Watch:** best swing of any signature. |
+| Thunderbolt | 28 + 3 tight pulses | ~10 | Lockdown, not damage. |
+| Earthquake | 38 + knockdown | ~12 | Wastes their sign. |
+| Frozen Prison | 24 + 1 s silence + 60% chill | ~11 | Works on any element. |
+
+### Combos (4.7-5.9 s)
+| Combo | Value | /s | Note |
+|---|---|---|---|
+| Magma | 90 | 18.8 | The plain big one. Easy draw. |
+| Glacier | 95 | 19.8 | Slow (6.5 s), only a combo counter stops it. |
+| Storm | 75 + zaps | 15 | Punishes throwing. |
+| Thermal | 60 + 50% chill | ~13.5 | Middle. |
+| Steam | 32 + 6 s fog | ~11-13 | Only as good as their attack rate. **Weakest on paper.** |
+| Twilight | 0 + 8 s x2 / x0.5 | ~20 if you follow up | Setup spell; worthless alone. |
+| Sunfire | 75 + 55 heal | 22.8 | **Watch: biggest swing.** Hard draw (4.0 s) earns some of it; trim the burn to 45 if it dominates. |
+| Plasma | 62 + interrupt + 50% cap | ~19-21 | Cap saves ~30-50 over ~8 s and kills their static. Now level with Magma for the hardest draw. |
+| Grave | 34 + 10 s no-heal | 7 (no healer) / 16-20 (healer) | Situational now; easy draw no longer a free 42. |
+
+### Unholy / Angelic
+Doom (30 or a forced throw), Execute (15 + 30% missing, cap 60), Shroud (6 s, min 3 s), Heal 34, Regen 45,
+Aegis 45. All worn by wear. No issues.
+
+### Findings
+1. **Sunfire** has the biggest swing (130). Watch it first.
+2. **Tidal Wave** is the best signature by swing; Water overall is the sustain element. OK while counterable.
+3. **Steam** is the weakest combo; consider STEAM_HIT 32 -> 40 if it goes unpicked.
+4. Grave and Plasma now sit where intended.
+
+### Practice AI check
+Already handled: knockdowns (Plasma, Earthquake) restart its cast; Plasma's combo pick favors you mid-drawing
+(it interrupts now); Grave favored after you heal; Warden and up pick fresher elements (power^3).
+Gaps:
+- **Frost-Zealot ignore wear**: random element, ~50% repeats with 2 elements, ~85% average power vs ~93%
+  rotating. Makes them a bit softer; fix: give them `order: 'fresh'`.
+- **Anti-light stoppers ignore the static cutoff**: it throws L line/heavy to stop your light spam even when its L
+  is under 70% (no static). Fix: skip L stoppers when powerOf('enemy','L') < STATIC_CUTOFF.
+- Combos and signatures don't check their own wear. Minor.
+- It never targets *your* wear (e.g. Plasma when you're fresh). Fine below Lich; nice-to-have for Lich/Ascendant.
+
+### Ladder (each rung vs the one before)
+Gap between casts 2000 -> 600 ms and draw speed 1.0 -> 0.53 fall every rung, so raw pace always rises.
+On top: Pebble alternates 2 elements; Ember never repeats and adds Lightning static; Frost adds chill + Thermal;
+Cleric adds healing, Aegis, parrying (lower react than Frost, paid for by sustain); Hexer adds Unholy + Grave and
+hints later; Tide 3 elements, circles, Storm; Zealot all magic, two combos; Warden reads you (25%) and stuns
+your patterns, trades utility for that; Adept full ruleset, drops its own spell to counter; Magus capitalizes on
+silences and rerolls; Archmage ramps and dodges; Lich punishes heals, reads 90%; Ascendant no mistakes, every
+number above Lich. Two soft spots: Adept's smart 0.3 < Zealot's 0.4, and Tide = Zealot on spam counter (0.6);
+both are covered by the faster pace.
+
+### Applied after the rundown (Nov 24)
+- **Sunfire** burn 55 -> 50 (heals what it burns): swing 130 -> 120, ~21/s. Still the top value, paid for by a
+  hard draw, counterspells, and Grave (which stops its heal mid-burn, like any heal).
+- **Steam**: no more 50% luck. Hit 32 -> 40; their next 2 attacks thrown within 6 s miss for sure (counted on the
+  throw, so spells already flying land; counterspells get through). Worth ~40 + two of their throws: ~60-100
+  over 5.5 s, 11-18/s. Below Magma, now a sure tempo/anti-big-spell pick. Two lights clear it (~3.6 s of theirs).
+- **AI**: Frost-Zealot rotate elements (`fresh`); anti-light Lightning skipped under the static cutoff; smart
+  bots clear Steam's misses with lights.

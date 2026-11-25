@@ -45,6 +45,7 @@ const EMPTY_VIEW: CombatView = {
   guard: { player: 0, enemy: 0 },
   exposed: { player: 0, enemy: 0 },
   fog: { player: 0, enemy: 0 },
+  fogShots: { player: 0, enemy: 0 },
   noHeal: { player: 0, enemy: 0 },
   wear: { player: {}, enemy: {} },
   glacier: { player: 0, enemy: 0 },

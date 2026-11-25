@@ -6,7 +6,7 @@ export { isValidSpell }
 
 export const MAX_HP = 350
 const TICK_MS = 500
-// Stuns (counterspell, Frozen Prison, Plasma) last their full time at most, and end early when the
+// Stuns (counterspell, Frozen Prison) last their full time at most, and end early when the
 // player who stunned you hits you: a stun guarantees one follow-up, not a free combo.
 export const COUNTER_SILENCE_MS = 3000 // a landed counterspell: stunned until their next hit lands, at most this long
 // Interrupts (Nov 25): a landed one makes their spell fizzle and locks them out completely (no signing,
@@ -37,13 +37,17 @@ export const GLACIER_DMG = 95 // ...for this. Only a Fire + Ice combo counterspe
 export const TWILIGHT_MS = 8000 // you take 50% less, they take 100% more (stacks with chill)
 export const TWILIGHT_GUARD = 0.5 // you take this much less
 export const TWILIGHT_EXPOSE = 1 // they take this much more (Nov 23 buff: was 0.5)
-export const STEAM_MS = 6000 // their screen fogs and their attacks may miss
-export const STEAM_MISS = 0.5
-export const STEAM_HIT = 32
+// Steam (Nov 24): no luck. The next STEAM_SHOTS attacks they throw within STEAM_MS miss for sure (counted
+// on the throw: spells already flying still land). Counterspells aren't attacks and get through.
+export const STEAM_MS = 6000
+export const STEAM_SHOTS = 2
+export const STEAM_HIT = 40
 export const THERMAL = { hit: 38, burn: 22, chill: 0.5 } // a hit, a burn and a chill
-export const PLASMA = { hit: 42, burn: 20, stun: 2000 } // stun = a silence (Nov 23 buff: was 1.75 s)
-export const SUNFIRE: [number, number] = [20, 55] // hit, then a 6 s burn that heals you what it deals
-export const GRAVE = { hit: 42, ms: 10000 } // no healing (Water's mend included) and no Angelic spells (a Angelic counterspell still works)
+// Plasma (Nov 24): no stun. It knocks their charge off like Earthquake and drops every one of their
+// elements to `cap` power at most (lower ones stay where they are).
+export const PLASMA = { hit: 42, burn: 20, cap: 0.5 }
+export const SUNFIRE: [number, number] = [20, 50] // hit, then a 6 s burn that heals you what it deals
+export const GRAVE = { hit: 34, ms: 10000 } // no healing (Water's mend included) and no Angelic spells (a Angelic counterspell still works)
 export const TIDAL_HEAL = 28 // Tidal Wave heals its caster this much
 export const HEAL = 34 // Angelic star: right away
 export const REGEN = { amount: 9, ticks: 5 } // Angelic hourglass: every 0.5 s
@@ -77,7 +81,7 @@ const WEAR_MAX_STACKS = (1 - WEAR_FLOOR) / WEAR_STEP // stacks that reach the fl
 // Wear also shrinks effects (Nov 24): chill %, stun and silence lengths (never below STUN_MIN_MS), timed
 // effects (Twilight, fog, no-heal, Shroud), Doom and Storm damage. Lightning is the exception: below
 // STATIC_CUTOFF power its hits still land but add no static. Earthquake's knockdown and Doom's timer don't change.
-export const STATIC_CUTOFF = 0.6
+export const STATIC_CUTOFF = 0.7
 export const STUN_MIN_MS = 500
 
 // Attack damage per element: [light, heavy]. Numbers are a first guess, to tune in playtests.
@@ -206,7 +210,8 @@ export interface CombatView {
   shroud: Record<Fid, number> // ms of Shroud left (the other side can't see your charge or drawing)
   guard: Record<Fid, number> // ms of Twilight's guard left (takes less damage)
   exposed: Record<Fid, number> // ms of Twilight's curse left (takes more damage)
-  fog: Record<Fid, number> // ms of Steam left (their attacks may miss)
+  fog: Record<Fid, number> // ms of Steam left (0 once its misses are used up)
+  fogShots: Record<Fid, number> // attacks Steam will still make miss
   noHeal: Record<Fid, number> // ms of Grave left (can't heal)
   wear: Record<Fid, Record<string, number>> // worn elements only: their power now, in % (WEAR_FLOOR..99)
   glacier: Record<Fid, number> // ms until an Advancing Glacier reaches them (0 = none)
@@ -247,6 +252,7 @@ export class Combat {
   private guardUntil: Record<Fid, number> = {}
   private exposedUntil: Record<Fid, number> = {}
   private fogUntil: Record<Fid, number> = {}
+  private fogShots: Record<Fid, number> = {}
   private noHealUntil: Record<Fid, number> = {}
   private aimAt: Record<Fid, Fid | null> = {} // who each fighter aims at (null = default target)
   private lastHitBy: Record<Fid, Fid | null> = {} // the last enemy that hit them (default target)
@@ -294,6 +300,7 @@ export class Combat {
       this.guardUntil[f.id] = 0
       this.exposedUntil[f.id] = 0
       this.fogUntil[f.id] = 0
+      this.fogShots[f.id] = 0
       this.noHealUntil[f.id] = 0
       this.aimAt[f.id] = null
       this.lastHitBy[f.id] = null
@@ -627,8 +634,9 @@ export class Combat {
     if (el === 'glacier') bolt.fly = GLACIER_MS // it creeps across, and no parry stops it
     const landAt = self ? now : now + bolt.fly
     if (kind === 'hit' && el !== 'glacier') bolt.parryable = true
-    // Steam: an attack thrown from the fog may miss.
-    const miss = kind === 'hit' && this.fogUntil[caster] > now && Math.random() < STEAM_MISS
+    // Steam: an attack thrown from the fog misses, and uses up one of its misses.
+    const miss = kind === 'hit' && this.fogUntil[caster] > now && this.fogShots[caster] > 0
+    if (miss) this.fogShots[caster]--
     // Wear: the spell is weakened by its element's wear (a combo: the average of its two), then adds wear.
     let wear = 1
     if (kind !== 'counter') {
@@ -766,7 +774,7 @@ export class Combat {
     }
 
     // A spell from whoever stunned them lands: the stun ends (before this spell's own effects, so a
-    // second Prison or Plasma stuns again).
+    // second Prison stuns again).
     if (this.stunBy[target] === caster && this.silencedUntil[target] > now) {
       this.silencedUntil[target] = now
       this.stunBy[target] = null
@@ -896,9 +904,10 @@ export class Combat {
         this.float(target, 'Exposed!', color, now)
         this.float(caster, 'Guarded', color, now)
         break
-      case 'steam': // fog: their attacks may miss
+      case 'steam': // fog: their next STEAM_SHOTS attacks miss
         this.hit(target, STEAM_HIT, color, now)
         this.fogUntil[target] = now + this.dur(STEAM_MS)
+        this.fogShots[target] = STEAM_SHOTS
         this.float(target, 'Fogged!', color, now)
         break
       case 'thermal': {
@@ -908,12 +917,18 @@ export class Combat {
         this.chillOn(target, THERMAL.chill, now)
         break
       }
-      case 'plasma': // a burning stun
+      case 'plasma': { // knocks their charge off and wears all their elements down to PLASMA.cap
         this.hit(target, PLASMA.hit, color, now)
         this.burn(target, PLASMA.burn, 4, color, now)
-        this.silence(target, this.dur(PLASMA.stun, STUN_MIN_MS), now, caster)
-        this.float(target, 'Stunned!', color, now)
+        this.charge[target] = null
+        this.ready[target] = null
+        this.knocked[target]++
+        const n = (1 - PLASMA.cap) / WEAR_STEP
+        for (const e of Object.keys(ELEMENTS)) if (this.wearOf(target, e, now) < n) this.wear[target][e] = { n, at: now }
+        this.note(target, 'Overloaded!', `Plasma: every element at ${PLASMA.cap * 100}% or less`, color, false, now)
+        this.float(target, 'Overloaded!', color, now)
         break
+      }
       case 'sunfire': // a long burn that heals you
         this.hit(target, SUNFIRE[0], color, now)
         this.burn(target, SUNFIRE[1], 12, color, now, true)
@@ -1079,7 +1094,8 @@ export class Combat {
       shroud: per((s) => Math.max(0, this.shroudUntil[s] - now)),
       guard: per((s) => Math.max(0, this.guardUntil[s] - now)),
       exposed: per((s) => Math.max(0, this.exposedUntil[s] - now)),
-      fog: per((s) => Math.max(0, this.fogUntil[s] - now)),
+      fog: per((s) => (this.fogShots[s] > 0 ? Math.max(0, this.fogUntil[s] - now) : 0)),
+      fogShots: per((s) => (this.fogUntil[s] > now ? this.fogShots[s] : 0)),
       noHeal: per((s) => Math.max(0, this.noHealUntil[s] - now)),
       wear: per((s) => Object.fromEntries(Object.keys(this.wear[s]).map((e) => [e, Math.floor(this.powerOf(s, e, now) * 100)] as const).filter(([, p]) => p < 100))),
       storm: per((s) => !!this.static[s]?.dmg && this.staticAt(s, now) !== null),
@@ -1126,6 +1142,7 @@ export function flipView(v: CombatView): CombatView {
     guard: f(v.guard),
     exposed: f(v.exposed),
     fog: f(v.fog),
+    fogShots: f(v.fogShots),
     noHeal: f(v.noHeal),
     wear: f(v.wear),
     glacier: f(v.glacier),

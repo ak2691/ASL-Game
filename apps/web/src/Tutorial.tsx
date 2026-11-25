@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
-import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_MISS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
+import { COUNTER_SILENCE_MS, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_SHOTS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 import { IconLegend } from './effects'
 import { LEGEND_HAND, type RowIcon } from './statusIcons'
@@ -39,9 +39,9 @@ const TIPS: Record<string, string> = {
   'storm cloud': `${STORM.count} storm pulses, ${STORM.pulse} damage each. Throwing during one fizzles and costs you ${STORM.zap}.`,
   'glacier iceberg': `Takes ${secs(GLACIER_MS)} to arrive. Only C, F, I and a circle stops it.`,
   'twilight yinyang': `You take ${pct(TWILIGHT_GUARD)} less damage and they take ${pct(TWILIGHT_EXPOSE)} more for ${secs(TWILIGHT_MS)}.`,
-  'steam puff': `Their attacks have a ${pct(STEAM_MISS)} chance to miss for ${secs(STEAM_MS)}.`,
+  'steam puff': `Their next ${STEAM_SHOTS} attacks within ${secs(STEAM_MS)} miss.`,
   'thermal thermo': 'Hits, burns and chills them at once.',
-  'plasma plasma': `Stuns them for ${secs(PLASMA.stun)} and burns.`,
+  'plasma plasma': `Burns, knocks their charge off, and drops all their elements to ${pct(PLASMA.cap)} power or less.`,
   'sunfire sun': 'A long burn that heals you.',
   'grave tomb': `For ${secs(GRAVE.ms)} they cannot heal or use Angelic spells. An Angelic counterspell still works.`,
   'W circle': `Counterspell: stuns them until your next hit lands (${secs(COUNTER_SILENCE_MS)} at most). Use the element that beats theirs. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.`,
