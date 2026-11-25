@@ -1123,7 +1123,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
           </div>
           {fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
-          {mode === 'dummy' && id === foes[foes.length - 1] && <span className="dealt-line">Damage dealt <b>{fight.dealt.player}</b></span>}
         </div>
         <StatusFx side={id} view={fight} />
         <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />
@@ -1149,6 +1148,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       <button className="small icon-btn" onClick={() => setMenu('dummy')} aria-label="Dummy settings" title="Dummy settings">
         <Icon d={GEAR} />
       </button>
+      <span className="dealt-line" title="Total damage you've dealt since the last reset">Your damage <b>{fight.dealt.player}</b></span>
     </div>
   )
   const result = fight.over ? (fight.over === 'player' ? 'You win!' : 'You lose') : null
@@ -1256,7 +1256,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
             </div>
             {mode !== 'tutorial' && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
-            {mode === 'dummy' && <span className="dealt-line">Damage dealt <b>{fight.dealt.player}</b></span>}
           </div>}
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
           {mode === 'practice' && !fight.running && (
@@ -1280,7 +1279,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
         <BoltLayer bolts={fight.bolts} team={isTeam} />
         {showResult && <div className={`result-banner ${fight.over === 'player' ? 'won' : 'lost'}`}>{result}</div>}
-        {mode !== 'tutorial' && <p className="privacy-note">Your camera stays on your device. Online, your opponent only sees your drawings and element.</p>}
       </section>
       {menu === 'main' && (
         <div className="menu-overlay" onClick={() => setMenu(null)}>
@@ -1306,7 +1304,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       )}
       {menu === 'dummy' && (
         <div className="menu-overlay" onClick={() => setMenu(null)}>
-          <div className="menu-card" onClick={(e) => e.stopPropagation()}>
+          <div className="menu-card dm-card" onClick={(e) => e.stopPropagation()}>
             <DummyMenu
               twoFoes={twoFoes}
               setTwoFoes={setTwoFoes}
@@ -1631,52 +1629,100 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
   const comboSecs = Object.entries(COMBO_SHAPE).map(([c, sh]) => total(c, sh))
   const [which, setWhich] = useState(0)
   const second = twoFoes && which === 1
+  const pool = pools[second ? 1 : 0]
+  const gap = (ms: number) => `${(ms / 1000).toFixed(ms % 1000 ? 2 : 0).replace(/0$/, '')} s`
+  const combo = `${Math.min(...comboSecs).toFixed(1)} to ${Math.max(...comboSecs).toFixed(1)} s`
   return (
-    <>
-      <div className="dummy-pace">
-        <label className="pace-row">
-          <span>Cast time</span>
-          <input type="range" min={CAST_PCT.min} max={CAST_PCT.max} step={10} value={pace.castPct} onChange={(e) => setPace({ ...pace, castPct: Number(e.target.value) })} aria-label="Cast time" />
-          <b>{pace.castPct}%</b>
-        </label>
-        <span className="pace-hint">
-          Light {secs('line')} s, heavy {secs('h')} s, signature {secs('flame')} s, combo {Math.min(...comboSecs).toFixed(1)} to {Math.max(...comboSecs).toFixed(1)} s
-          {pace.castPct === 100 ? ' (default)' : ''}
+    <div className="dm">
+      <header className="dm-head">
+        <b className="leave-title">Dummy settings</b>
+      </header>
+      <div className="dm-body">
+        <h3 className="dm-section">Behavior</h3>
+        <div className="dm-rows">
+          <StepRow label="Cast time" value={pace.castPct} min={CAST_PCT.min} max={CAST_PCT.max} step={10} show={`${pace.castPct}%`} onChange={(v) => setPace({ ...pace, castPct: v })}>
+            <div className="dm-times">
+              <span>Light <b>{secs('line')} s</b></span>
+              <span>Heavy <b>{secs('h')} s</b></span>
+              <span>Signature <b>{secs('flame')} s</b></span>
+              <span>Combo <b>{combo}</b></span>
+            </div>
+          </StepRow>
+          <StepRow label="Time between casts" value={pace.gapMs} min={GAP_MS.min} max={GAP_MS.max} step={250} show={gap(pace.gapMs)} onChange={(v) => setPace({ ...pace, gapMs: v })} />
+          <StepRow label="Parry chance" value={pace.parryPct} min={0} max={100} step={5} show={`${pace.parryPct}%`} onChange={(v) => setPace({ ...pace, parryPct: v })} />
+        </div>
+        <h3 className="dm-section">Help</h3>
+        <div className="dm-rows">
+          <SwitchRow label="Counter hint" on={aids.hint} onChange={(on) => setAids({ ...aids, hint: on })} />
+          <SwitchRow label="Parry timer" on={aids.parryTimer} onChange={(on) => setAids({ ...aids, parryTimer: on })} />
+        </div>
+        <h3 className="dm-section">Dummies</h3>
+        <div className="dm-rows">
+          <SwitchRow label="How many" on={twoFoes} onChange={setTwoFoes} off="One" onLabel="Two" />
+          {twoFoes && <SwitchRow label="Editing spells of" on={which === 1} onChange={(on) => setWhich(on ? 1 : 0)} off="Left" onLabel="Right" />}
+        </div>
+        <h3 className="dm-section">
+          Spells{twoFoes ? ` (${which ? 'right' : 'left'} dummy)` : ''}
+        </h3>
+        <DummySpells key={second ? 2 : 1} pool={pool} onChange={(p) => setPool(p, second)} />
+      </div>
+      <footer className="dm-foot">
+        <span className="dm-count">
+          <b>{pool.length}</b> of {ALL_DUMMY_SPELLS.length} spells on
         </span>
-        <label className="pace-row">
-          <span>Time between casts</span>
-          <input type="range" min={GAP_MS.min} max={GAP_MS.max} step={250} value={pace.gapMs} onChange={(e) => setPace({ ...pace, gapMs: Number(e.target.value) })} aria-label="Time between casts" />
-          <b>{(pace.gapMs / 1000).toFixed(pace.gapMs % 1000 ? 2 : 0).replace(/0$/, '')} s</b>
-        </label>
-        <label className="pace-row">
-          <span>Parry chance</span>
-          <input type="range" min={0} max={100} step={5} value={pace.parryPct} onChange={(e) => setPace({ ...pace, parryPct: Number(e.target.value) })} aria-label="Parry chance" />
-          <b>{pace.parryPct}%</b>
-        </label>
-      </div>
-      <div className="dummy-foes">
-        <button className={`small ${aids.hint ? 'on' : ''}`} aria-pressed={aids.hint} onClick={() => setAids({ ...aids, hint: !aids.hint })}>
-          Counter hint: {aids.hint ? 'on' : 'off'}
+        <span className="dm-seg" role="group" aria-label="Select spells">
+          <button onClick={() => setPool(ALL_DUMMY_SPELLS, second)}>All</button>
+          <button onClick={() => setPool([], second)}>None</button>
+        </span>
+        <button className="dm-done" onClick={onDone}>
+          Done
         </button>
-        <button className={`small ${aids.parryTimer ? 'on' : ''}`} aria-pressed={aids.parryTimer} onClick={() => setAids({ ...aids, parryTimer: !aids.parryTimer })}>
-          Parry timer: {aids.parryTimer ? 'on' : 'off'}
-        </button>
+      </footer>
+    </div>
+  )
+}
+
+/** A fighting-game style setting row: label, then < value > steppers, with a segmented bar to drag. */
+function StepRow(props: { label: string; value: number; min: number; max: number; step: number; show: string; onChange: (v: number) => void; children?: React.ReactNode }) {
+  const { label, value, min, max, step, show, onChange, children } = props
+  const set = (v: number) => onChange(Math.min(max, Math.max(min, v)))
+  // The meter fills whole segments (12), like a fighting game's gauge; any value lights at least one.
+  const p = (Math.max(value > min ? 1 : 0, Math.round(((value - min) / (max - min)) * 12)) / 12) * 100
+  return (
+    <div className="dm-row">
+      <div className="dm-line">
+        <span className="dm-label">{label}</span>
+        <span className="dm-step">
+          <button onClick={() => set(value - step)} disabled={value <= min} aria-label={`Less ${label.toLowerCase()}`}>
+            ◀
+          </button>
+          <b>{show}</b>
+          <button onClick={() => set(value + step)} disabled={value >= max} aria-label={`More ${label.toLowerCase()}`}>
+            ▶
+          </button>
+        </span>
       </div>
-      <div className="dummy-foes">
-        <button className={`small ${twoFoes ? 'on' : ''}`} aria-pressed={twoFoes} onClick={() => setTwoFoes(!twoFoes)}>
-          Second enemy: {twoFoes ? 'on' : 'off'}
-        </button>
-        {twoFoes && (
-          <span className="dummy-tabs">
-            {['Left dummy', 'Right dummy'].map((n, i) => (
-              <button key={n} className={`small ${which === i ? 'on' : ''}`} aria-pressed={which === i} onClick={() => setWhich(i)}>
-                {n}
-              </button>
-            ))}
-          </span>
-        )}
+      <input className="dm-meter" type="range" min={min} max={max} step={step} value={value} onChange={(e) => set(Number(e.target.value))} aria-label={label} style={{ '--p': `${p}%` } as React.CSSProperties} />
+      {children}
+    </div>
+  )
+}
+
+/** An Off / On (or any two-choice) segmented switch row. */
+function SwitchRow({ label, on, onChange, off = 'Off', onLabel = 'On' }: { label: string; on: boolean; onChange: (on: boolean) => void; off?: string; onLabel?: string }) {
+  return (
+    <div className="dm-row">
+      <div className="dm-line">
+        <span className="dm-label">{label}</span>
+        <span className="dm-seg" role="group" aria-label={label}>
+          <button className={!on ? 'on' : ''} aria-pressed={!on} onClick={() => onChange(false)}>
+            {off}
+          </button>
+          <button className={on ? 'on' : ''} aria-pressed={on} onClick={() => onChange(true)}>
+            {onLabel}
+          </button>
+        </span>
       </div>
-      <DummySpells key={second ? 2 : 1} pool={pools[second ? 1 : 0]} onChange={(p) => setPool(p, second)} onDone={onDone} />
-    </>
+    </div>
   )
 }

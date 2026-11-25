@@ -645,30 +645,42 @@ class Gen:
         p = np.vstack(parts)
         return self.finish(self.jv(p, 0.004), rot=8)
 
-    def plasma(self, petals=None, ball=True):
-        """Petals (loops out and back) from the middle, then a line out to a ball drawn around them."""
+    def plasma(self, petals=None, ball=True, messy=None):
+        """Petals (loops out and back) from the middle, then a line out to a ball drawn around them.
+        messy (Nov 24, 35% of the time): how hands really draw it. Petals up to the ball (as in the guide), an
+        off-centre middle, uneven angles and widths, an egg-shaped wobbly ball, and slow hand drift."""
         petals = 3 if petals is None else petals  # exactly 3 (2 or 4 are near-misses); messy is fine
+        messy = self.r.random() < 0.35 if messy is None else messy
         parts = []
         a0 = self.u(-np.pi, np.pi)
+        hub = np.array([self.u(-0.12, 0.12), self.u(-0.12, 0.12)]) if messy else np.zeros(2)
         for k in range(petals):
-            a = a0 + 2 * np.pi * k / petals + self.u(-0.3, 0.3)
-            L, wdt = self.u(0.4, 0.75), self.u(0.2, 0.6)
+            a = a0 + 2 * np.pi * k / petals + self.u(-0.45, 0.45) * (1 if messy else 0.67)
+            L, wdt = (self.u(0.45, 1.0), self.u(0.15, 0.8)) if messy else (self.u(0.4, 0.75), self.u(0.2, 0.6))
             t = np.linspace(0, np.pi, 24)
-            rr = L * np.sin(t)
-            ang = a + wdt * np.cos(t)
-            parts.append(np.stack([rr * np.cos(ang), rr * np.sin(ang)], 1))
+            rr = L * np.sin(t) ** (self.u(0.7, 1.3) if messy else 1)
+            ang = a + wdt * np.cos(t) + (self.u(-0.15, 0.15) * np.sin(t) if messy else 0)
+            parts.append(hub + np.stack([rr * np.cos(ang), rr * np.sin(ang)], 1))
         if ball:
             R = self.u(0.95, 1.15)
             b = -np.pi / 2 + self.u(-0.4, 0.4)
-            parts.append(dense([[0, 0], [R * np.cos(b), R * np.sin(b)]]))
+            parts.append(dense([hub, [R * np.cos(b), R * np.sin(b)]]))
             sgn = 1 if self.r.random() < 0.5 else -1
-            th = b + sgn * np.linspace(0, 2 * np.pi * self.u(0.95, 1.08), 70)
-            parts.append(np.stack([R * np.cos(th) * self.u(0.9, 1.1), R * np.sin(th)], 1))
+            th = b + sgn * np.linspace(0, 2 * np.pi * (self.u(0.88, 1.12) if messy else self.u(0.95, 1.08)), 70)
+            rad = R * (1 + (self.u(0.02, 0.07) * np.sin(self.r.integers(2, 5) * th + self.u(0, 6.3)) if messy else 0))
+            ex, ey = (self.u(0.85, 1.15), self.u(0.85, 1.15)) if messy else (self.u(0.9, 1.1), 1)
+            parts.append(np.stack([rad * np.cos(th) * ex, rad * np.sin(th) * ey], 1))
             if self.r.random() < 0.5:  # circle first (how most people draw it), then in to the middle, then the petals
                 circ = parts[-1]
-                inward = dense([circ[-1], [0, 0]])
+                inward = dense([circ[-1], hub])
                 parts = [circ, inward] + parts[:-2]
-        return self.finish(self.jv(np.vstack(parts), 0.004), rot=15)
+        p = np.vstack(parts)
+        if messy:  # slow hand drift along the stroke
+            n = len(p)
+            for _ in range(2):
+                f, ph, amp = self.u(1, 4), self.u(0, 6.3), self.u(0.01, 0.04)
+                p = p + amp * np.stack([np.sin(np.linspace(0, f * 6.3, n) + ph), np.cos(np.linspace(0, f * 6.3, n) + ph * 1.3)], 1)
+        return self.finish(self.jv(p, 0.006 if messy else 0.004), rot=20 if messy else 15)
 
     def sun(self, n=None):
         """Outline of an n-point sun (points alternate with inner corners), point up."""
@@ -875,11 +887,35 @@ def real_flames(g, copies=40):
     return X, Y
 
 
+def real_spirals(g, copies=40):
+    """Recorded Tidal Wave strokes (Water, read as spiral by the game) so messy Plasmas don't pull real spirals
+    away (Nov 24: without these, 4 of 7 real spirals dropped under the signature threshold)."""
+    import glob, json, os
+    X, Y = [], []
+    seen = set()
+    for f in glob.glob(os.path.join(os.path.dirname(__file__), "data", "strokes", "*.json")):
+        for s in json.load(open(f)):
+            if s.get("charge") != "W" or s.get("read") != "spiral":
+                continue
+            p = np.array([[q["x"], q["y"]] if isinstance(q, dict) else q[:2] for q in s["points"]], float)
+            key = (len(p), round(float(p[0, 0]), 2))
+            if key in seen:
+                continue
+            seen.add(key)
+            q = (p - p.mean(0)) / (np.ptp(p, 0).max() or 1)
+            for _ in range(copies):
+                X.append(features(g.finish(q, rot=8)))
+                Y.append(CLASSES.index("spiral"))
+    return X, Y
+
+
 def dataset(per_class, seed, none_mult=3, real=False):
     g = Gen(seed)
     X, Y = [], []
     if real:
         X, Y = real_flames(g)
+        Xs, Ys = real_spirals(g)
+        X, Y = X + Xs, Y + Ys
     for ci, c in enumerate(CLASSES):
         n = per_class * (none_mult if c == "none" else 1)
         for _ in range(n):

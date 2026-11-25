@@ -2,7 +2,7 @@
 // each spell a card with its drawing; click a card to turn it on or off, or the element to toggle all.
 import { COMBO_INFO, ELEMENTS, chargeInfo, shapesFor, spellName } from './spells'
 import { SHAPE_PATHS } from './shapePaths'
-import { ALL_DUMMY_SPELLS, DUMMY_COMBOS, DUMMY_ELEMENTS } from './settings'
+import { DUMMY_COMBOS, DUMMY_ELEMENTS } from './settings'
 
 /** One section per element, plus one for all the combos. */
 const GROUPS = [
@@ -10,19 +10,14 @@ const GROUPS = [
   ...(DUMMY_COMBOS.length ? [{ id: 'C', name: 'Combos', color: COMBO_INFO.color, els: DUMMY_COMBOS }] : []),
 ]
 
-export function DummySpells({ pool, onChange, onDone }: { pool: string[]; onChange: (pool: string[]) => void; onDone: () => void }) {
+/** The spell cards. The menu around it (DummyMenu) has the count and the All / None / Done footer. */
+export function DummySpells({ pool, onChange }: { pool: string[]; onChange: (pool: string[]) => void }) {
   const toggle = (keys: string[]) => {
     const allOn = keys.every((k) => pool.includes(k))
     onChange(allOn ? pool.filter((k) => !keys.includes(k)) : [...new Set([...pool, ...keys])])
   }
   return (
     <div className="dummy-spells">
-      <div className="dummy-spells-head">
-        <b className="leave-title">Dummy spells</b>
-        <span className="sub-line">
-          {pool.length} of {ALL_DUMMY_SPELLS.length} on
-        </span>
-      </div>
       <div className="dummy-spells-list">
         {GROUPS.map((g) => {
           const keys = g.els.flatMap((el) => shapesFor(el).map((sh) => `${el}:${sh}`))
@@ -51,15 +46,6 @@ export function DummySpells({ pool, onChange, onDone }: { pool: string[]; onChan
             </section>
           )
         })}
-      </div>
-      <div className="pool-actions">
-        <button className="small" onClick={() => onChange(ALL_DUMMY_SPELLS)}>
-          All
-        </button>
-        <button className="small" onClick={() => onChange([])}>
-          None
-        </button>
-        <button onClick={onDone}>Done</button>
       </div>
     </div>
   )
