@@ -248,6 +248,85 @@ export function plasmaPetals(points: Pt[]) {
   return n
 }
 
+/** Ramer-Douglas-Peucker: the stroke as a few straight lines (noise under eps disappears). */
+function simplify(p: Pt[], eps: number): Pt[] {
+  if (p.length < 3) return p
+  const [a, b] = [p[0], p[p.length - 1]]
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1
+  let far = 0, at = 0
+  for (let i = 1; i < p.length - 1; i++) {
+    const d = Math.abs((b.x - a.x) * (a.y - p[i].y) - (a.x - p[i].x) * (b.y - a.y)) / len
+    if (d > far) [far, at] = [d, i]
+  }
+  if (far <= eps) return [a, b]
+  return [...simplify(p.slice(0, at + 1), eps).slice(0, -1), ...simplify(p.slice(at), eps)]
+}
+
+/** Storm's bolt (Nov 25): its corners below the cloud. The cloud's bottom is the lowest level where the
+ *  drawing is still wide (the bolt is narrow). The stroke is straightened into lines (so shaky hands don't
+ *  add corners) and the sharp corners below that level are counted: three bolt lines make 2. Only the
+ *  corners count, never how long each line is. */
+export function stormShape(points: Pt[]) {
+  return cloudBumps(points) === 4 && boltCorners(points) === 2
+}
+
+/** The smoothed stroke, its box, and the cloud's bottom (the lowest level where the drawing is still wide;
+ *  the bolt below it is narrow). Shared by the bump and bolt counts. */
+function stormParts(points: Pt[]) {
+  const raw = resample(points, 200)
+  const q = raw.map((_, i) => {
+    let x = 0, y = 0, n = 0
+    for (let j = Math.max(0, i - 2); j <= Math.min(raw.length - 1, i + 2); j++) [x, y, n] = [x + raw[j].x, y + raw[j].y, n + 1]
+    return { x: x / n, y: y / n }
+  })
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+  for (const v of q) [x0, x1, y0, y1] = [Math.min(x0, v.x), Math.max(x1, v.x), Math.min(y0, v.y), Math.max(y1, v.y)]
+  const w = x1 - x0 || 1, h = y1 - y0 || 1
+  const BINS = 24
+  let bottom = y0
+  for (let k = 0; k < BINS; k++) {
+    const lo = y0 + (h * k) / BINS, hi = y0 + (h * (k + 1)) / BINS
+    const xs = q.filter((v) => v.y >= lo && v.y <= hi).map((v) => v.x)
+    if (xs.length && Math.max(...xs) - Math.min(...xs) >= 0.6 * w) bottom = hi
+  }
+  return { q, w, h, y0, bottom }
+}
+
+/** Storm's bumps (Nov 25): along the stroke until it drops into the bolt, count the tops that rise clearly
+ *  above the dips around them (by 20% of the cloud's height). Uneven or wobbly bumps still count once each. */
+export function cloudBumps(points: Pt[]) {
+  const { q, h, y0, bottom } = stormParts(points)
+  if (bottom === y0 || bottom > y0 + 0.7 * h) return 0
+  const prom = 0.2 * (bottom - y0)
+  const below = bottom + 0.04 * h
+  let n = 0, seekTop = true, lo = Infinity, hi = -Infinity
+  for (const v of q) {
+    if (v.y > below) break // into the bolt
+    if (seekTop) {
+      lo = Math.min(lo, v.y)
+      if (v.y > lo + prom) [n, seekTop, hi] = [n + 1, false, v.y]
+    } else {
+      hi = Math.max(hi, v.y)
+      if (v.y < hi - prom) [seekTop, lo] = [true, v.y]
+    }
+  }
+  return n
+}
+
+export function boltCorners(points: Pt[]) {
+  const { q, w, h, y0, bottom } = stormParts(points)
+  // No wide cloud in the top 70% (a bolt alone, a scribble): not a Storm.
+  if (bottom === y0 || bottom > y0 + 0.7 * h) return -1
+  const below = bottom + 0.04 * h
+  const s = simplify(q, 0.045 * Math.max(w, h))
+  let n = 0
+  for (let i = 1; i < s.length - 1; i++) {
+    const t = Math.abs(wrap(Math.atan2(s[i + 1].y - s[i].y, s[i + 1].x - s[i].x) - Math.atan2(s[i].y - s[i - 1].y, s[i].x - s[i - 1].x)))
+    if (t > 0.9 && s[i].y > below) n++
+  }
+  return n
+}
+
 /** Doom's blade must really curve (a few straight lines with corners used to pass). Splits the stroke at
  *  sharp corners and returns the most net turning (degrees) any long-enough smooth run makes. The
  *  blade's curves turn 110°+ over a good share of the stroke; straight lines with corners turn ~0 between
@@ -341,6 +420,19 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
     if (plasmaPetals(points) === 3) return { name: 'plasma', score: Math.max(0.7, plasma), top }
     if (top[0].name === 'plasma') return { name: 'none', score: top[0].prob, top }
   }
+  // Storm (Nov 25): the network was trained hard on lopsided combos and grew picky about the bolt's line
+  // lengths, often calling a fine Storm a scribble. So it only says which shape this is closest to; the rule
+  // judges it: a wide cloud on top and a bolt of exactly 3 lines (2 corners), whatever their lengths.
+  const real = top.filter((t) => t.name !== 'none')
+  if (real[0]?.name === 'cloud' || top[0].name === 'cloud') {
+    if (stormShape(points)) {
+      const none = top.find((t) => t.name === 'none')?.prob ?? 0
+      const p = Math.max(0.9, real[0].prob, none + 0.01) // 0.9: Storm is a strict shape (SIGNATURE_SCORE in SpellPage)
+      const boosted = top.map((t) => (t.name === 'cloud' ? { ...t, prob: p } : t)).sort((a, b) => b.prob - a.prob)
+      return { name: 'cloud', score: p, top: boosted }
+    }
+    if (top[0].name === 'cloud') return { name: 'none', score: top[0].prob, top }
+  }
   // Heavy (H): both posts must run the full height, with the crossbar between them (no half-drawn H).
   if (top[0].name === 'h' && !fullH(points)) return { name: 'none', score: top[0].prob, top }
   // Doom: the blade has to curve. Straight lines with corners are never a scythe.
@@ -369,6 +461,7 @@ export function passesRules(name: string, points: Pt[]) {
   if (name === 'flame') return spikeCount(points) === 4
   if (name === 'sun') return sunTips(points) === 8
   if (name === 'plasma') return plasmaPetals(points) === 3
+  if (name === 'cloud') return stormShape(points)
   if (name === 'scythe') return bladeCurve(points) >= DOOM_CURVE
   return true
 }

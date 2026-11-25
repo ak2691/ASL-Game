@@ -1,3 +1,4 @@
+import { HomeButton } from './HomeCorner'
 // Privacy: what the camera is used for and what (little) leaves the device. Keep this accurate
 // whenever data handling changes (new uploads, analytics, accounts, recordings).
 export function PrivacyPage({ onHome }: { onHome: () => void }) {
@@ -5,9 +6,7 @@ export function PrivacyPage({ onHome }: { onHome: () => void }) {
     <main className="page info-page">
       <div className="info-top">
         <h1 className="logo">Privacy</h1>
-        <button className="small" onClick={onHome}>
-          Home
-        </button>
+        <HomeButton onClick={onHome} />
       </div>
 
       <section className="info-card">

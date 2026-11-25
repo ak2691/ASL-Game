@@ -186,7 +186,7 @@ const DRAW_MS: Record<string, number> = {
   tomb: 5000, // 9 straight lines
   iceberg: 5200, // 10 straight lines
   volcano: 5200, // 9 lines and a small arc
-  cloud: 5600, // three arcs, then the bolt
+  cloud: 5200, // four arcs, then the bolt: a simple drawing, as quick as Magma (Nov 25: 5600 with three bumps, briefly 6100)
   thermo: 6000, // tube, bulb, then a 4-line crack
   puff: 6200, // 8 humps, each a careful arc
   yinyang: 6200, // circle, the S, both dots
@@ -287,8 +287,8 @@ const COMBO_LETTER_MS = 400 // each of a combo's letters (C, then two elements),
  *  (p = 1) 1.2 s, ~2.0 s and ~4 s (Nov 25: were 1.5, 2.5 and 6). In between it eases down
  *  geometrically (each floor ~8% quicker for heavies), so beginners stay slow. Counter circles and quick
  *  interrupts keep their speed-based time. `ramp` (< 1) is a top bot speeding up through the fight. */
-// Combos (Nov 25): 9 s at the bottom to 4 s at the top, half geometric and half linear (per floor: plans/balance.md).
-const AI_DRAW = { heavy: [4000, 1200], signature: [5500, 2000], combo: [9000, 4000] } as const // signature top: Nov 25 was 2500
+// Combos (Nov 25): 8.5 s at the bottom to 3.5 s at the top, half geometric and half linear (per floor: plans/balance.md).
+const AI_DRAW = { heavy: [4000, 1200], signature: [5500, 2000], combo: [8500, 3500] } as const // signature top: Nov 25 was 2500
 const SIG_AVG = 2200 // DRAW_MS average of the signatures and Angelic/Unholy shapes
 const COMBO_AVG = 5900 // ...and of the combos
 function aiDrawMs(shape: string, p: number, ramp: number) {

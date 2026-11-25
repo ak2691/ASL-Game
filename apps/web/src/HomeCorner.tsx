@@ -57,3 +57,13 @@ export function HomeCorner({ onGuide }: { onGuide: () => void }) {
     </div>
   )
 }
+
+/** The one Home button (Nov 25): red, with a house (or a back arrow for Back), on every page that leaves. */
+export function HomeButton({ onClick, back, className = '' }: { onClick: () => void; back?: boolean; className?: string }) {
+  return (
+    <button className={`small book-home ${className}`} onClick={onClick}>
+      <Icon d={back ? 'M15 5l-7 7 7 7' : 'M3 11l9-8 9 8 M5 9v12h5v-6h4v6h5V9'} />
+      {back ? 'Back' : 'Home'}
+    </button>
+  )
+}

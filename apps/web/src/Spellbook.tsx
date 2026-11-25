@@ -5,14 +5,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STEAM_SHOTS, STORM, SUNFIRE, THERMAL,
   TWILIGHT_MS, DOOM_DMG, DOOM_MS, DOOM_LIFT, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, CHILL_HEAVY_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, PRISON_CHILL,
-  PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS,
+  PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, PARRY_MISS_MS, PARRY_HIT_MS, TWILIGHT_GUARD, TWILIGHT_EXPOSE, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS,
 } from './combat'
 import { COMBO, COMBO_CHARGES, COMBO_MIX, COMBO_SHAPE, COMBOS_ON, COUNTER, ELEMENTS, SIGNATURE } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
-import { IconLegend } from './effects'
 import { loadDrawHand } from './settings'
-import { Icon } from './HomeCorner'
-import { LEGEND_HAND, ROW_ICONS, type RowIcon } from './statusIcons'
+import { HomeButton } from './HomeCorner'
+import { iconPath, type RowIcon } from './statusIcons'
 
 const s = (ms: number) => `${ms / 1000} s`
 const ATTACK_ELS = ['F', 'I', 'W', 'E', 'L']
@@ -193,6 +192,57 @@ const cycle = (
   </div>
 )
 
+/** A status as the fight shows it: its icon (red edge bad, green good), how long it lasts, what it does. */
+type StatusInfo = { icon: RowIcon; name: string; lasts: string; does: string; good?: boolean }
+const StatusRows = ({ rows }: { rows: StatusInfo[] }) => (
+  <ul className="book-status">
+    {rows.map((r) => (
+      <li key={r.name}>
+        <span className={`st-icon ${r.good ? 'good' : 'bad'}`}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d={iconPath(r.icon)} />
+          </svg>
+        </span>
+        <span className="book-status-text">
+          <b>
+            {r.name} <em>{r.lasts}</em>
+          </b>
+          <small>{r.does}</small>
+        </span>
+      </li>
+    ))}
+  </ul>
+)
+const HURT: StatusInfo[] = [
+  { icon: 'burn', name: 'Burning', lasts: '1.5 s (Magma 5 s, Sunfire 6 s)', does: `Damage every 0.5 s: +${BURN[0]} light, +${BURN[1]} heavy.` },
+  { icon: 'chill', name: 'Chilled', lasts: `${s(CHILL_MS)} light, ${s(CHILL_HEAVY_MS)} heavy`, does: `The next hit on you does +${CHILL[0] * 100}% (light) or +${CHILL[1] * 100}% (heavy).` },
+  { icon: 'static', name: 'Static', lasts: `${STATIC_PULSES[0]} pulse light, ${STATIC_PULSES[1]} heavy`, does: 'Throwing while it is lit fizzles. Wait for the gap.' },
+  { icon: 'storm', name: 'Storm', lasts: `${STORM.count} pulses`, does: `${STORM.pulse} damage a pulse. Throwing in one costs ${STORM.zap}.` },
+]
+const STOPPED: StatusInfo[] = [
+  { icon: 'silenced', name: 'Stunned', lasts: `until their next hit, at most ${s(COUNTER_SILENCE_MS)}`, does: 'Their counterspell caught your element. No casting; your charge is gone.' },
+  { icon: 'silenced', name: 'Frozen', lasts: `up to ${s(PRISON_SILENCE_MS)}`, does: 'Frozen Prison. No casting, whatever your element.' },
+  { icon: 'interrupted', name: 'Interrupted', lasts: s(INTERRUPT_LOCK_MS), does: 'Their interrupt hit you. No signing, drawing or throwing.' },
+  { icon: 'whiffed', name: 'Whiffed', lasts: s(WHIFF_MS), does: 'Your interrupt missed. Locked out.' },
+]
+const STOPPED2: StatusInfo[] = [
+  { icon: 'fizzled', name: 'Fizzled', lasts: s(FIZZLE_LOCK_MS), does: 'A wrong drawing, or a spell not thrown in time. No throws; your charge is gone.' },
+  { icon: 'staggered', name: 'Staggered', lasts: s(PARRY_MISS_MS), does: 'A mistimed parry. No throws and no parries.' },
+  { icon: 'recover', name: 'Parried', lasts: s(PARRY_HIT_MS), does: 'A good parry. A moment before you can throw again.', good: true },
+]
+const CURSES: StatusInfo[] = [
+  { icon: 'doom', name: 'Doomed', lasts: s(DOOM_MS), does: `Throw a spell at ${DOOM_LIFT * 100}% power or higher before it ends, or take ${DOOM_DMG}.` },
+  { icon: 'exposed', name: 'Exposed', lasts: s(TWILIGHT_MS), does: `Twilight. You take +${TWILIGHT_EXPOSE * 100}% damage.` },
+  { icon: 'fog', name: 'Steam', lasts: `${s(STEAM_MS)} or ${STEAM_SHOTS} attacks`, does: 'Your attacks miss.' },
+  { icon: 'noHeal', name: 'Grave', lasts: s(GRAVE.ms), does: 'Nothing heals you or gives you armor. A full-power Heal clears it.' },
+]
+const BUFFS: StatusInfo[] = [
+  { icon: 'regen', name: 'Regenerating', lasts: '2.5 s', does: `+${REGEN.amount} every 0.5 s. A counterspell stops it.`, good: true },
+  { icon: 'aegis', name: 'Aegis', lasts: `until it drains (${AEGIS_DRAIN} a second)`, does: `${AEGIS_HP} armor soaks direct hits first.`, good: true },
+  { icon: 'guard', name: 'Guarded', lasts: s(TWILIGHT_MS), does: `Twilight. You take ${TWILIGHT_GUARD * 100}% less damage.`, good: true },
+  { icon: 'shroud', name: 'Shrouded', lasts: s(SHROUD_MS), does: "They can't see your charge or drawing.", good: true },
+]
+
 const PAGES: Page[] = [
   { ch: 'basics', title: 'Charge', art: <div className="book-signs wrap">{[...ATTACK_ELS, 'A', 'U'].map((l) => <span key={l} className="book-sign-cap" style={{ color: ELEMENTS[l].color }}><Sign l={l} size={68} /><small>{ELEMENTS[l].name}</small></span>)}</div>, how: 'Sign a letter with one hand and hold it.', does: 'Your hand charges with that element. Open all five fingers and hold to drop it.' },
   { ch: 'basics', title: 'Draw', art: <DrawDemo />, how: "Keep holding the letter. Trace a shape with your other hand's index finger.", does: 'Open your signing hand to finish. The yellow dot is one place to start: any start or direction works.' },
@@ -219,8 +269,11 @@ const PAGES: Page[] = [
   { ch: 'defense', title: 'Interrupt', art: <InterruptArt />, how: 'They charge Fire? Sign W and push it at the camera. No drawing.', does: `Their spell fizzles and they're locked out ${s(INTERRUPT_LOCK_MS)}. Miss and you're locked out ${s(WHIFF_MS)}. Can't stop heals.` },
   { ch: 'defense', title: 'Parry', art: parryArt, how: 'A ring closes in on your hands as a spell flies at you. When it flashes white, push both hands at the camera.', does: `It flies back at half power. You get ${PARRY_WINDOWS.light / 1000} s to push for a light, ${PARRY_WINDOWS.heavy / 1000} s for a heavy, ${PARRY_WINDOWS.signature / 1000} s for a signature.` },
   { ch: 'status', title: 'Wear', art: wearArt, how: `Power is how strong an element's spells are. At 70%, a 24 damage heavy does 17, and heals, burns and chills shrink the same way.`, does: `A light or Angelic throw takes ${WEAR_STEP * 50}%, anything else ${WEAR_STEP * 100}%, down to ${WEAR_FLOOR * 100}%. It comes back ${WEAR_STEP * 100}% every ${s(WEAR_DECAY_MS)}, so switch elements.` },
-  { ch: 'status', title: "Can't act", art: <IconLegend keys={LEGEND_HAND} />, how: 'Your hand shows a red ring and a word saying why.', does: `Stunned: no casting until they hit you. Interrupted: locked out. Fizzled: no throws for ${s(FIZZLE_LOCK_MS)}.` },
-  { ch: 'status', title: 'Buffs and debuffs', art: <IconLegend keys={(Object.keys(ROW_ICONS) as RowIcon[]).filter((k) => k !== 'mirror')} />, how: 'Icons under a health bar. Red edge: bad. Green: good.', does: 'The bar under each icon runs down with its time.' },
+  { ch: 'status', title: 'Burning and slowed', art: <StatusRows rows={HURT} />, how: 'Icons under a health bar, with a bar that runs down with the time left.', does: 'Worn spells give shorter, weaker effects.' },
+  { ch: 'status', title: "Can't act", art: <StatusRows rows={STOPPED} />, how: 'Your hand shows a red ring that drains, and a word saying why.', does: 'Wait it out. The ring is the timer.' },
+  { ch: 'status', title: "Can't act, part 2", art: <StatusRows rows={STOPPED2} />, how: 'Short lockouts from your own mistakes.', does: 'A good parry shows a green shield instead.' },
+  { ch: 'status', title: 'Curses', art: <StatusRows rows={CURSES} />, how: 'Red-edged icons under your health bar.', does: 'A Heal at full Angelic power clears them all.' },
+  { ch: 'status', title: 'Buffs', art: <StatusRows rows={BUFFS} />, how: 'Green-edged icons under your health bar.', does: 'Wear shortens them too, if the spell was worn.' },
 ]
 
 const CHAPTERS: { id: string; name: string; color: string }[] = [
@@ -260,10 +313,7 @@ export function Spellbook({ onHome, inMatch }: { onHome: () => void; inMatch?: b
     <main className={`page info-page book-page ${inMatch ? 'in-match' : ''}`}>
       <div className="info-top">
         <h1 className="logo">Spellbook</h1>
-        <button className="small book-home" onClick={onHome}>
-          <Icon d={inMatch ? 'M15 5l-7 7 7 7' : 'M3 11l9-8 9 8 M5 9v12h5v-6h4v6h5V9'} />
-          {inMatch ? 'Back' : 'Home'}
-        </button>
+        <HomeButton onClick={onHome} back={inMatch} />
       </div>
       <nav className="book-ribbons" aria-label="Chapters">
         {CHAPTERS.map((c) => (

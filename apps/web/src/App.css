@@ -1304,3 +1304,21 @@ html[data-theme] .book-home { display: inline-flex; align-items: center; gap: 6p
 @keyframes parry-ring { 0%, 48% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); } 52%, 85% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
 /* Parry color (Nov 25): white with a glow, not light blue (that was Ice's color). On paper it gets an ink outline. */
 .book-parry-hand::after { border-color: #fff; box-shadow: 0 0 0 3px #1d1b2e, inset 0 0 0 3px #1d1b2e, 0 0 18px 4px rgba(255, 255, 255, 0.9); }
+/* Spellbook status rows: the fight's icon, the name with how long it lasts, one line on what it does. */
+.book-status { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 420px; text-align: left; color: #2a2238; }
+.book-status li { display: flex; align-items: flex-start; gap: 10px; }
+.book-status .st-icon { flex: none; width: 30px; height: 30px; }
+.book-status .st-icon svg { width: 100%; height: 100%; }
+.book-status-text { display: flex; flex-direction: column; min-width: 0; }
+.book-status-text b { font-size: 15px; line-height: 1.2; }
+.book-status-text em { font-style: normal; font-weight: 700; font-size: 13px; color: #7a4a00; margin-left: 4px; }
+.book-status-text small { font-size: 13px; line-height: 1.3; color: #4a3f5c; }
+.book-leaf.left:has(.book-status) { justify-content: flex-start; overflow-y: auto; scrollbar-width: none; padding-top: 34px; }
+/* Custom game HP: a typed number between the - and + steps. */
+.hp-box { display: inline-flex; align-items: baseline; gap: 4px; }
+.hp-box input { width: 4.2ch; padding: 2px 4px; font: inherit; font-family: var(--title, inherit); font-size: 18px; text-align: center; color: #fffaf0;
+  background: #141226; border: 2px solid #1d1b2e; border-radius: 6px; -moz-appearance: textfield; }
+.hp-box input::-webkit-outer-spin-button, .hp-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.hp-box b { font-size: 14px; }
+@media (pointer: coarse) { .hp-box input { font-size: 20px; padding: 6px 4px; } }
+.book-status { gap: 6px; } .book-status .st-icon { width: 26px; height: 26px; }

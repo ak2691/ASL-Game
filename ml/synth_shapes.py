@@ -17,7 +17,7 @@ versions are near-misses where that changes the shape (W upside down = M = none)
   veil        Unholy Shroud: three cursive loops in a row
   blade       Unholy Execute: guillotine: post on top, box, triangle blade hanging under the box
   volcano     Magma (F+E): volcano slopes with a smoke loop out of the crater, then the base line
-  cloud       Storm (W+L): closed three-bump cloud with a lightning tail out of the bottom
+  cloud       Storm (W+L): closed four-bump cloud with a lightning tail out of the bottom (Nov 25: was three)
   iceberg     Advancing Glacier (I+E): waterline, peaks above it, then the big hull below
   yinyang     Twilight (H+U): circle, an S through it, then both dots
   puff        Steam (F+W): closed puffy cloud, 3 humps on top, 1 each side, 3 below
@@ -527,19 +527,24 @@ class Gen:
         p = np.vstack([left] + mid + [right] + tail)
         return self.finish(p, rot=8, flip_ok_x=True)
 
-    def cloud(self, bolt=True, bumps=3):
+    def cloud(self, bolt=True, bumps=4):
         y0 = 0.6
         xs = np.linspace(1, 0, bumps + 1)
         parts = [dense([[0.45, y0], [1, y0]])]
         for i in range(bumps):
             a, b = xs[i], xs[i + 1]
             c, rad = (a + b) / 2, (a - b) / 2
-            hgt = self.u(1.1, 1.7) * rad * (1.25 if i == bumps // 2 else 1)
+            # Nov 25: uneven bumps are fine (some leeway for messiness), the count is what matters.
+            hgt = self.u(0.9, 1.8) * rad * (1.25 if i == bumps // 2 else 1)
             parts.append(self.arc(c, y0, rad, hgt, 0, -np.pi, 20)[::1] if False else np.stack([c + rad * np.cos(np.linspace(0, np.pi, 20)), y0 - hgt * np.sin(np.linspace(0, np.pi, 20))], 1))
         parts.append(dense([[0, y0], [0.45, y0]]))
         if bolt:
-            z = self.u(0.12, 0.2)
-            parts.append(self.sharp([[0.45, y0], [0.45 - z, y0 + 0.25], [0.45 + z * 0.6, y0 + 0.28], [0.45 - z * 0.2, y0 + 0.6]], 0.015))
+            # Nov 25: three bolt lines of any lengths (a long first, a tiny middle, a long last...): the corners
+            # count, never the proportions.
+            z = self.u(0.1, 0.24)
+            l1, d, l3 = self.u(0.12, 0.42), self.u(-0.04, 0.1), self.u(0.15, 0.5)
+            a, b, c = self.u(0.6, 1.4), self.u(0.25, 1.3), self.u(-0.3, 0.6)
+            parts.append(self.sharp([[0.45, y0], [0.45 - z * a, y0 + l1], [0.45 + z * b, y0 + l1 + d], [0.45 - z * c, y0 + l1 + d + l3]], 0.015))
         return self.finish(self.jv(np.vstack(parts), 0.006), rot=8)
 
     def trefoil(self, k=3):
@@ -753,7 +758,7 @@ class Gen:
             lambda: self.trefoil(k=3),                           # old trefoil (Plasma without the ball)
             lambda: self.circle_x(),
             lambda: self.cloud(bolt=False),                      # cloud, no bolt
-            lambda: self.cloud(bolt=True, bumps=int(self.r.choice([2, 5]))),  # wrong bump count
+            lambda: self.cloud(bolt=True, bumps=int(self.r.choice([3, 3, 3, 5, 5, 2]))),  # wrong bump count (3 and 5 most)
             lambda: self.yinyang(inner="line"),                  # circle + straight line
             lambda: self.loop(self.u(1.6, 2.0)),                 # double circle
             lambda: self.h(half=True),                           # H with the last leg half done

@@ -412,3 +412,22 @@ Practice AI heavy draw, floor 1 to 13 (geometric): 4.0, 3.62, 3.27, 2.96, 2.68, 
 Keeps a ~0.8 s step to the average signature (2.0 s). Interrupt window vs the top heavy: ~1.2 s draw + 0.7 s
 flight. Adept follow-ups fit more easily (Morwen heavy 2.68 s, was 2.88). Watch: Archwizard lights (0.4 s)
 and whether Master heavies are still readable.
+
+### Bot combos 8.5 s to 3.5 s (Nov 25)
+Average combo draw, floors 1-13 (half geometric, half linear): 8.5, 7.99, 7.5, 7.03, 6.58, 6.14, 5.73, 5.32,
+4.94, 4.56, 4.2, 3.84, 3.5 s (was 9.0 ... 4.0). Per combo (sqrt of its size), floor 1 / floor 13: Grave
+7.8 / 3.2, Glacier and Magma 8.0 / 3.3, Storm 8.3 / 3.4, Thermal 8.6 / 3.5, Steam and Twilight 8.7 / 3.6,
+Plasma 9.6 / 4.0, Sunfire 9.9 / 4.1 s. Still ~1.5 s slower than a signature (2.0 s) at the top, plus ~0.6 s of
+signing three letters: readable and counterable. Watch Archmage-Archwizard combo pressure.
+
+### Storm: four bumps (Nov 25)
+Storm's drawing now has exactly four bumps (was three): it was barely slower to draw than Thunderbolt for a
+combo. Bolt line lengths are free (only 3 lines matter). Bot Storm draw time scales up: DRAW_MS 5600 -> 6100,
+so 8.6 s on floor 1, 3.6 s at the Archwizard (was 8.3 / 3.4). No damage change: a slightly longer draw makes
+it a touch easier to see coming and counter. Watch: Tide (its only combo) and top combo bots.
+
+### Storm drawn as fast as Magma (Nov 25)
+User: four bumps and a 3-line bolt is a simple drawing, about Magma's difficulty. Bot DRAW_MS cloud 6100 -> 5200
+(= Magma, Glacier): 8.0 s on floor 1, 3.3 s at the Archwizard (was 8.6 / 3.6). Magma unchanged. No damage
+change; Storm (25 + 5 pulses of 10, throws in a pulse fizzle and cost 15) lands a little sooner, so its
+pulses catch more throws. Watch Tide (Storm is its only combo).

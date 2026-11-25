@@ -20,7 +20,7 @@ import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
 import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids, loadChatter, saveChatter } from './settings'
 import { DummySpells } from './DummySpells'
-import { BOOK, GEAR, Icon } from './HomeCorner'
+import { BOOK, GEAR, HomeButton, Icon } from './HomeCorner'
 
 const RESET = 'M3 12a9 9 0 1 0 3-6.7 M3 4v5h5'
 import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
@@ -1633,9 +1633,7 @@ function LobbyScreen(props: {
         {body}
         {lobby.awayUntil !== null && <span className="note-line">A player disconnected. Their seat is held 15 s.</span>}
         {lobby.note && <span className="note-line">{lobby.note}</span>}
-        <button className="small lobby-home" onClick={onHome}>
-          Home
-        </button>
+        <HomeButton className="lobby-home" onClick={onHome} />
       </div>
     </section>
   )
@@ -1674,6 +1672,38 @@ function OnlineChip({ lobby, clock, arena }: { lobby: LobbyInfo; clock: number; 
   )
 }
 
+const HP_STEP = 25 // the - and + buttons (Nov 25: was 50); typed values stay exact
+
+/** The host's HP box: type any whole number from HP_MIN to HP_MAX (kept in range); set on Enter or leaving the box. */
+function HpBox({ hp, onSet }: { hp: number; onSet: (v: number) => void }) {
+  const [text, setText] = useState(String(hp))
+  useEffect(() => setText(String(hp)), [hp])
+  const commit = () => {
+    const v = Math.round(Number(text))
+    if (!Number.isFinite(v) || !text.trim()) return setText(String(hp))
+    const c = Math.min(HP_MAX, Math.max(HP_MIN, v))
+    setText(String(c))
+    if (c !== hp) onSet(c)
+  }
+  return (
+    <label className="hp-box">
+      <input
+        type="number"
+        inputMode="numeric"
+        min={HP_MIN}
+        max={HP_MAX}
+        step={1}
+        value={text}
+        aria-label="HP"
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+      />
+      <b>HP</b>
+    </label>
+  )
+}
+
 /** The room's two teams: who's on each, ready or not, and their HP (the host sets HP). */
 function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | null }) {
   const host = lobby.you === lobby.host
@@ -1687,11 +1717,11 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
             <span className="room-seat-name">{s.i === lobby.you ? 'You' : `Player ${s.i + 1}`}</span>
             {host ? (
               <span className="room-hp hp-step" role="group" aria-label={`HP for ${s.i === lobby.you ? 'you' : `player ${s.i + 1}`}`}>
-                <button onClick={() => arena?.setHp(s.i, Math.max(HP_MIN, s.hp - 50))} disabled={s.hp <= HP_MIN} aria-label="Less HP">
+                <button onClick={() => arena?.setHp(s.i, Math.max(HP_MIN, s.hp - HP_STEP))} disabled={s.hp <= HP_MIN} aria-label="Less HP">
                   −
                 </button>
-                <b>{s.hp} HP</b>
-                <button onClick={() => arena?.setHp(s.i, Math.min(HP_MAX, s.hp + 50))} disabled={s.hp >= HP_MAX} aria-label="More HP">
+                <HpBox hp={s.hp} onSet={(v) => arena?.setHp(s.i, v)} />
+                <button onClick={() => arena?.setHp(s.i, Math.min(HP_MAX, s.hp + HP_STEP))} disabled={s.hp >= HP_MAX} aria-label="More HP">
                   +
                 </button>
               </span>

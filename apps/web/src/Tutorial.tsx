@@ -1,3 +1,4 @@
+import { HomeButton } from './HomeCorner'
 // Tutorial: cast every spell once on the dummy. Each step shows the ASL letter, an animated
 // drawing of the shape, and one short tip. A step passes when that spell is thrown.
 import { useEffect, useRef, useState } from 'react'
@@ -70,7 +71,7 @@ const HINTS: Record<string, string> = {
   veil: 'Three loops in a row',
   blade: 'A box, a blade under it, a post on top',
   volcano: 'Slopes, a loop on top, then the base',
-  cloud: 'Three bumps, then a bolt out the bottom',
+  cloud: 'Exactly four bumps, then a bolt of three lines out the bottom',
   iceberg: 'Waterline, the peaks, then the big part below',
   yinyang: 'A circle, an S through it, then both dots',
   puff: 'Three humps on top, one each side, three below',
@@ -317,7 +318,7 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
           <button className="small" {...press(() => go(-1))}>
             ◀
           </button>
-          <button {...press(onHome)}>Home</button>
+          <HomeButton onClick={onHome} />
         </div>
         <ProgressBar at={i} done={done} onPick={setI} />
       </div>

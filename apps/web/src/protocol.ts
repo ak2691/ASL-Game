@@ -3,8 +3,8 @@ import type { CombatView, Fid, Side } from './combat'
 
 export const ROOM_MAX = 4 // up to 2 per team
 export const TEAM_MAX = 2
-export const HP_MIN = 100
-export const HP_MAX = 600
+export const HP_MIN = 50 // Nov 25: was 100; custom games set any whole number in range
+export const HP_MAX = 700 // Nov 25: was 600
 
 export type ClientMsg =
   | { t: 'hello'; token: string } // first message: who you are (kept across refreshes, so you can rejoin)

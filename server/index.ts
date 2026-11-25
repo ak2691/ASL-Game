@@ -298,7 +298,7 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
     case 'hp': {
       const target = room.seats[Number(msg.seat)]
       if (!lobby || room.seats[0] !== seat || !target) return
-      target.hp = Math.min(HP_MAX, Math.max(HP_MIN, Math.round((Number(msg.hp) || MAX_HP) / 10) * 10))
+      target.hp = Math.min(HP_MAX, Math.max(HP_MIN, Math.round(Number(msg.hp) || MAX_HP))) // exact whole numbers (Nov 25: was rounded to 10)
       room.seats.forEach((s) => (s.ready = false))
       return sendLobby(room)
     }
