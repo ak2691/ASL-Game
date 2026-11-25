@@ -29,7 +29,7 @@ const SIGNATURES = [
 const UNHOLY = [
   { name: 'Doom', draw: 'Scythe: blade, then two lines across the handle', effect: `They must land a cast within ${s(DOOM_MS)} or take ${DOOM_DMG}.` },
   { name: 'Shroud', draw: 'Three loops', effect: `For ${s(SHROUD_MS)} they can't see your charge or your drawing.` },
-  { name: 'Execute', draw: 'Guillotine', effect: `${EXECUTE[0]} + ${EXECUTE[1] * 100}% of their missing HP, up to ${EXECUTE[2]}. If a counterspell catches it readied, you take half of what it would do to you.` },
+  { name: 'Execute', draw: 'Guillotine', effect: `${EXECUTE.base}, or ${EXECUTE.cursed} if they're cursed when it lands (burning, chilled, static, Doomed, Exposed, fogged or no healing). If a counterspell catches it readied, you take half of what it would do to you.` },
 ]
 
 const COMBO_ROWS = [
@@ -39,7 +39,7 @@ const COMBO_ROWS = [
   { c: 'twilight', mix: 'C, A, U', draw: 'Yin-yang with dots', dmg: '0', effect: `For ${s(TWILIGHT_MS)} you take 50% less and they take double damage.` },
   { c: 'steam', mix: 'C, F, W', draw: 'Puffy cloud', dmg: `${STEAM_HIT}`, effect: `Their next ${STEAM_SHOTS} attacks within ${s(STEAM_MS)} miss. Spells already flying still land.` },
   { c: 'thermal', mix: 'C, F, I', draw: 'Thermometer with a crack', dmg: `${THERMAL.hit}`, effect: `+${THERMAL.burn} burn, and chills them: their next hit does +${THERMAL.chill * 100}%.` },
-  { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Burns +${PLASMA.burn}, knocks their charge off, and drops all their elements to ${PLASMA.cap * 100}% power or less.` },
+  { c: 'plasma', mix: 'C, L, F', draw: 'Tendrils in a ball', dmg: `${PLASMA.hit}`, effect: `Burns +${PLASMA.burn}, knocks their charge off, and wears every element of theirs above ${PLASMA.cap * 100}% down to ${PLASMA.cap * 100}%. Elements already lower stay as they are.` },
   { c: 'sunfire', mix: 'C, A, F', draw: 'Sun', dmg: `${SUNFIRE[0]}`, effect: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
   { c: 'grave', mix: 'C, U, E', draw: 'Tombstone', dmg: `${GRAVE.hit}`, effect: `For ${s(GRAVE.ms)} they can't heal or use any Angelic spell. An Angelic counterspell still works.` },
 ]

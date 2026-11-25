@@ -559,11 +559,11 @@ export class PracticeArena implements Arena {
     const s = this.style
     if (v.doom.enemy > 0) return spellOf(this.anyEl(), 'line', sp) // doomed: throw anything, fast
     if (Math.random() >= s.utility) return null
-    const low = v.hp.player / v.maxHp.player < 0.4
     const armored = v.shield.player > 0
+    const cursed = this.combat.cursed('player', performance.now())
     const opts: { w: number; v: [string, string] }[] = [
-      // Execute: saved for when you're low and your armor is gone (armor would soak it).
-      { w: armored ? lerp(0.5, 0, s.smart) : low ? 4 : 0.5, v: ['U', 'blade'] },
+      // Execute: saved for when you're cursed (double damage) and your armor is gone (armor would soak it).
+      { w: armored ? lerp(0.5, 0, s.smart) : cursed ? lerp(1, 5, s.smart) : lerp(0.5, 0.1, s.smart), v: ['U', 'blade'] },
       // Doom: its 30 lands as a direct hit, which armor can't stop from being a threat: better vs armor.
       { w: armored ? lerp(1, 4, s.smart) : 1, v: ['U', 'scythe'] },
       { w: v.shroud.enemy > 0 ? 0 : 1, v: ['U', 'veil'] },

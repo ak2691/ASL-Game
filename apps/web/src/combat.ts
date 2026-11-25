@@ -25,7 +25,9 @@ export const DOOM_MS = 2500 // Doom: land a cast within this time...
 export const DOOM_DMG = 30 // ...or take this
 export const SHROUD_MS = 6000 // Shroud: they can't see your charge or your drawing (Nov 24: was 5 s; now worn by wear)
 export const SHROUD_MIN_MS = 3000 // a worn Shroud never drops below this
-export const EXECUTE: [number, number, number] = [15, 0.3, 60] // Execute: base + share of their missing HP, capped
+// Execute (Nov 24): no longer about HP (it took over every late game). Double damage on a cursed target:
+// burning, chilled, static, Doomed, Exposed, fogged or no-heal when it lands. Wear still shrinks it.
+export const EXECUTE = { base: 30, cursed: 60 }
 // (a readied Execute hit by a counterspell backfires: the caster takes half of what it would do to them)
 // Combos (plans/combos.md). First guesses, to tune in playtests.
 // Nov 23 buff: a combo (C + 2 letters + a hard drawing) takes ~2-3x a heavy, so each should be worth ~2x one.
@@ -420,12 +422,24 @@ export class Combat {
     return Math.max(0, this.changeHp(target, -amount, color, now))
   }
 
-  /** What an Execute does to `side`: base + a share of their missing HP, capped. */
-  private executeDmg(side: Fid) {
-    const missing = this.maxHp[side] === Infinity ? 0 : this.maxHp[side] - this.hp[side]
-    return Math.min(EXECUTE[2], Math.round(EXECUTE[0] + EXECUTE[1] * missing))
+  /** Any curse on `side` right now: burning, chilled, static, Doomed, Exposed, fogged or no-heal (Execute doubles). */
+  cursed(side: Fid, now: number) {
+    const c = this.chill[side]
+    return (
+      this.ticking.some((t) => t.side === side && t.left > 0 && t.amount < 0) ||
+      (!!c && c.until > now) ||
+      this.staticAt(side, now) !== null ||
+      this.doomAt[side] > now ||
+      this.exposedUntil[side] > now ||
+      (this.fogUntil[side] > now && this.fogShots[side] > 0) ||
+      this.noHealUntil[side] > now
+    )
   }
 
+  /** What an Execute does to `side`: double on a cursed target. */
+  private executeDmg(side: Fid, now: number) {
+    return this.cursed(side, now) ? EXECUTE.cursed : EXECUTE.base
+  }
   /** Aegis armor left on `side` (it drains over time). */
   private armor(side: Fid, now: number) {
     const sh = this.shield[side]
@@ -742,7 +756,7 @@ export class Combat {
       if (caught || healing) {
         // A readied Execute caught by a counterspell (not a quick interrupt) backfires on its caster.
         if (shape === COUNTER && this.ready[target]?.shape === 'blade') {
-          const back = Math.round(this.executeDmg(target) / 2)
+          const back = Math.round(this.executeDmg(target, now) / 2)
           this.hit(target, back, ELEMENTS.U.color, now)
           this.note(target, 'Execute backfired!', `took ${back}`, ELEMENTS.U.color, false, now)
         }
@@ -830,7 +844,7 @@ export class Combat {
         this.float(target, 'Doomed!', color, now)
         this.note(target, 'Doomed!', `throw a spell within ${DOOM_MS / 1000} s`, color, false, now)
       } else if (shape === 'blade') {
-        this.hit(target, this.executeDmg(target), color, now)
+        this.hit(target, this.executeDmg(target, now), color, now)
       }
       return
     }
@@ -925,7 +939,7 @@ export class Combat {
         this.knocked[target]++
         const n = (1 - PLASMA.cap) / WEAR_STEP
         for (const e of Object.keys(ELEMENTS)) if (this.wearOf(target, e, now) < n) this.wear[target][e] = { n, at: now }
-        this.note(target, 'Overloaded!', `Plasma: every element at ${PLASMA.cap * 100}% or less`, color, false, now)
+        this.note(target, 'Overloaded!', `Plasma: your elements above ${PLASMA.cap * 100}% wear down to ${PLASMA.cap * 100}%`, color, false, now)
         this.float(target, 'Overloaded!', color, now)
         break
       }

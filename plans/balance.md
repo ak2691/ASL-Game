@@ -214,3 +214,14 @@ both are covered by the faster pace.
   over 5.5 s, 11-18/s. Below Magma, now a sure tempo/anti-big-spell pick. Two lights clear it (~3.6 s of theirs).
 - **AI**: Frost-Zealot rotate elements (`fresh`); anti-light Lightning skipped under the static cutoff; smart
   bots clear Steam's misses with lights.
+
+### Execute rework (Nov 24)
+Old: 15 + 30% of missing HP, cap 60. At 350 HP it capped at 57% HP left and replaced Meteor all late game.
+New: **30, or 60 if the target is cursed when it lands** (burning, chilled, static, Doomed, Exposed, fogged,
+no-heal; not stuns, knockdowns or wear). Backfire on a counterspell: half (15 or 30).
+- Only combo curses (Twilight 8 s, Steam 6 s, Grave 10 s, Sunfire 6 s, barely Magma/Storm) outlast Execute's
+  ~4 s cast in 1v1, so "combo, then Execute" is the play; in 2v2 a teammate's curses count.
+- Fresh and cursed: 60 vs Meteor 50, ~16.7/s: top signature (hardest draw), below combos (19-21/s).
+- After Grave or Twilight (both wear Unholy): ~50, even with Meteor. A second Execute in the window: ~40.
+- Watch: 2v2, where curses are near-constant. Fix if needed: cursed 60 -> 55.
+- AI: favors Execute when you're cursed (more so when smart), avoids it when you're not.
