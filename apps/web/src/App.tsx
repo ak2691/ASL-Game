@@ -14,6 +14,8 @@ import { getOnlineFlag } from './online'
 import { Spellbook } from './Spellbook'
 import { PrivacyPage } from './PrivacyPage'
 import { HomeCorner } from './HomeCorner'
+import { HomeBackdrop } from './HomeBackdrop'
+import { loadDrawHand } from './settings'
 import { Portrait } from './Ladder'
 import './App.css'
 
@@ -61,6 +63,7 @@ const SLIDE_OUT_MS = 180 // matches page-slide-out in App.css
 export default function App() {
   // A refresh goes back home, except mid online room (the server puts you back in your seat).
   const [mode, setMode] = useState<Mode | 'info' | 'guide' | 'privacy' | null>(() => (getOnlineFlag() ? 'online' : null))
+  const [drawHand, setDrawHand] = useState<Hand>(() => loadDrawHand()) // the home backdrop's casters draw with it
   // Home <-> How to cast / Spell Info: the old screen slides out first, then the new one slides in (TETR.IO-style).
   const slideTo = (m: 'info' | 'guide' | 'privacy' | null) => {
     if (document.body.classList.contains('page-leaving')) return
@@ -75,7 +78,8 @@ export default function App() {
   if (mode) return <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => setMode(null)} />
   return (
     <main className="home">
-      <HomeCorner onGuide={() => slideTo('guide')} />
+      <HomeBackdrop hand={drawHand} />
+      <HomeCorner onGuide={() => slideTo('guide')} onDrawHand={setDrawHand} />
       <div className="home-brand">
         <img className="hero-logo" src="/logo.svg" alt="" />
         <h1 className="logo">ASL Wizard</h1>

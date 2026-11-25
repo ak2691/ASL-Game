@@ -280,7 +280,7 @@ const CHAPTERS: { id: string; name: string; color: string }[] = [
   { id: 'basics', name: 'Basics', color: '#ff9f1c' },
   { id: 'elements', name: 'Elements', color: '#ff5470' },
   { id: 'signatures', name: 'Signatures', color: '#6c63ff' },
-  { id: 'magic', name: 'Magic', color: '#ffd23f' },
+  { id: 'magic', name: 'Angelic & Unholy', color: '#ffd23f' },
   ...(COMBOS_ON ? [{ id: 'combos', name: 'Combos', color: '#2ec4b6' }] : []),
   { id: 'defense', name: 'Defense', color: '#4dabf7' },
   { id: 'status', name: 'Status', color: '#b197fc' },

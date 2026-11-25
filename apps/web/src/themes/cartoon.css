@@ -279,6 +279,27 @@
   opacity: 0.9;
 }
 [data-theme='cartoon'] .home > * { position: relative; z-index: 1; }
+/* Home (Nov 25): the duel inside the tower (HomeBackdrop) replaces the outside of the tower. */
+[data-theme='cartoon'] .home::before { content: none; }
+.home-backdrop { display: none; }
+[data-theme='cartoon'] .home > .home-backdrop { display: block; position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.home-backdrop svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* The theme strips filters everywhere; the backdrop's spells and signs keep their glow. */
+[data-theme='cartoon'] .home-backdrop .hbw-soft { filter: url(#hbw-soft) !important; }
+[data-theme='cartoon'] .home-backdrop .hbw-glow-w { filter: url(#hbw-glow-w) !important; }
+[data-theme='cartoon'] .home-backdrop .hbw-glow-f { filter: url(#hbw-glow-f) !important; }
+[data-theme='cartoon'] .home-backdrop .hbw-inv-w { filter: url(#hbw-inv-w) !important; }
+[data-theme='cartoon'] .home-backdrop .hbw-inv-f { filter: url(#hbw-inv-f) !important; }
+[data-theme='cartoon'] .home-backdrop .hbt-soft { filter: url(#hbt-soft) !important; }
+[data-theme='cartoon'] .home-backdrop .hbt-glow-w { filter: url(#hbt-glow-w) !important; }
+[data-theme='cartoon'] .home-backdrop .hbt-glow-f { filter: url(#hbt-glow-f) !important; }
+[data-theme='cartoon'] .home-backdrop .hbt-inv-w { filter: url(#hbt-inv-w) !important; }
+[data-theme='cartoon'] .home-backdrop .hbt-inv-f { filter: url(#hbt-inv-f) !important; }
+.home-backdrop .hb-wide { display: none; }
+@media (min-width: 900px), (orientation: landscape) {
+  .home-backdrop .hb-wide { display: block; }
+  .home-backdrop .hb-tall { display: none; }
+}
 [data-theme='cartoon'] .info-page::before { opacity: 0.55; } /* dimmer behind reading pages */
 [data-theme='cartoon'] .info-page > * { position: relative; z-index: 1; }
 [data-theme='cartoon'] .info-page .logo, [data-theme='cartoon'] .info-page .info-lead { color: #fffaf0; }
@@ -459,3 +480,11 @@
 [data-theme='cartoon'] .mode-text small { font-weight: 800; opacity: 1; color: #fffaf0; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; letter-spacing: 0.03em; }
 [data-theme='cartoon'] .mode-text b { letter-spacing: 0.02em; }
 @media (max-width: 899px) and (min-height: 640px) { [data-theme='cartoon'] .mode-text small { font-size: 14.5px; } }
+/* Phones upright (Nov 25): the brand shrinks to one row at the top and the menu sits at the bottom, so the
+   duel behind (HomeBackdrop's tall layout) shows in the band between them. */
+@media (max-width: 899px) and (orientation: portrait) {
+  [data-theme='cartoon'] .home { justify-content: flex-end; padding-top: 16px; }
+  [data-theme='cartoon'] .home > .home-brand { position: absolute; top: 12px; left: 14px; flex-direction: row; align-items: center; gap: 6px; }
+  [data-theme='cartoon'] .home .home-brand .hero-logo { height: 46px; margin: 0; }
+  [data-theme='cartoon'] .home .home-brand .logo { font-size: 1.9rem; margin: 0; white-space: nowrap; }
+}

@@ -157,7 +157,7 @@ const CHAPTER = {
   basics: { name: 'Basics', color: '#ff9f1c' },
   elements: { name: 'Elements', color: '#ff5470' },
   signatures: { name: 'Signatures', color: '#6c63ff' },
-  magic: { name: 'Magic', color: '#ffd23f' },
+  magic: { name: 'Angelic & Unholy', color: '#ffd23f' },
   combos: { name: 'Combos', color: '#2ec4b6' },
   defense: { name: 'Defense', color: '#4dabf7' },
   status: { name: 'Status', color: '#b197fc' },
