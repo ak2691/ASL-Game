@@ -376,13 +376,22 @@ export function Spellbook({ onHome, inMatch }: { onHome: () => void; inMatch?: b
   const swipe = useRef<number | null>(null)
   const p = PAGES[i]
   const ch = CHAPTERS.find((c) => c.id === p.ch)!
+  // The chapter tabs scroll sideways on a phone: the open chapter's tab slides to the middle (Nov 26: the last
+  // ones were off screen with nothing saying so), so tapping the last visible tab brings the next ones in.
+  const ribbons = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const nav = ribbons.current
+    const tab = nav?.querySelector<HTMLElement>('button.on')
+    if (!nav || !tab) return
+    nav.scrollTo({ left: tab.offsetLeft - (nav.clientWidth - tab.offsetWidth) / 2, behavior: 'smooth' })
+  }, [p.ch])
   return (
     <main className={`page info-page book-page ${inMatch ? 'in-match' : ''}`}>
       <div className="info-top">
         <h1 className="logo">Spellbook</h1>
         <HomeButton onClick={onHome} back={inMatch} />
       </div>
-      <nav className="book-ribbons" aria-label="Chapters">
+      <nav className="book-ribbons" aria-label="Chapters" ref={ribbons}>
         {CHAPTERS.map((c) => (
           <button key={c.id} className={c.id === p.ch ? 'on' : ''} style={{ background: c.color }} onClick={() => go(PAGES.findIndex((q) => q.ch === c.id))}>
             {c.name}

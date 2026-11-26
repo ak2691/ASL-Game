@@ -9,8 +9,6 @@
   padding: 16px;
   text-align: center;
 }
-.sub { color: var(--text); font-size: 20px; margin: 0; }
-.note { color: var(--sub); font-size: 13px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
 
 button {
@@ -32,11 +30,7 @@ button:active { transform: translateY(1px); box-shadow: 0 1px 0 #26282b; }
 button.small { padding: 6px 12px; font-size: 13px; }
 button.active { background: var(--main); border-color: var(--main); color: #1d1a2b; }
 button:disabled { opacity: 0.5; cursor: default; }
-.alphabet { display: flex; flex-wrap: wrap; gap: 6px; }
-.alphabet button { width: 36px; padding: 6px 0; }
 .count { color: var(--main); }
-.stats { font-size: 12px; width: 100%; display: flex; flex-wrap: wrap; gap: 4px 18px; }
-.form-hint { color: var(--thumb); font-size: 14px; max-width: 480px; }
 
 .page {
   max-width: 1040px;
@@ -63,9 +57,6 @@ header { display: flex; justify-content: space-between; align-items: center; fle
 
 .status { color: var(--sub); margin: 0; }
 
-.panels { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-.panel { display: flex; flex-direction: column; gap: 10px; }
-
 .camera {
   position: relative;
   width: 720px;
@@ -85,8 +76,6 @@ header { display: flex; justify-content: space-between; align-items: center; fle
 }
 .seeing { display: flex; align-items: center; gap: 10px; color: var(--sub); }
 .seeing b { color: var(--text); font-size: 20px; }
-.top-guess { font-size: 13px; margin-left: 8px; }
-.top3 { color: var(--sub); font-size: 12px; }
 
 .guide {
   width: 240px;
@@ -95,51 +84,31 @@ header { display: flex; justify-content: space-between; align-items: center; fle
   border-radius: 10px;
   padding: 16px;
 }
-.guide-title { color: var(--sub); font-size: 12px; letter-spacing: 2px; }
-.guide-letter { color: var(--main); font-size: 64px; font-weight: 700; line-height: 1; }
 .guide p { margin: 0; line-height: 1.5; }
-.guide-pose { width: 100%; aspect-ratio: 1; background: var(--bg); border-radius: 8px; margin: 10px 0 4px; }
-.guide-legend { color: var(--sub); font-size: 11px; margin-bottom: 10px; }
 
 footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 
 /* Free mode: what was just signed */
 
 /* Spells page */
-.spell-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 28px; margin: 8px 0 12px; min-height: 64px; }
-.charge { font-size: 22px; color: var(--sub); }
 .sub-line { color: var(--sub); }
 .cast { font-size: 40px; font-weight: bold; animation: cast-pop 0.4s ease-out; }
 .cast span { display: block; font-size: 13px; font-weight: normal; color: var(--sub); }
 @keyframes cast-pop { from { transform: scale(1.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.spell-help { max-width: 300px; color: var(--text); font-size: 14px; }
-.spell-help ul { margin: 4px 0 10px; padding-left: 18px; }
-.spell-log { color: var(--sub); display: flex; flex-direction: column; gap: 2px; }
-.shape-guide { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; margin: 6px 0 4px; }
-.shape-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; background: var(--sub-alt); border-radius: 8px; color: var(--text); font-size: 12px; }
-.shape-note { color: var(--sub); font-size: 12px; margin-bottom: 10px; }
 .battle { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 32px; margin: 8px 0; }
 .fighter { flex: 1 1 260px; max-width: 360px; display: flex; flex-direction: column; gap: 6px; }
 .fighter-name { display: flex; gap: 8px; align-items: center; font-weight: bold; }
-.tag { font-size: 11px; font-weight: normal; padding: 1px 6px; border-radius: 4px; background: var(--sub-alt); color: var(--text); }
-.hp-bar, .cast-bar { position: relative; height: 22px; background: var(--sub-alt); border-radius: 6px; overflow: visible; }
-.cast-bar { height: 14px; }
-.hp-fill, .cast-fill { height: 100%; border-radius: 6px; transition: width 0.2s; }
-.cast-fill { transition: none; }
-.hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
-.hp-text.idle { color: var(--sub); text-shadow: none; }
+.hp-bar { position: relative; height: 22px; background: var(--sub-alt); border-radius: 6px; overflow: visible; }
+.hp-fill { height: 100%; border-radius: 6px; transition: width 0.2s; }
 .float { position: absolute; right: 8px; top: -4px; font-weight: bold; font-size: 18px; pointer-events: none; animation: float-up 1.2s ease-out forwards; text-shadow: 0 1px 3px #000; }
 /* HP changes (damage, heals, burn and static ticks): big and readable at a glance. */
 .float.hp-num { font-size: 30px; font-weight: 900; top: -14px; animation-duration: 1.6s; text-shadow: 0 0 4px #000, 0 2px 4px #000; }
 @keyframes float-up { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-36px); opacity: 0; } }
-.battle-start { display: flex; align-items: center; gap: 12px; align-self: center; }
 .enemy-canvas { position: relative; width: 140px; height: 140px; background: var(--sub-alt); border-radius: 10px; }
 .enemy-canvas svg { width: 100%; height: 100%; }
 .enemy-canvas.ready { animation: enemy-pulse 0.25s ease-in-out infinite alternate; }
 @keyframes enemy-pulse { to { box-shadow: 0 0 18px currentColor; } }
-.enemy-el { position: absolute; top: 6px; left: 8px; font-weight: bold; font-size: 18px; }
 .mode-tabs { display: flex; gap: 8px; margin: 4px 0 8px; }
-.online-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 4px 0 8px; padding: 10px 12px; background: var(--sub-alt); border-radius: 10px; }
 .room-code { font-size: 26px; letter-spacing: 0.15em; color: var(--main); }
 .code-input { width: 7ch; font: inherit; font-size: 18px; letter-spacing: 0.15em; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--sub); background: var(--bg); color: var(--text); }
 .countdown { font-size: 26px; color: var(--main); }
@@ -148,18 +117,15 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 
 /* Duel: full screen, you | opponent, each half fills its side. Spell names fly across on top. */
 .duel-page { max-width: none; height: 100vh; height: 100dvh; padding: 0; gap: 0; overflow: hidden; }
-.duel-page > header, .duel-page > .debug-casts, .duel-page > .online-panel { margin: 0; padding: 8px 14px; }
-.duel-page > .online-panel { border-radius: 0; }
+.duel-page > header, .duel-page > .debug-casts { margin: 0; padding: 8px 14px; }
 .duel { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; background: var(--sub-alt); }
 .duel-side { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); container-type: size; }
 .duel-side.opp { background: radial-gradient(ellipse at center, var(--sub-alt), var(--bg) 75%); }
 .duel .camera { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; aspect-ratio: auto; border-radius: 0; }
 .duel .enemy-canvas { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; background: transparent; }
-.duel .enemy-el { font-size: 48px; top: auto; bottom: 18px; left: 22px; opacity: 0.85; }
 .side-hud { position: absolute; top: 0; left: 0; right: 0; padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 8px; background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 85%, transparent), transparent); z-index: 2; }
 .duel .fighter { max-width: none; flex: none; }
 .status-strip { display: flex; gap: 16px; align-items: baseline; min-height: 26px; flex-wrap: wrap; text-shadow: 0 1px 4px var(--shadow); }
-.status-strip .charge { font-size: 20px; font-weight: 700; }
 .side-status { position: absolute; top: 50%; left: 0; right: 0; text-align: center; z-index: 2; }
 .stage-overlay { position: absolute; left: 16px; bottom: 14px; z-index: 2; pointer-events: none; text-shadow: 0 2px 6px #000; }
 .dummy-bar { display: flex; gap: 8px; align-items: center; }
@@ -188,21 +154,9 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .pool-el .pool-card:not(.on) span { color: var(--sub); }
 .pool-el .pool-card:hover { opacity: 1; }
 /* Per-spell speed (Nov 26): each card shows its cast time; the pencil opens a bar under the section. */
-.pool-card-wrap { position: relative; display: flex; }
 .pool-card-wrap .pool-card { flex: 1; }
-.pool-el .pool-card.editing { outline: 2px dashed currentColor; outline-offset: 2px; }
-.pool-el .pool-card .pool-time { font-size: 11px; color: var(--sub); font-variant-numeric: tabular-nums; }
-.pool-el .pool-card .pool-time.custom { color: var(--main); font-weight: 800; }
-.pool-el .pool-edit { all: unset; cursor: pointer; position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; color: var(--sub); background: color-mix(in srgb, var(--ink, #000) 30%, transparent); }
-.pool-el .pool-edit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.pool-el .pool-edit:hover, .pool-el .pool-edit.on { color: var(--ink, #111); background: var(--main); }
-.pool-editor { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; color: var(--text); background: color-mix(in srgb, var(--ink, #000) 30%, transparent); }
-.pool-editor > b { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pool-editor-step { display: inline-flex; align-items: center; gap: 6px; }
-.pool-editor-step b { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; color: var(--main); }
 .stage-center { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; z-index: 2; }
 .result { font-size: 40px; color: var(--main); }
-.privacy-note { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; color: var(--sub); font-size: 11px; margin: 0; pointer-events: none; z-index: 3; }
 
 /* A thrown spell: its name flies from the caster's half to the target's (see effects.tsx). */
 .bolt-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
@@ -347,9 +301,7 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
   .sig-wave { animation-name: wave-sweep-v; }
   .sig-wave.from-left { --wx: -110%; }
   .sig-wave.from-right { --wx: 110%; }
-  .privacy-note { bottom: 48px; padding: 0 10px; }
   .online-chip .sub-line { display: none; }
-  .duel .status-fx > .st-timers:not(.mine) { top: 128px; }
 }
 @keyframes wave-sweep-v { 0% { opacity: 1; transform: translateY(var(--wx)); } 55% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(calc(var(--wx) * -0.4)); } }
 @keyframes fly-down { 0% { top: 22%; opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 15% { opacity: 1; } 90% { opacity: 1; } 100% { top: 78%; opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
@@ -375,15 +327,7 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 }
 .menu-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
 .menu-card { background: var(--bg); border-radius: 12px; padding: 16px 20px; max-width: 460px; width: 100%; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow: auto; }
-.menu-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.menu-card .spell-help { max-width: none; }
-.privacy-note { color: var(--sub); font-size: 12px; margin-top: 12px; }
-.tag.silenced { background: #5a2330; color: #ffb3c1; }
-.tag.static.on { background: #5a4a10; color: #ffe14d; }
-.tag.static.gap { background: var(--sub-alt); color: #ffe14d; opacity: 0.45; }
 .fighter-name { white-space: nowrap; }
-.tag.chill { background: #1d3a4a; color: #8fd8ff; }
-.guide-sub { color: var(--sub); font-size: 12px; letter-spacing: 0.02em; margin-top: 8px; }
 
 /* Home */
 .home { min-height: 100vh; min-height: 100dvh; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
@@ -394,7 +338,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .menu-btn { position: fixed; bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); z-index: 5; opacity: 0.6; }
 .menu-btn:hover { opacity: 1; }
 .pause-menu { max-width: 260px; display: flex; flex-direction: column; gap: 10px; }
-.asl-mini { width: 28px; height: 28px; vertical-align: middle; background: #fff; border-radius: 4px; }
 
 /* Tutorial */
 .tutorial { position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 10px; padding: 16px; text-align: center; z-index: 2; }
@@ -420,33 +363,14 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .tut-head .tut-title { color: #15132e; font-size: 1.4rem; text-shadow: none; }
 .tut-head .tut-count { color: #15132e; opacity: 0.7; }
 .tut-body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px; }
-.tut-list { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: color-mix(in srgb, var(--bg) 80%, transparent); border-radius: 14px; text-align: left; color: var(--text); }
-.tut-list-title { font-size: 0.85rem; letter-spacing: 0.02em; color: var(--sub); }
-.tut-row { display: flex; align-items: center; gap: 6px; }
-.tut-row-name { width: 78px; font-size: 0.85rem; }
-.tut-row.all .tut-row-name { color: var(--sub); text-decoration: line-through; }
-.tut-dot { width: 20px; height: 20px; padding: 0 !important; border-radius: 50%; border: 2px solid currentColor; background: transparent; box-shadow: none; font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center; }
-.tut-dot.done { background: currentColor; color: inherit; }
-.tut-dot.done { color: #15132e !important; background: var(--you); border-color: var(--you); }
-.tut-dot.now { outline: 2px solid var(--text); outline-offset: 2px; }
-@container (max-width: 640px) { .tut-list { display: none; } }
-.menu-hint { color: var(--sub); font-size: 13px; text-align: center; margin-top: -4px; }
-.volume { display: flex; align-items: center; gap: 10px; justify-content: center; color: var(--sub); font-size: 14px; }
-.volume input { width: 140px; accent-color: var(--main); }
 
 /* Spell info page */
 .info-page { max-width: 860px; }
 .info-top { display: flex; justify-content: space-between; align-items: center; }
-.info-lead, .info-note { color: var(--sub); margin: 0; }
 .info-card { background: var(--sub-alt); border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 .info-card h2 { margin: 0; font-size: 1.3rem; }
 .info-card p { margin: 0; }
-.info-table { width: 100%; border-collapse: collapse; }
-.info-table th { text-align: left; color: var(--sub); font-size: 0.85rem; font-weight: 600; padding: 4px 8px; }
-.info-table td { padding: 6px 8px; border-top: 1px solid color-mix(in srgb, var(--sub) 35%, transparent); vertical-align: top; }
-.info-table td:first-child { white-space: nowrap; font-weight: 700; }
 .info-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
-@media (max-width: 600px) { .info-table td:first-child { white-space: normal; } }
 
 /* Opponent drawing: same thickness and look as your own trail (10px on a 720-tall frame; the frame is 1000 units tall). */
 .enemy-canvas svg path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
@@ -458,7 +382,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .leave-title { font-size: 1.3rem; text-align: center; } .leave-text { margin: 0; color: var(--sub); text-align: center; }
 .home-privacy { max-width: 340px; margin: 18px 0 0; color: var(--sub); font-size: 14px; text-align: center; line-height: 1.5; }
 .home-privacy a { color: var(--main); }
-.home .volume { margin-top: 10px; }
 .tut-basics { margin: 0; padding-left: 20px; max-width: 360px; text-align: left; color: var(--text, #ddd); display: flex; flex-direction: column; gap: 8px; }
 
 /* ---- Holy / Unholy / combos -------------------------------------------------------------- */
@@ -469,11 +392,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 @keyframes aegis-up { 0% { opacity: 0; transform: scale(0.6); } 30% { opacity: 1; transform: scale(1.03); } 100% { opacity: 0; transform: scale(1); } }
 .fx-mirror { position: absolute; inset: -20%; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.75) 50%, transparent 60%); opacity: 0; animation: sheen 900ms ease-in-out; }
 @keyframes sheen { 0% { opacity: 1; transform: translateX(-60%); } 100% { opacity: 1; transform: translateX(60%); } }
-.fx-purify { position: absolute; left: 50%; top: 46%; width: 30px; height: 30px; margin: -15px; border-radius: 50%; border: 3px solid #fff;
-  box-shadow: 0 0 14px #fff; opacity: 0; animation: ripple 900ms ease-out; --end: 26; }
-.fx-eclipse { position: absolute; left: 50%; top: 40%; width: 34cqw; height: 34cqw; margin: -17cqw; border-radius: 50%; background: #fff3c4;
-  box-shadow: 0 0 40px #fff3c4; overflow: hidden; opacity: 0; animation: eclipse-hold 1600ms ease-in-out; }
-.fx-eclipse i { position: absolute; inset: 0; border-radius: 50%; background: #120a1c; animation: eclipse-slide 1600ms ease-in-out; animation-delay: var(--d); }
 @keyframes eclipse-hold { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes eclipse-slide { 0% { transform: translateX(110%); } 55% { transform: translateX(0); } 100% { transform: translateX(0); } }
 .fx-lava { position: absolute; inset: 0; background: linear-gradient(to top, rgba(255, 90, 20, 0.85), rgba(255, 160, 40, 0.4) 30%, transparent 55%); opacity: 0; animation: lava-rise 1800ms ease-out; }
@@ -485,37 +403,19 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .st-mirror { background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.18) 50%, transparent 65%); border: 2px solid rgba(255, 255, 255, 0.55);
   animation: mirror-glint 1.4s ease-in-out infinite; }
 @keyframes mirror-glint { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
-.st-eclipse { background: radial-gradient(circle at 50% 50%, transparent 25%, rgba(10, 4, 20, 0.75) 70%); }
 .st-doom { display: flex; align-items: flex-start; justify-content: center; box-shadow: inset 0 0 70px 14px rgba(160, 92, 214, 0.55); animation: regen-pulse 1s ease-in-out infinite; }
 
 .tut-signs { display: flex; gap: 6px; }
 .tut-signs img + img { width: 96px !important; height: 96px !important; align-self: center; }
-.combo-card { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.combo-signs { display: flex; align-items: center; gap: 2px; color: var(--sub, #999); }
-.shape-sub { display: block; font-size: 11px; opacity: 0.75; text-align: center; max-width: 84px; }
-.combo-signs { font-size: 10px; }
-.combo-signs span { display: inline-flex; align-items: center; }
-.combo-signs .asl-mini { width: 22px; height: 22px; margin: 0; padding: 1px; }
 
 .fx-shroud { position: absolute; inset: -10%; background: radial-gradient(circle at 50% 55%, rgba(20, 8, 32, 0.85), rgba(60, 20, 90, 0.5) 45%, transparent 75%); opacity: 0; animation: shroud-in 1400ms ease-out; }
 @keyframes shroud-in { 0% { opacity: 0; transform: scale(0.6); } 35% { opacity: 1; } 100% { opacity: 0; transform: scale(1.2); } }
 .st-shroud { background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(40, 14, 60, 0.55) 85%); animation: mirror-glint 2s ease-in-out infinite; }
-.status-fx > .st-timers { inset: 96px auto auto 50%; }
-.st-timers { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
-.st-timer { position: relative; overflow: hidden; padding: 3px 10px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.st-timer i { position: absolute; left: 0; bottom: 0; height: 3px; background: currentColor; }
-.st-timer.aegis { color: #b9ffcb; }
-.st-timer.mirror { color: #ffffff; }
-.st-timer.shroud { color: #e7c8ff; }
-.st-timer.doom { color: #c78bff; }
-.st-timer.silence { color: #ffb3c1; }
 
 :root { --armor-hp: #3d8bff; }
 .armor-fill { position: absolute; top: 0; height: 100%; border-radius: 6px; background: repeating-linear-gradient(135deg, #8cc4ff 0 6px, #5aa6ff 6px 12px); box-shadow: 0 0 8px #5aa6ff; transition: left 0.2s, width 0.2s; }
 .armor-fill.over { background: repeating-linear-gradient(135deg, #cfe6ff 0 6px, #9cceff 6px 12px); }
 .armor-text { color: #9cceff; margin-left: 8px; }
-.status-fx > .st-timers.mine { top: auto; bottom: 30px; }
-.st-timers.mine .st-timer { font-size: 16px; padding: 5px 14px 8px; }
 
 /* the hidden attribute always wins over a display rule (combos are hidden this way while switched off) */
 [hidden] { display: none !important; }
@@ -536,10 +436,6 @@ html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { 
 .home .icon-btn.on { outline: 3px solid var(--main); }
 .settings-panel { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 220px; padding: 12px 14px; border-radius: 14px; background: var(--bg); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); color: var(--text); text-align: left; }
 .home .settings-panel button { width: auto; font-size: 0.95rem; padding: 8px; }
-.home .settings-panel .volume { margin: 0; }
-
-/* Basics: the example picture (smaller than a spell step's) */
-.tut-example :is(img, svg, .tut-push) { width: 110px; height: 110px; }
 
 /* Tutorial: which hand does each box */
 .tut-hand { font-size: 0.9rem; letter-spacing: 0.02em; color: var(--text, #ddd); }
@@ -607,9 +503,12 @@ html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { 
 .quake-run { clip-path: inset(-50% 100% -50% 0); animation: quake-run var(--fly) linear forwards, fade-out 500ms ease-in var(--fly) forwards; }
 .quake-run polyline { fill: none; stroke: #140b04; stroke-width: 13px; vector-effect: non-scaling-stroke; stroke-linejoin: bevel; }
 .quake-run polyline.glow { stroke: #ffc070; stroke-width: 28px; opacity: 0.7; }
-.quake-run.from-enemy { transform: scaleX(-1); }
+.quake-1v1.from-enemy .quake-run { transform: scaleX(-1); }
 @keyframes quake-run { to { clip-path: inset(-50% 0 -50% 0); } }
-@media (max-width: 800px) and (orientation: portrait) { .quake-run { left: calc(var(--row) - 28vh); top: 50%; width: 56vh; margin: -2.5vh 0 0 0; height: 5vh; transform: rotate(90deg); } .quake-run.from-enemy { transform: rotate(-90deg); } }
+@media (max-width: 800px) and (orientation: portrait) { .quake-1v1 .quake-run { left: calc(var(--row) - 28vh); top: 50%; width: 56vh; margin: -2.5vh 0 0 0; height: 5vh; transform: rotate(90deg); } .quake-1v1.from-enemy .quake-run { transform: rotate(-90deg); } }
+/* Team fights: the cracks run from the caster's spot to the target's (the box is turned to that angle). */
+.quake-path { position: absolute; height: 150px; margin-top: -75px; transform-origin: 0 50%; pointer-events: none; }
+.quake-path > .quake-run { left: 0; width: 100%; height: 13%; margin-top: 0; }
 
 /* The one call to action on a screen (Start battle): green "go", apart from the blue menu buttons. */
 html[data-theme] button.cta, button.cta { background: var(--you); color: var(--ink, #111); font-size: 1.15em; padding-left: 30px; padding-right: 30px; }
@@ -622,10 +521,8 @@ html[data-theme] button.cta.is-ready:hover, button.cta.is-ready:hover { backgrou
 .team-card { position: relative; min-width: 0; overflow: hidden; }
 .team-card.foe { flex: 1 1 0; background: radial-gradient(ellipse at center, var(--sub-alt), var(--bg) 75%); transition: box-shadow 0.15s; }
 .team-card.foe .side-hud { padding-left: 10px; padding-right: 10px; } /* same top as your HUD, so the health bars line up */
-.team-card.foe .status-strip .charge { font-size: 17px; }
 /* Small panels stay readable: the stroke keeps its on-screen width however small the panel. */
 .team-card .enemy-stroke { vector-effect: non-scaling-stroke; stroke-width: 9px; }
-.team-spell { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; font-size: clamp(22px, 9cqw, 44px); z-index: 2; text-shadow: 0 2px 8px var(--shadow); pointer-events: none; }
 .team-card.foe { container-type: inline-size; }
 .team-card.targeted { box-shadow: inset 0 0 0 4px var(--aim, var(--you)), inset 0 0 40px color-mix(in srgb, var(--aim, var(--you)) 45%, transparent); }
 .team-card.out { filter: grayscale(1) brightness(0.5); }
@@ -643,11 +540,6 @@ html[data-theme] button.cta.is-ready:hover, button.cta.is-ready:hover { backgrou
 .fx-steam { position: absolute; inset: -10%; background: radial-gradient(circle at 50% 50%, rgba(240, 245, 250, 0.85), rgba(220, 230, 240, 0.5) 50%, transparent 80%); opacity: 0; animation: shroud-in 1400ms ease-out var(--d) both; }
 .fx-sun { position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, rgba(255, 240, 150, 0.9), rgba(255, 180, 40, 0.45) 40%, transparent 70%); opacity: 0; animation: lava-rise 1600ms ease-out var(--d) both; }
 .st-steam { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 60%, rgba(235, 240, 245, 0.62), rgba(235, 240, 245, 0.32) 60%, rgba(235, 240, 245, 0.16)); } /* no backdrop blur: re-blurring the live camera every frame lagged it */
-.st-timer.guard { color: #d9c4ff; }
-.st-timer.exposed { color: #ff9ad5; }
-.st-timer.fog { color: #e8eef2; }
-.st-timer.noheal { color: #b9a8c9; }
-.st-timer.glacier { color: #bfe9ff; }
 
 /* Tutorial progress: one colored bar, pinned to the bottom (it never moves with the card) */
 .tutorial { padding-bottom: 96px; padding-top: 132px; } /* top: room for the opponent's timer pills */
@@ -670,19 +562,10 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .tut-mini { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 85%, transparent); color: var(--text); white-space: nowrap; }
 .tut-try { margin-top: 4px; }
 .bolt.el-glacier { animation-timing-function: linear; } /* a slow, steady creep */
-.bolt .flick { animation: flick 300ms steps(2) infinite; }
 @keyframes flick { 50% { opacity: 0.2; } }
 /* Tutorial drawings: a thinner brush so busy shapes (Plasma, Sun, Yin-yang) don't mush together */
 .tut-demo svg .tut-draw { stroke-width: 1.6 !important; }
 .tut-demo svg .tut-ghost { stroke-width: 1.6 !important; opacity: 0.3 !important; }
-/* How to cast: bigger, clearer signs */
-.spell-help .asl-mini { width: 44px; height: 44px; padding: 2px; box-sizing: border-box; }
-.spell-help .asl-mini.big { width: 64px; height: 64px; }
-.spell-help li { margin: 4px 0; }
-.combo-lead { display: flex; align-items: center; gap: 10px; }
-.combo-guide { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
-.combo-signs .asl-mini { width: 40px !important; height: 40px !important; }
-.combo-signs { font-size: 14px; gap: 4px; }
 /* Storm: rain weather, not Thunderbolt's single strike. A low blue-grey cloud bank, then steady rain
    for the whole storm, and a bolt on each pulse. */
 .sig-cloud.storm { filter: hue-rotate(10deg) brightness(0.55) saturate(0.5); height: 30%; }
@@ -696,9 +579,7 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .st-storm svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .st-storm polyline { fill: none; stroke: #fff; stroke-width: 1.2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 6px #9fb0ff); stroke-width: 4px; }
 .st-storm.on { box-shadow: inset 0 0 80px rgba(160, 190, 255, 0.5); }
-.st-timer span { position: relative; }
 .team-card.ally { position: absolute; left: 12px; bottom: 12px; width: min(300px, 45%); padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--bg) 88%, transparent); z-index: 3; display: flex; flex-direction: column; gap: 4px; }
-.team-card.ally .status-strip .charge { font-size: 15px; }
 .room-teams { display: flex; gap: 10px; flex-wrap: wrap; }
 .room-team { min-width: 210px; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-radius: 12px; background: var(--sub-alt); border-top: 4px solid var(--you); }
 .room-team.two { border-top-color: var(--foe); }
@@ -734,7 +615,6 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .hud-row { display: flex; align-items: center; gap: 10px; }
 .hud-row > .dummy-bar { margin-left: auto; pointer-events: auto; }
 .hud-row > .status-strip { flex: 1 1 90px; min-width: 0; }
-.hud-row .status-strip .charge { white-space: normal; line-height: 1.1; }
 .dummy-bar button { white-space: nowrap; flex-shrink: 0; }
 /* Dummy controls each get their own color: start green, stop red, reset yellow (settings stays default). */
 html[data-theme] .dummy-bar button.btn-go, .dummy-bar button.btn-go { background: var(--you); color: var(--ink, #111); }
@@ -798,15 +678,8 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 /* Phones: spell info tables fit the width (tighter cells, long words wrap; scroll sideways only as a last resort). */
 @media (max-width: 600px) {
   .info-card { padding: 12px; overflow-x: auto; }
-  .info-table { font-size: 13px; }
-  .info-table th, .info-table td { padding: 4px 5px; overflow-wrap: anywhere; }
-  .info-table th { overflow-wrap: normal; white-space: nowrap; } /* headers stay whole words */
 }
 
-/* Small phones: the in-game privacy line (already on the home screen) gives way to the controls. */
-@media (max-width: 900px) and (max-height: 760px) {
-  .duel .privacy-note { display: none; }
-}
 /* Very short halves (small phones): the practice ladder drops its spire and blurb, rows get slimmer. */
 @container (max-height: 400px) {
   .duel-side.opp > .stage-center { padding: 104px 0 48px; justify-content: flex-start; }
@@ -828,14 +701,8 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 /* Phones: a compact HUD. Slim health bars, one size for the charge, so the camera keeps the room. Bold
    outlined text keeps it readable at arm's length without making it big. */
 @media (max-width: 600px) {
-  html[data-theme] .status-strip .charge { font-size: 19px; }
-  html[data-theme] .team-card.foe .status-strip .charge { font-size: 16px; }
-  html[data-theme] .team-card.ally .status-strip .charge { font-size: 15px; }
   html[data-theme] .fighter-name { font-size: 15px; }
   html[data-theme] .hp-bar { height: 18px; }
-  html[data-theme] .hp-text { font-size: 12px; font-weight: 700; }
-  html[data-theme] .st-timer { font-size: 13px; padding: 3px 10px 6px; }
-  html[data-theme] .tag { font-size: 12px; }
   html[data-theme] .dealt-line, html[data-theme] .note-line { font-size: 13px; }
   html[data-theme] .tier-light .impact-name { font-size: clamp(18px, 5cqw, 24px); }
   html[data-theme] .tier-heavy .impact-name { font-size: clamp(22px, 6.5cqw, 32px); }
@@ -844,7 +711,6 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 @media (pointer: coarse) {
   html[data-theme] button { min-height: 44px; }
   html[data-theme] button.small, html[data-theme] .dummy-bar > button:first-child { min-height: 40px; font-size: 14px; }
-  html[data-theme] .tut-dot { width: 32px; height: 32px; min-height: 32px; }
   html[data-theme] .tower .floor { padding: 8px 10px; }
 }
 /* Picking a practice opponent (Nov 24, phone first, same on desktop): the tower takes the whole opponent half.
@@ -865,29 +731,16 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 /* Phone portrait: the halves stay the same size while you pick (Nov 26: the camera used to shrink to a
    quarter, which jumped when the fight began). The floors scroll in their half. */
 @media (max-width: 800px) and (orientation: portrait) {
-  .duel:has(.tower-wrap) .privacy-note { display: none; }
   .duel-side.opp > .stage-center:has(.tower-wrap) { padding: 10px 10px 64px; gap: 8px; }
   .stage-center .tower-wrap > .sub-line { font-size: 13px; }
 }
 
-/* Interrupted (or whiffed): locked out for a moment. The half greys and shakes, a bar drains to free. */
-.st-locked { display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.12); }
 /* A small card in the theme's title font: clear, not a takeover. Your hand stays visible around it. */
-.lock-card { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 16px 10px; border-radius: 12px;
-  background: color-mix(in srgb, var(--bg) 78%, transparent); border: 2px solid color-mix(in srgb, var(--text) 25%, transparent);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); animation: lock-pop 0.18s ease-out; }
-.st-locked b { font-family: var(--title, inherit); font-size: clamp(17px, 4.5cqw, 24px); font-weight: normal; color: var(--text); letter-spacing: 0.03em; }
-.st-locked small { font-size: 13px; color: var(--sub); }
-.st-locked .lock-bar { width: min(38cqw, 160px); height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--text) 18%, transparent); overflow: hidden; }
-.st-locked .lock-bar i { display: block; height: 100%; background: var(--main, #ffb13d); transition: width 0.1s linear; }
-.team-card .lock-card { padding: 5px 10px 7px; }
-.team-card .st-locked b { font-size: 15px; }
 @keyframes lock-pop { from { transform: scale(0.85); opacity: 0; } }
 
 /* Phones: the camera gets the room. A slimmer HUD, and the privacy line stays on the home screen only. */
 @media (max-width: 600px) {
   html[data-theme] .duel .side-hud { padding: 8px 10px 12px; gap: 5px; }
-  .duel .privacy-note { display: none; }
 }
 
 /* Training dummy controls: one fixed spot, bottom-left of the dummy half (Menu/Home are bottom-right), never
@@ -939,22 +792,8 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 .dm-rows { display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--ink, #000) 22%, transparent); }
 .dm-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
 .dm-row + .dm-row { border-top: 2px solid color-mix(in srgb, var(--ink, #000) 35%, transparent); }
-.dm-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dm-label { font-weight: 700; font-size: 15px; color: var(--text); }
-.dm-step { display: inline-flex; align-items: center; gap: 4px; }
-.dm-step b { min-width: 64px; text-align: center; font-size: 15px; color: var(--main); font-variant-numeric: tabular-nums; }
-.dm .dm-step button { all: unset; cursor: pointer; box-sizing: border-box; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; font-size: 11px; color: var(--text); background: color-mix(in srgb, var(--ink, #000) 35%, transparent); }
-.dm .dm-step button:hover:not(:disabled) { background: var(--main); color: var(--ink, #111); }
-.dm .dm-step button:disabled { opacity: 0.3; cursor: default; }
 /* The meter: 12 segments that fill to the value (no round thumb: it's a gauge you drag). */
-.dm-meter { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; margin: 0; cursor: pointer; background: transparent; }
-.dm-meter::-webkit-slider-runnable-track { height: 14px; background: linear-gradient(90deg, var(--main) var(--p), color-mix(in srgb, var(--ink, #000) 45%, transparent) var(--p));
-  -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(100% / 12 - 3px), transparent calc(100% / 12 - 3px) calc(100% / 12)); mask: repeating-linear-gradient(90deg, #000 0 calc(100% / 12 - 3px), transparent calc(100% / 12 - 3px) calc(100% / 12)); }
-.dm-meter::-moz-range-track { height: 14px; background: linear-gradient(90deg, var(--main) var(--p), color-mix(in srgb, var(--ink, #000) 45%, transparent) var(--p));
-  mask: repeating-linear-gradient(90deg, #000 0 calc(100% / 12 - 3px), transparent calc(100% / 12 - 3px) calc(100% / 12)); }
-.dm-meter::-webkit-slider-thumb { -webkit-appearance: none; width: 1px; height: 14px; border: 0; background: transparent; }
-.dm-meter::-moz-range-thumb { width: 1px; height: 14px; border: 0; background: transparent; }
-.dm-meter:focus-visible { outline: 3px solid var(--main); outline-offset: 3px; }
 .dm-add { display: flex; flex-direction: column; gap: 6px; }
 .dm-add select { width: 100%; padding: 8px 10px; border-radius: 8px; font: inherit; font-size: 15px; color: var(--text); background: color-mix(in srgb, var(--ink, #000) 35%, transparent); border: 2px solid color-mix(in srgb, var(--ink, #000) 50%, transparent); }
 .dm-add select option { color: #111; }
@@ -972,16 +811,10 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 @media (max-width: 500px) {
   .dm-times { grid-template-columns: repeat(2, 1fr); }
   .dm .dm-seg button { min-width: 44px; padding: 9px 10px; }
-  .dm .dm-step button { width: 36px; height: 36px; }
-  .dm-step b { min-width: 50px; }
   .dm-foot { padding: 10px 12px; gap: 8px; }
   .dm-count { white-space: nowrap; }
   .dm-foot .dm-done { padding: 8px 16px; }
 }
-
-/* Practice: one tip for the floor you just lost to, under Fight again. */
-.loss-tip { max-width: 300px; margin: 0; padding: 8px 12px; border-radius: 10px; text-align: center; font-size: 14px; font-weight: 700; color: var(--text);
-  background: color-mix(in srgb, var(--main) 18%, transparent); border: 2px solid var(--main); }
 
 /* Practice opponent's line: a speech bubble just below its HUD (it never pushes the HUD around or covers its
    charge), pointing up at it. Fades in, then out. */
@@ -1005,7 +838,7 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
     repeating-linear-gradient(90deg, #4c4766 0 52px, #2a2640 52px 55px); }
 .tower-room.on { opacity: 1; }
 .duel-side.opp > .stage-center:has(.tower-wrap) { padding-top: 26px; }
-.stage-center.leaving .tower-wrap, .stage-center.leaving > .loss-tip { animation: tower-leave 0.6s ease-in forwards; }
+.stage-center.leaving .tower-wrap { animation: tower-leave 0.6s ease-in forwards; }
 @keyframes tower-leave { to { opacity: 0; transform: translateY(-14px) scale(1.04); } }
 .stage-center .tower .tier-band { margin: 8px 0 8px; border: 3px solid #1d1b2e; border-radius: 6px; box-shadow: 0 3px 0 #1d1b2e; }
 .stage-center .tower .floor { box-shadow: inset 0 8px 14px rgba(0,0,0,.35), 0 4px 0 rgba(0,0,0,.35); }
@@ -1019,14 +852,8 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
    small secondary buttons in a row; leaving buttons in the foe color. */
 .menu-card.pause-menu.dm { max-width: 400px; width: 100%; gap: 10px; padding: 18px 18px 16px; }
 .pause-menu .pm-title { text-align: center; font-size: 24px; }
-.pause-menu .pm-resume { width: 100%; font-size: 18px; padding: 12px; background: var(--you); color: var(--ink, #111); }
 .pause-menu .dm-section { margin: 6px 0 0; }
 .pause-menu .dm-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
-.pause-menu .dm-row > .dm-line { flex: 1; }
-.pause-menu .dm-row > .dm-meter { flex: 1; max-width: 200px; }
-.pause-menu .pm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.pause-menu .pm-actions button { flex: 1; width: auto; min-width: 0; font-size: 14px; padding: 9px 10px; }
-.pause-menu .pm-actions button.pm-danger { background: var(--foe); color: #fff; }
 @media (max-width: 500px) { .pause-menu .dm .dm-seg button, .pause-menu .dm-seg button { min-width: 0; padding: 8px 8px; } }
 
 /* Tutorial on short phones (Nov 24): tighter, and the Next / Back row keeps clear of the floating Menu button. */
@@ -1051,16 +878,6 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 .cam-gate button { margin-top: 6px; }
 .ready-wrap { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
 
-/* Push setting: exact percent slider with a one-line hint. */
-.push-setting { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.push-pct { min-width: 3ch; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
-.push-hint { margin: 0; max-width: 260px; font-size: 12px; line-height: 1.3; color: var(--sub); text-align: center; }
-.pause-menu .dm-row:has(.push-setting) { flex-direction: column; align-items: stretch; }
-.pause-menu .push-setting .volume { justify-content: space-between; }
-.pause-menu .push-setting .volume input { flex: 1; width: auto; }
-.pause-menu .push-hint { max-width: none; text-align: left; }
-@media (pointer: coarse) { .push-setting input[type='range'] { height: 32px; } }
-
 /* How to cast and Spell Info (Nov 25): the home's night sky and tower behind them, and the content slides in
    from the right, one block after another. No scrollbar, so nothing pops in during the slide. */
 html:has(.info-page) { scrollbar-width: none; }
@@ -1080,11 +897,6 @@ body.page-leaving .info-page > *, body.page-leaving .home .home-brand, body.page
    there (no slide in). Leaving one, it slides out like any page. */
 body.page-leaving .duel-page { animation: page-slide-out 180ms ease-in both; }
 @media (prefers-reduced-motion: reduce) { .duel-page, .info-page > *, .home .home-brand, .home .mode-bar, .home .home-privacy, body.page-leaving * { animation: none !important; } }
-
-.push-setting { width: 100%; }
-.push-setting .volume { width: 100%; }
-.push-setting .volume input { flex: 1; width: auto; min-width: 0; }
-.push-setting .push-hint { max-width: none; }
 
 /* Spellbook (Nov 25): cartoon book, parchment pages, ink outlines, colored chapter ribbons. Phone first: one page
    (art on top, words below) that fills the screen; 900px+ opens into a two-page spread. */
@@ -1119,22 +931,15 @@ body.page-leaving .duel-page { animation: page-slide-out 180ms ease-in both; }
 .book-cycle { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 280px; }
 .book-cycle span { display: flex; flex-direction: column; align-items: center; font-weight: 800; font-size: 12px; }
 .book-cycle span:not(:last-child)::after { content: '→'; color: #6a5a40; font-size: 16px; position: relative; top: -34px; left: 28px; height: 0; }
-.book-push { font-size: min(96px, 14vh); line-height: 1; }
-.book-meter { display: flex; flex-direction: column; gap: 8px; width: 180px; }
-.book-meter i { display: block; height: 16px; border: 2.5px solid #1d1b2e; border-radius: 6px; background: #ff9f1c; }
 .book-leaf .icon-legend { max-height: 100%; overflow-y: auto; scrollbar-width: none; color: #2a2238; font-size: 13px; }
 .book-nav { display: flex; align-items: center; justify-content: center; gap: 18px; flex: none; color: var(--text); font-weight: 800; }
 .book-nav button { width: 56px; height: 44px; font-size: 18px; }
 /* Page turn: a blank sheet lifts off and swings over (next: right to left; back: left to right). */
-.book-turn { position: absolute; inset: 8px; border-radius: 10px; background: linear-gradient(90deg, #e9d7a8, #fbf1d6 40%, #fff8e6); pointer-events: none;
-  backface-visibility: hidden; box-shadow: 0 0 30px rgba(0,0,0,.35); }
-.book-turn.next { transform-origin: left center; animation: leaf-next 480ms ease-in both; }
-.book-turn.prev { transform-origin: right center; animation: leaf-prev 480ms ease-in both; }
 @keyframes leaf-next { from { transform: rotateY(0); opacity: 1; } to { transform: rotateY(-100deg); opacity: 0.6; } }
 @keyframes leaf-prev { from { transform: rotateY(0); opacity: 1; } to { transform: rotateY(100deg); opacity: 0.6; } }
 .book-spread { animation: book-ink 300ms 120ms ease-out backwards; }
 @keyframes book-ink { from { opacity: 0.2; } }
-@media (prefers-reduced-motion: reduce) { .book-turn { display: none; } .book-spread { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .book-spread { animation: none; } }
 @media (min-width: 900px) {
   .book-spread { flex-direction: row; padding: 10px; }
   .book-leaf.left { border-radius: 10px 0 0 10px; padding: 40px 24px 20px; box-shadow: inset -18px 0 24px -16px rgba(80, 50, 20, .35); }
@@ -1145,8 +950,6 @@ body.page-leaving .duel-page { animation: page-slide-out 180ms ease-in both; }
   .book-does { font-size: 19px; }
   .book-chips { margin-top: 6px; }
   .book-shape { width: min(220px, 30vh); height: min(220px, 30vh); }
-  .book-turn { inset: 10px 10px 10px 50%; border-radius: 0 10px 10px 0; }
-  .book-turn.prev { inset: 10px 50% 10px 10px; border-radius: 10px 0 0 10px; }
   .book-ribbons { justify-content: center; }
 }
 /* Spellbook over a match (Esc menu): fills the screen over a dark veil; the fight stays paused behind. */
@@ -1194,7 +997,6 @@ html[data-theme] .slab-choice button.on { background: #ffd24d; color: #1d1b2e; }
 .menu-card.pause-menu.dm { gap: 8px; }
 .pause-menu .pm-title, .settings-panel .pm-title { text-align: center; font-family: var(--title, inherit); font-weight: normal; font-size: 30px; color: #fffaf0;
   -webkit-text-stroke: 4px #1d1b2e; paint-order: stroke fill; }
-.pause-menu .pm-resume { margin-top: 6px; }
 .home .settings-panel { width: min(400px, calc(100vw - 24px)); gap: 6px; padding: 12px; background: var(--panel, #2b2840); border: 4px solid #1d1b2e; border-radius: 18px;
   box-shadow: 0 6px 0 #1d1b2e; }
 @media (min-width: 900px) { .menu-card.pause-menu.dm { max-width: 540px; } }
@@ -1221,8 +1023,6 @@ html[data-theme] .book-card .tut-hand { color: #6a5a40; }
 html[data-theme] .book-card .tut-demo img { border: 2.5px solid #1d1b2e; }
 html[data-theme] .book-card .icon-legend { color: #2a2238; }
 .book-card > .book-chapter { z-index: 2; }
-.book-card > .book-turn { inset: 0; border-radius: 10px; z-index: 3; }
-@media (min-width: 900px) { .book-card > .book-turn, .book-card > .book-turn.prev { inset: 0; border-radius: 10px; } }
 html[data-theme] .book-card .tut-body > .row { background: #f3e2b8; }
 
 /* Nov 25 round 2: no pills, no small caps labels (skills.md "Game look"). */
@@ -1245,16 +1045,9 @@ html[data-theme] .book-card .tut-body > .row { background: #f3e2b8; }
 @keyframes push-at-you { 0%, 30% { transform: scale(0.85); } 60%, 100% { transform: scale(1.15); } }
 @keyframes push-lines { 0%, 40% { transform: scale(0.8); opacity: 0; } 70% { opacity: .7; } 100% { transform: scale(1.15); opacity: 0; } }
 .book-parry { position: relative; display: flex; gap: 6px; padding: 26px; }
-.book-palm { width: 64px; height: 76px; }
-.book-parry-ring { position: absolute; left: 50%; top: 50%; width: 150px; aspect-ratio: 1; border-radius: 50%; border: 5px solid #ff9f1c;
-  transform: translate(-50%, -50%) scale(2); animation: book-parry 2.2s linear infinite; }
 @keyframes book-parry { 0% { transform: translate(-50%, -50%) scale(2); opacity: 0; } 10% { opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1.05); border-color: #ff9f1c; box-shadow: none; }
   72%, 90% { transform: translate(-50%, -50%) scale(1); border-color: #fff; border-width: 8px; box-shadow: 0 0 22px #fff, inset 0 0 22px #fff; opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
-.book-wear { display: flex; flex-direction: column; gap: 10px; width: min(240px, 70vw); }
-.book-wear-row { display: flex; align-items: center; gap: 10px; }
-.book-wear-row b { min-width: 48px; font-family: var(--title, inherit); font-weight: normal; font-size: 20px; color: #2a2238; }
-.book-wear-bar { display: block; height: 22px; border: 3px solid #1d1b2e; border-radius: 6px; box-shadow: inset 0 4px 0 rgba(255,255,255,.35); }
-@media (prefers-reduced-motion: reduce) { .book-push-sign .book-sign, .book-push-lines, .book-parry-ring { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .book-push-sign .book-sign, .book-push-lines { animation: none; } }
 html[data-theme] .tut-body > .tut-nav { justify-content: center; gap: 18px; color: #2a2238; font-weight: 800; }
 html[data-theme] .tut-body > .tut-nav > button, html[data-theme] .tut-body > .tut-nav > button:last-child { width: 56px; min-width: 56px; height: 44px; font-size: 18px; padding: 0; }
 /* Paused menu tiles: equal squares-ish, icon over word, in one row (2 x 2 when there are four). */
@@ -1328,22 +1121,12 @@ html[data-theme] .book-home { display: inline-flex; align-items: center; gap: 6p
 /* Parry color (Nov 25): white with a glow, not light blue (that was Ice's color). On paper it gets an ink outline. */
 .book-parry-hand::after { border-color: #fff; box-shadow: 0 0 0 3px #1d1b2e, inset 0 0 0 3px #1d1b2e, 0 0 18px 4px rgba(255, 255, 255, 0.9); }
 /* Spellbook status rows: the fight's icon, the name with how long it lasts, one line on what it does. */
-.book-status { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 420px; text-align: left; color: #2a2238; }
-.book-status li { display: flex; align-items: flex-start; gap: 10px; }
-.book-status .st-icon { flex: none; width: 30px; height: 30px; }
-.book-status .st-icon svg { width: 100%; height: 100%; }
-.book-status-text { display: flex; flex-direction: column; min-width: 0; }
-.book-status-text b { font-size: 15px; line-height: 1.2; }
-.book-status-text em { font-style: normal; font-weight: 700; font-size: 13px; color: #7a4a00; margin-left: 4px; }
-.book-status-text > span { font-size: 14px; line-height: 1.3; color: #2a2238; }
-.book-status-text small { font-size: 12.5px; line-height: 1.3; color: #6a5a80; font-weight: 700; }
 .book-status-list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 420px; }
 .book-status-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .book-status-grid button { all: unset; box-sizing: border-box; display: grid; place-items: center; padding: 5px; border: 2px solid transparent; border-radius: 10px; background: rgba(42, 34, 56, 0.06); cursor: pointer; }
 .book-status-grid button.on { border-color: #2a2238; background: rgba(42, 34, 56, 0.14); }
 .book-status-grid .st-icon { width: 30px; height: 30px; }
 .book-status-grid .st-icon svg { width: 100%; height: 100%; }
-.book-status-detail { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; border-top: 2px dashed rgba(42, 34, 56, 0.2); }
 .book-lockouts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; color: #2a2238; }
 .book-lockouts li { display: flex; flex-direction: column; }
 .book-lockouts b { font-size: 14px; line-height: 1.2; }
@@ -1351,7 +1134,6 @@ html[data-theme] .book-home { display: inline-flex; align-items: center; gap: 6p
 .book-lockouts small { font-size: 12.5px; line-height: 1.25; color: #6a5a80; font-weight: 700; }
 .book-status-note { font-size: 12.5px; line-height: 1.3; color: #6a5a80; font-weight: 700; text-align: center; }
 .book-status-group { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #6a5a80; }
-.book-leaf.left:has(.book-status) { justify-content: flex-start; overflow-y: auto; scrollbar-width: none; padding-top: 34px; }
 /* Custom game HP: a typed number between the - and + steps. */
 .hp-box { display: inline-flex; align-items: baseline; gap: 4px; }
 .hp-box input { width: 4.2ch; padding: 2px 4px; font: inherit; font-family: var(--title, inherit); font-size: 18px; text-align: center; color: #fffaf0;
@@ -1359,7 +1141,6 @@ html[data-theme] .book-home { display: inline-flex; align-items: center; gap: 6p
 .hp-box input::-webkit-outer-spin-button, .hp-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .hp-box b { font-size: 14px; }
 @media (pointer: coarse) { .hp-box input { font-size: 20px; padding: 6px 4px; } }
-.book-status { gap: 6px; } .book-status .st-icon { width: 26px; height: 26px; }
 
 /* Statuses spread on a phone: the icon grid takes only its own height, the details get the rest. */
 @media (max-width: 899px) { .book-leaf.left.status-left { flex: 0 0 auto; padding-bottom: 12px; } .book-leaf.right.status-right { flex: 1 1 auto; }
@@ -1367,8 +1148,6 @@ html[data-theme] .book-home { display: inline-flex; align-items: center; gap: 6p
 
 /* Dummy menu scroll (Nov 26): its own compositing layer, so scrolling it doesn't repaint the arena behind. */
 .dm-body { will-change: scroll-position; overscroll-behavior: contain; contain: paint; }
-@media (max-width: 899px) { .pool-editor { flex-wrap: wrap; } .pool-editor > b { flex: 1 1 100%; } }
-
 /* Lobby HP (Nov 26): one black "375 HP ✎" box by the name; click anywhere on it to type (selects the number). */
 html[data-theme] .lobby-card .room-hp, html .room-hp-chip { flex: none; }
 html[data-theme] .lobby-card .room-seat { flex-wrap: nowrap; }
@@ -1414,16 +1193,9 @@ html[data-theme] .pause-menu button.btn-forfeit, .pause-menu button.btn-forfeit 
 .fx-beam { position: absolute; top: 0; bottom: 0; left: var(--x); width: 9%; opacity: 0; background: linear-gradient(to bottom, rgba(255, 246, 194, 0.85), rgba(255, 210, 61, 0.35) 70%, transparent);
   filter: blur(3px); animation: beam 1200ms ease-out; }
 @keyframes beam { 0% { opacity: 0; transform: scaleY(0); transform-origin: top; } 30% { opacity: 1; transform: scaleY(1); } 100% { opacity: 0; } }
+.bolt .wobble { transform-box: view-box; animation: proj-wobble 260ms ease-in-out infinite alternate; }
+@keyframes proj-wobble { from { transform: scale(1.06, 0.94); } to { transform: scale(0.94, 1.06); } }
 .p.mote { left: calc(50% + var(--x)); top: 80%; border-radius: 50%; background: #fff6c2; box-shadow: 0 0 10px #ffd23d; animation: rise var(--t) ease-out; }
-
-/* Status row (Nov 26): charge on the left, wear chips on the right, one row. The opponent's drawing starts
-   below the HUD so it never runs into the text. */
-.hud-row > .hud-wear { flex: none; margin-left: auto; flex-wrap: nowrap; gap: 3px; align-self: center; }
-.hud-wear span { padding: 1px 5px; border-left-width: 3px; font-size: 12px; }
-.hud-wear .wear-more { --el: #9a9ab0; }
-.duel-side.you .side-hud > .hud-row > .status-strip { flex: 1 1 auto; }
-.duel .enemy-canvas { top: var(--hud-clear, 92px); height: auto; }
-@media (max-width: 600px) { .duel .enemy-canvas { --hud-clear: 86px; } }
 
 /* Paused menu (Nov 26): the tiles sit under the title; the settings follow. Shorter tiles on phones. */
 .pause-menu.dm > .pm-tiles { margin-top: 0; }
@@ -1451,43 +1223,139 @@ html[data-theme] .pause-menu button.btn-forfeit, .pause-menu button.btn-forfeit 
 html[data-theme] .lobby-card .room-seat.mine { box-shadow: inset 0 0 0 2px #ffd24d; }
 @media (max-width: 600px) { .room-seat-name { flex-direction: column; align-items: flex-start; gap: 1px; } .you-tag { font-size: 10px; padding: 0 5px; } }
 
-/* Fighter frames (Nov 26): name and status icons on one row, then the health bar. The charge is a word on
-   the left of the bar (white with an outline, so it reads whatever the colors) and the bar glows its color;
-   HP sits on the right. Bars stay at the top of each half. */
-.hp-charge { position: absolute; left: 8px; top: 0; bottom: 0; display: flex; align-items: center; z-index: 1; pointer-events: none; white-space: nowrap;
-  font-family: var(--title, inherit); font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: #fff;
-  text-shadow: -1.5px -1.5px 0 #1d1b2e, 1.5px -1.5px 0 #1d1b2e, -1.5px 1.5px 0 #1d1b2e, 1.5px 1.5px 0 #1d1b2e; }
-html[data-theme] .duel .hp-text { justify-content: flex-end; padding-right: 10px; }
-.fighter-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-html[data-theme] .hp-bar.charged { box-shadow: 0 0 0 2px var(--charge), 0 0 14px 3px var(--charge); }
-.side-hud .status-strip { min-height: 0; }
-.side-hud .hud-row:empty { display: none; }
-@media (max-width: 800px) and (orientation: portrait) { .duel .enemy-canvas { --hud-clear: 80px; } }
-/* Phones on their side (Nov 26): a slim frame whose health bar never changes size. Line 1: name, bar.
-   Line 2 (always reserved): status icons on the left, wear chips on the right, so neither ever squeezes
-   the bar. A 2v2 foe card is narrower: name and icons; then the bar alone; then the chips. */
-@media (max-height: 500px) and (orientation: landscape) {
-  html[data-theme] .duel .side-hud { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); grid-template-rows: 24px 20px;
-    gap: 4px 10px; align-items: center; padding: 6px 10px 8px; }
-  .duel .side-hud > .fighter, .duel .side-hud .fighter-name { display: contents; }
-  .duel .side-hud .fighter-label { grid-row: 1; grid-column: 1; }
-  .duel .side-hud .hp-bar { grid-row: 1; grid-column: 2; min-width: 0; }
-  .duel .side-hud .status-row { grid-row: 2; grid-column: 1 / -1; justify-self: start; margin-left: 0; }
-  .duel .side-hud > .hud-row { grid-row: 2; grid-column: 1 / -1; justify-self: end; min-width: 0; }
-  .duel .side-hud > .hud-row:empty { display: none; }
-  .duel .side-hud > .hud-row .sub-line { white-space: nowrap; font-size: 13px; }
-  html[data-theme] .duel .fighter-label { font-size: 15px; }
-  html[data-theme] .team-card.foe .side-hud { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 22px 22px 18px; gap: 3px 6px; }
-  .team-card.foe .side-hud .status-row { grid-row: 1; grid-column: 2; }
-  .team-card.foe .side-hud .hp-bar { grid-row: 2; grid-column: 1 / -1; }
-  .team-card.foe .side-hud > .hud-row { grid-row: 3; }
-  .duel .enemy-canvas { --hud-clear: 66px; }
-  .team-card.foe .enemy-canvas { --hud-clear: 80px; }
-}
 /* Portrait result (Nov 26): banner and buttons sit in your camera half, buttons on one row, clear of both bars. */
 @media (max-width: 800px) and (orientation: portrait) {
   .result-banner { top: 20%; }
   .result-actions { top: 32%; flex-wrap: nowrap; gap: 8px; }
   html[data-theme] .result-actions button { width: auto; min-width: 0; padding: 10px 12px; font-size: 15px; }
 }
-.team-card.foe .hp-charge { font-size: 11px; left: 6px; }
+
+/* ---- Fighter frame (Nov 26) ------------------------------------------------------------------------------
+   Name left, "HP 63" right; the health bar (glowing in the charged color) with the charge written at its right
+   end, the part that empties first, so it never covers the health that's left; then status icons and wear,
+   taking only the room they need. The opponent's drawing starts below the HUD's measured height (--hud-live,
+   set by SpellPage), so nothing ever covers it. Sideways phones: a grid (name, bar, HP on one line). */
+html[data-theme] .duel .fighter { gap: 5px; }
+html[data-theme] .duel .fighter-name { min-height: 18px; }
+.fighter-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html[data-theme] .duel .fighter-label { font-size: 13px; }
+html[data-theme] .duel .team-card .fighter-label { font-size: 12px; }
+.hp-count { margin-left: auto; flex: none; white-space: nowrap; font-family: var(--title, inherit); font-size: 14px; letter-spacing: 0.03em; color: #fffaf0;
+  -webkit-text-stroke: 3px #1d1b2e; paint-order: stroke fill; }
+.hp-count small { font-size: 0.8em; margin-right: 4px; opacity: 0.85; }
+.hp-count .armor-text { margin-left: 4px; }
+.team-card .hp-count { font-size: 13px; }
+html[data-theme] .duel .hp-bar { height: 30px; container: hpbar / inline-size; }
+html[data-theme] .duel .team-card .hp-bar { height: 26px; }
+html[data-theme] .duel .fighter > .hp-bar { margin-bottom: 3px; }
+html[data-theme] .hp-bar.charged { box-shadow: 0 0 0 2px var(--charge), 0 0 6px 0 var(--charge); }
+/* The charge word: large, white with a thick ink outline, so it reads whatever the colors (low vision too). */
+.hp-charge { position: absolute; right: 10px; top: 0; bottom: 0; display: flex; align-items: center; z-index: 1; pointer-events: none; white-space: nowrap;
+  font-family: var(--title, inherit); font-size: 17px; letter-spacing: 0.05em; text-transform: uppercase; color: #fff; -webkit-text-stroke: 4px #1d1b2e; paint-order: stroke fill; }
+.team-card .hp-charge { right: 7px; font-size: 14px; -webkit-text-stroke: 3.5px #1d1b2e; }
+/* A combo in three lengths; the bar's width picks the longest that fits ("Sunfire: Angelic + Fire",
+   "Sunfire: A + F", "Sunfire: A+F"). len-s/m/l: how long the full text is. 2v2 cards: always the short one. */
+.hp-charge > span { display: none; }
+.hp-charge > .w-full { display: inline; }
+@container hpbar (max-width: 299px) { .hp-charge.len-s > .w-full { display: none; } .hp-charge.len-s > .w-short { display: inline; } }
+@container hpbar (max-width: 339px) { .hp-charge.len-m > .w-full { display: none; } .hp-charge.len-m > .w-short { display: inline; } }
+@container hpbar (max-width: 379px) { .hp-charge.len-l > .w-full { display: none; } .hp-charge.len-l > .w-short { display: inline; } }
+@container hpbar (max-width: 269px) { .hp-charge.combo > span { display: none !important; } .hp-charge.combo > .w-tiny { display: inline !important; } }
+.team-card .hp-charge.combo > span { display: none !important; }
+.team-card .hp-charge.combo > .w-tiny { display: inline !important; }
+/* Status icons, then wear (only worn elements, "F42"): each only when there's something to show. */
+.duel .fighter-status { display: flex; flex-direction: column; gap: 4px; }
+.status-slot:empty, .wear-grid:empty { display: none; }
+.status-slot > .status-row { flex-wrap: wrap; justify-content: flex-start; margin-left: 0; gap: 3px; }
+.status-slot .st-icon { width: 22px; height: 22px; }
+.status-slot .st-icon svg { width: 14px; height: 14px; }
+.team-card .status-slot .st-icon { width: 20px; height: 20px; }
+.team-card .status-slot .st-icon svg { width: 13px; height: 13px; }
+.wear-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: 18px; gap: 3px; width: 100%; max-width: 380px; box-sizing: border-box; pointer-events: none; }
+.team-card .wear-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wear-grid span { display: flex; align-items: center; justify-content: center; gap: 1px; border-radius: 5px; border-left: 3px solid var(--el);
+  background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 11px; font-weight: 800; white-space: nowrap;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+.wear-grid span b { font-weight: 900; }
+.wear-grid .wear-shield { width: 10px; height: 10px; }
+/* The line under it: your "seeing" letter, or the counter hint. */
+.side-hud .status-strip { min-height: 0; }
+.side-hud .hud-row:empty { display: none; }
+.duel-side.you .side-hud > .hud-row > .status-strip { flex: 1 1 auto; }
+.team-card.foe .hud-row { min-width: 0; }
+.duel .enemy-canvas { top: var(--hud-live, 100px); height: auto; }
+@media (max-height: 500px) and (orientation: landscape) {
+  html[data-theme] .duel .side-hud { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto; grid-template-rows: 30px auto auto;
+    gap: 4px 10px; align-items: center; padding: 6px 10px 8px; }
+  .duel .side-hud > .fighter, .duel .side-hud .fighter-name { display: contents; }
+  .duel .side-hud .fighter-label { grid-row: 1; grid-column: 1; }
+  .duel .side-hud .hp-bar { grid-row: 1; grid-column: 2; min-width: 0; }
+  .duel .side-hud .hp-count { grid-row: 1; grid-column: 3; margin-left: 0; }
+  .duel .side-hud .fighter-status { grid-row: 2; grid-column: 1 / -1; }
+  .duel .side-hud > .hud-row { grid-row: 3; grid-column: 1 / -1; justify-self: start; min-width: 0; max-width: 100%; }
+  .duel .side-hud > .hud-row .sub-line { white-space: nowrap; font-size: 13px; }
+  html[data-theme] .team-card.foe .side-hud { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 22px 26px auto; gap: 3px 6px; }
+  .team-card.foe .side-hud .hp-count { grid-row: 1; grid-column: 2; }
+  .team-card.foe .side-hud .hp-bar { grid-row: 2; grid-column: 1 / -1; }
+  .team-card.foe .side-hud .fighter-status { grid-row: 3; align-self: start; }
+  .team-card.foe .side-hud > .hud-row { grid-row: 4; }
+}
+
+/* Training dummy buttons (Nov 26): a small button tucks them away and brings them back. */
+.dummy-dock { display: flex; align-items: center; gap: 8px; }
+.dock-toggle { width: 34px; min-width: 0; height: 34px; padding: 0 !important; border-radius: 9px; display: flex; align-items: center; justify-content: center; opacity: 0.85; }
+.dock-toggle svg { width: 18px; height: 18px; }
+
+/* Dummy spell times (Nov 26): an edit strip under each card ("✎ 1.8 s"), and a popup to type the time. */
+.pool-card-wrap { display: flex; flex-direction: column; }
+.pool-el .pool-time { all: unset; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: -2px; padding: 4px 0;
+  border-radius: 0 0 8px 8px; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text);
+  background: color-mix(in srgb, var(--ink, #000) 35%, transparent); }
+.pool-el .pool-time svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.pool-el .pool-time:hover { background: var(--main); color: var(--ink, #111); }
+.pool-el .pool-time.custom { color: var(--main); }
+.pool-el .pool-time.custom:hover { color: var(--ink, #111); }
+.speed-pop-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.55); }
+.speed-pop { width: min(320px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 18px 16px; border-radius: 14px;
+  background: var(--bg); border: 3px solid var(--ink, #1d1b2e); box-shadow: 0 6px 0 var(--ink, #1d1b2e); }
+.speed-pop-head { display: flex; align-items: center; gap: 10px; }
+.speed-pop-head b { font-family: var(--title, inherit); font-weight: normal; font-size: 22px; color: var(--text); }
+.speed-pop-label { font-size: 14px; color: var(--sub); }
+.speed-pop-step { display: flex; align-items: center; gap: 10px; }
+html[data-theme] .speed-pop-step > button { width: 48px; min-width: 0; height: 48px; padding: 0; font-size: 26px; line-height: 1; }
+.speed-pop-step label { display: flex; align-items: baseline; gap: 4px; }
+.speed-pop-step input { width: 84px; padding: 8px 6px; box-sizing: border-box; text-align: center; font: inherit; font-size: 26px; font-weight: 800; color: var(--text);
+  background: #141226; border: 3px solid var(--ink, #1d1b2e); border-radius: 10px; -moz-appearance: textfield; appearance: textfield; }
+.speed-pop-step input::-webkit-inner-spin-button, .speed-pop-step input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.speed-pop-step label b { font-size: 18px; color: var(--sub); }
+.speed-pop-range { font-size: 13px; color: var(--sub); }
+.speed-pop-actions { display: flex; gap: 10px; width: 100%; }
+html[data-theme] .speed-pop-actions button { flex: 1; width: auto; min-width: 0; }
+/* 2v2 cards: a small drawing eases in to a readable size (EnemyCanvas zoom). */
+.enemy-zoom { transform-box: view-box; transform-origin: 0 0; transition: transform 0.3s ease-out; }
+.team-card .enemy-zoom path { vector-effect: non-scaling-stroke; }
+/* Spellbook chapter tabs (Nov 26): on a phone they scroll sideways; faded edges show there's more, and the
+   open chapter's tab slides to the middle (Spellbook.tsx). Centered only when they all fit. */
+.book-ribbons { position: relative; -webkit-mask: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent); mask: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent); padding-left: 14px; padding-right: 14px; }
+@media (min-width: 900px) { .book-ribbons { justify-content: safe center; } }
+/* Tutorial (Nov 26): while a card is open, the dummy's HUD is hidden (infinite HP, it doesn't fight back; its
+   bar only peeked out around the card). It comes back for "Try it", when the card shrinks (.tut-mini). */
+.duel-side.opp:has(> .tutorial) > .side-hud, .duel-side.opp:has(> .tutorial) .team-card .side-hud { visibility: hidden; }
+
+/* Scrolling panels (Nov 26): no browser scrollbar anywhere in the game; when there's more below, a fade at
+   the bottom edge and a small bouncing arrow say so (scrollHint.ts sets .more-below). */
+html[data-theme] :is(.tut-body, .tutorial, .dm-body, .menu-card, .book-leaf.right, .tower-wrap .tower, .lobby-screen) { scrollbar-width: none; }
+html[data-theme] :is(.tut-body, .tutorial, .dm-body, .menu-card, .book-leaf.right, .tower-wrap .tower, .lobby-screen)::-webkit-scrollbar { display: none; }
+.more-below::after { content: ''; position: sticky; bottom: 0; display: block; flex: none; align-self: stretch; height: 34px; margin-top: -34px; pointer-events: none; z-index: 3;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23ffd24d' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center 60% / 22px no-repeat, linear-gradient(transparent, rgba(10, 6, 24, 0.35));
+  filter: drop-shadow(0 1px 0 #1d1b2e) drop-shadow(0 0 3px rgba(0,0,0,.6)); animation: more-bob 1.2s ease-in-out infinite; }
+@keyframes more-bob { 0%, 100% { background-position: center 55%, 0 0; } 50% { background-position: center 85%, 0 0; } }
+/* The tutorial card's Back / Next row is pinned at its bottom: the arrow sits just above it. */
+.tut-body.more-below::after { bottom: var(--tut-nav-h, 58px); }
+@media (prefers-reduced-motion: reduce) { .more-below::after { animation: none; } }
+/* Parchment panels (tutorial card, Spellbook page): an ink arrow and a fade into the paper. */
+:is(.book-card .tut-body, .book-leaf.right).more-below::after {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%232a2238' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center 60% / 24px no-repeat,
+    linear-gradient(rgba(243, 226, 184, 0), #f3e2b8 75%);
+  filter: none; }
+.tut-body.more-below::after { bottom: 60px; }

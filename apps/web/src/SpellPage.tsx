@@ -195,7 +195,7 @@ interface Cast {
 
 export type Mode = 'dummy' | 'practice' | 'online' | 'tutorial'
 
-/** Two enemies (training dummy): where the throwing hand is on screen picks the target (Future Plans.md, "Team modes"). */
+/** Two enemies (training dummy): where the throwing hand is on screen picks the target (Overview.md, "Team modes"). */
 type Zone = 'left' | 'right'
 /** Two zones, sized for comfort: the third of the screen on your signing hand's side aims that way,
  *  the rest aims the other way (screen x, as you see it: 0 = left). */
@@ -458,7 +458,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const inPracticeMatch = mode === 'practice' && fight.running
   useEffect(() => {
     if (mode === 'online') goOnline()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once, on open (mode never changes: the page is keyed by it)
   // Aiming with the zone your signing hand is in. Two enemies: left zone the left one, right zone the right one.
   // With a teammate, heals and buffs: your signing hand's own side is you, the other side your teammate.
   // (Read from a ref: the camera loop keeps the closure of an earlier render.)
@@ -1104,7 +1104,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       stopped = true
       stream?.getTracks().forEach((t) => t.stop())
     }
-  }, [hand, camOn]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hand, camOn])
 
   // A new match starts with a clean cast log (last match's "Knocked down!" mustn't linger).
   useEffect(() => {
@@ -1129,14 +1129,19 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const fighterHead = (side: Fid, name?: string) => {
     const ch = chargeOf(side)
     const glow = ch.el === '?' ? ELEMENTS.U.color : ch.el ? chargeInfo(ch.el).color : undefined
-    const word = ch.el === '?' ? 'Hidden' : !ch.el ? '' : ch.el === COMBO ? 'Combo' : chargeInfo(ch.el).name
+    const words = chargeWords(ch.el, ch.mix)
+    const showWear = fxOn && !(mode === 'tutorial' && side === 'enemy')
     return (
     <div className="fighter">
+      {/* Name left, HP number right (Nov 26: out of the bar, so the bar shows only health and the charge). */}
       <div className="fighter-name">
         <span className="fighter-label">{name ?? (side === 'player' ? 'You' : oppName)}</span>
-        {/* Every status as icons, on the name row (a fixed height, so nothing below ever moves). Your own
-            "can't act" ones are on your hand. Too many: the first few and "+N". */}
-        {fxOn && <StatusRow view={fight} side={side} hand={side === 'player'} max={side.startsWith('ally') || (isTeam && side !== 'player') ? 3 : 5} />}
+        <span className="hp-count">
+          <small>HP</small>
+          {/* A 2v2 foe card is narrow: just the HP left. */}
+          {fight.maxHp[side] === Infinity ? '∞' : isTeam && side !== 'player' && !side.startsWith('ally') ? Math.ceil(fight.hp[side]) : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
+          {armorOf(side) > 0 && <b className="armor-text">+{armorOf(side)}</b>}
+        </span>
       </div>
       <div className={`hp-bar ${glow ? 'charged' : ''}`} style={{ '--charge': glow } as React.CSSProperties}>
         <div
@@ -1144,12 +1149,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: armorOf(side) > 0 ? 'var(--armor-hp)' : teamOf(side) === 'player' ? 'var(--you)' : 'var(--foe)' }}
         />
         <ArmorBar hp={fight.hp[side]} max={fight.maxHp[side]} armor={armorOf(side)} />
-        {word && <span className="hp-charge">{word}</span>}
-        <span className="hp-text">
-          {/* A 2v2 foe card's bar is narrow: just the HP left, so it never runs into the charge word. */}
-          {fight.maxHp[side] === Infinity ? '∞' : isTeam && side !== 'player' && !side.startsWith('ally') ? Math.ceil(fight.hp[side]) : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
-          {armorOf(side) > 0 && <b className="armor-text">+{armorOf(side)}</b>}
-        </span>
+        {words && (
+          // At the bar's right end (the part that empties first). Three lengths; the bar's width picks one.
+          <span className={`hp-charge ${words.len}`}>
+            <span className="w-full">{words.full}</span>
+            <span className="w-short">{words.short}</span>
+            <span className="w-tiny">{words.tiny}</span>
+          </span>
+        )}
         {fight.floats
           .filter((f) => f.side === side)
           .map((f) => (
@@ -1157,6 +1164,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               {f.text}
             </span>
           ))}
+      </div>
+      {/* Under the bar, fixed room that fits the worst case (Nov 26): nothing here ever moves, wraps into the
+          drawing or hides behind "+N". The status icons get their rows (one on a wide bar, two on a 2v2
+          card); then all 8 elements' wear in fixed slots. Your own "can't act" states are on your hand. */}
+      <div className="fighter-status">
+        <div className="status-slot">{fxOn && <StatusRow view={fight} side={side} hand={side === 'player'} max={99} />}</div>
+        <WearGrid wear={showWear ? fight.wear?.[side] ?? {} : undefined} />
       </div>
     </div>
     )
@@ -1201,7 +1215,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         {fighterHead(id, nameOf(id))}
         <div className="hud-row">
           <OppStatus fight={fight} id={id} cast={cast} />
-          {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} max={2} />}
         </div>
         {fxOn && <StatusFx side={id} view={fight} />}
         {fxOn && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
@@ -1215,17 +1228,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     const out = fight.hp[id] <= 0
     return (
       <div key={id} data-fid={id} className={`team-card foe ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
-        <EnemyCanvas cast={shrouded ? null : cast} />
-        {cast?.phase === 'ready' && !shrouded && (
-          <b className="team-spell" style={{ color: cast.color }}>
-            {cast.name}
-          </b>
-        )}
-        <div className="side-hud">
+        <EnemyCanvas cast={shrouded ? null : cast} zoom />
+        <div className="side-hud" ref={watchHud}>
           {fighterHead(id, nameOf(id))}
           <div className="hud-row">
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
-            {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} max={3} />}
           </div>
         </div>
         {fxOn && <StatusFx side={id} view={fight} />}
@@ -1270,6 +1277,37 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
   const askForfeit = useCallback(() => setMenu('forfeit'), [])
+  // The opponent's drawing starts right below their HUD, at its real height (Nov 26): status and wear rows
+  // take only the room they need, and the drawing area moves down when they grow, so nothing ever covers it.
+  const hudWatch = useMemo(
+    () =>
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver((entries) => {
+            for (const e of entries) {
+              const hud = e.target as HTMLElement
+              hud.parentElement?.style.setProperty('--hud-live', `${Math.ceil(hud.offsetHeight)}px`)
+            }
+          }),
+    [],
+  )
+  const watchHud = useCallback((el: HTMLDivElement | null) => void (el && hudWatch?.observe(el)), [hudWatch])
+  // Training dummy: its buttons can be tucked away (a small button brings them back); remembered here.
+  const [dockOpen, setDockOpenState] = useState(() => {
+    try {
+      return localStorage.getItem('spells-dummy-dock') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const setDockOpen = (open: boolean) => {
+    setDockOpenState(open)
+    try {
+      localStorage.setItem('spells-dummy-dock', open ? '1' : '0')
+    } catch {
+      /* not saved */
+    }
+  }
   // The pause menu opens where you left it (also after a trip to the Spellbook).
   const menuScroll = useRef(0)
   const keepMenuScroll = useCallback((el: HTMLDivElement | null) => {
@@ -1338,7 +1376,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                       : seeing && `seeing: ${seeing}`}
               </span>
             </div>
-            {fxOn && fight.wear?.player && <WearChips wear={fight.wear.player} max={isTeam ? 4 : 6} />}
             </div>
           </div>
           {!camOn && mode !== 'online' ? (
@@ -1377,14 +1414,16 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
         <div className="duel-side opp" ref={oppRef}>
           {isTeam && <div className="team-foes">{foes.map(foeCard)}</div>}
-          {mode === 'dummy' && <div className="dummy-dock">{dummyBar}</div>}
-          {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
-          {!isTeam && fight.running && fight.enemyCast?.phase === 'ready' && !(fight.shroud.enemy > 0) && (
-            <b className="team-spell" style={{ color: fight.enemyCast.color }}>
-              {fight.enemyCast.name}
-            </b>
+          {mode === 'dummy' && (
+            <div className={`dummy-dock ${dockOpen ? '' : 'tucked'}`}>
+              <button className="small icon-btn dock-toggle" onClick={() => setDockOpen(!dockOpen)} aria-label={dockOpen ? 'Hide training buttons' : 'Show training buttons'} title={dockOpen ? 'Hide' : 'Show training buttons'}>
+                <Icon d={dockOpen ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} />
+              </button>
+              {dockOpen && dummyBar}
+            </div>
           )}
-          {!isTeam && <div className="side-hud">
+          {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
+          {!isTeam && <div className="side-hud" ref={watchHud}>
             {fighterHead('enemy')}
             {mode === 'practice' && bubble && (
               <p className="chat-bubble" key={bubble.n}>
@@ -1393,7 +1432,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             )}
             <div className="hud-row">
               {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
-              {mode !== 'tutorial' && fxOn && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} max={6} />}
             </div>
           </div>}
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
@@ -1542,16 +1580,43 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
 /** The opponent's drawing in its true shape: points are fractions of a box `view.aspect` wide / tall
  *  (a player's visible camera view, or the AI's square), drawn without stretching. A player's view
- *  fills this half the way their camera filled theirs (cover); the AI's box is shown whole. */
+ *  fills this half the way their camera filled theirs (cover); the AI's box is shown whole.
+ *  `zoom` (2v2 cards, Nov 26): a small drawing is zoomed in (up to ZOOM_MAX, centered, eased) so it stays
+ *  readable on a narrow card; a big one is left as drawn. Line widths don't change (non-scaling strokes). */
 const FRAME_H = 1000
-function EnemyCanvas({ cast }: { cast: Snapshot['enemyCast'] }) {
+const ZOOM_MAX = 2.5
+const ZOOM_FILL = 0.75 // a zoomed drawing fills this much of the visible area
+function EnemyCanvas({ cast, zoom = false }: { cast: Snapshot['enemyCast']; zoom?: boolean }) {
   const fw = FRAME_H * (cast?.view.aspect ?? 16 / 9)
-  const d = cast?.points.map((p, i) => `${i ? 'L' : 'M'}${(p.x * fw).toFixed(1)} ${(p.y * FRAME_H).toFixed(1)}`).join(' ') ?? ''
+  const pts = cast?.points ?? []
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(p.x * fw).toFixed(1)} ${(p.y * FRAME_H).toFixed(1)}`).join(' ')
+  const meet = cast?.view.fit === 'contain'
+  const box = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState<[number, number] | null>(null)
+  useEffect(() => {
+    if (!zoom || !box.current || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setSize([e.contentRect.width, e.contentRect.height]))
+    ro.observe(box.current)
+    return () => ro.disconnect()
+  }, [zoom])
+  let transform = 'none'
+  if (zoom && size && pts.length > 1) {
+    const xs = pts.map((p) => p.x * fw)
+    const ys = pts.map((p) => p.y * FRAME_H)
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+    // The part of the frame the card actually shows, in frame units (meet: all of it; slice: the middle).
+    const sc = meet ? Math.min(size[0] / fw, size[1] / FRAME_H) : Math.max(size[0] / fw, size[1] / FRAME_H)
+    const [vw, vh] = [size[0] / sc, size[1] / sc]
+    const k = Math.min(ZOOM_MAX, (ZOOM_FILL * vw) / Math.max(x1 - x0, 1), (ZOOM_FILL * vh) / Math.max(y1 - y0, 1))
+    if (k > 1.05) transform = `translate(${(fw / 2 - k * (x0 + x1) / 2).toFixed(1)}px, ${(FRAME_H / 2 - k * (y0 + y1) / 2).toFixed(1)}px) scale(${k.toFixed(3)})`
+  }
   return (
-    <div className={`enemy-canvas ${cast?.phase === 'ready' ? 'ready' : ''}`} style={{ color: cast?.color ?? 'var(--sub)' }}>
-      <svg viewBox={`0 0 ${fw.toFixed(1)} ${FRAME_H}`} preserveAspectRatio={`xMidYMid ${cast?.view.fit === 'contain' ? 'meet' : 'slice'}`}>
-        {d && <path d={d} className="enemy-ink" />}
-        {d && <path d={d} className="enemy-stroke" />}
+    <div ref={box} className={`enemy-canvas ${cast?.phase === 'ready' ? 'ready' : ''}`} style={{ color: cast?.color ?? 'var(--sub)' }}>
+      <svg viewBox={`0 0 ${fw.toFixed(1)} ${FRAME_H}`} preserveAspectRatio={`xMidYMid ${meet ? 'meet' : 'slice'}`}>
+        <g className="enemy-zoom" style={{ transform }}>
+          {d && <path d={d} className="enemy-ink" />}
+          {d && <path d={d} className="enemy-stroke" />}
+        </g>
       </svg>
     </div>
   )
@@ -1590,31 +1655,44 @@ const MENU_REDRAW_MS = 250 // while a menu is open, the page behind it redraws a
 const LOCK_NOTES = new Set(['Parry missed', 'Interrupted!', 'Whiffed!']) // with the parry timer on, a missed parry still shows "Too early" / "Too late"
 
 const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U', PARRY_WEAR]
-/** Wear: only the worn elements, as small "I 62" chips on the status row (fresh ones aren't shown). Same on
- *  every side. Never more than one row: past `max`, the most worn ones show and "+N" (Nov 26). */
-function WearChips({ wear, max }: { wear: Record<string, number>; max: number }) {
-  const all = WEAR_ORDER.filter((e) => (wear[e] ?? 100) < 100)
-  if (!all.length) return null
-  const cut = all.length > max ? max - 1 : max
-  const worn = all.length > max ? [...all].sort((a, b) => wear[a] - wear[b]).slice(0, cut) : all
+/** Wear: only the worn elements ("F42"), packed from the left, in room that always fits all 8 (one row on a
+ *  wide bar, 4 x 2 on a 2v2 card), so however many show, nothing below ever moves or gets covered. */
+function WearGrid({ wear }: { wear: Record<string, number> | undefined }) {
+  const worn = WEAR_ORDER.filter((e) => (wear?.[e] ?? 100) < 100)
   return (
-    <div className="wear-chips hud-wear" aria-label="Worn elements">
+    <div className="wear-grid" aria-label="Worn elements">
       {worn.map((e) => (
         <span key={e} style={{ '--el': e === PARRY_WEAR ? '#ffffff' : ELEMENTS[e].color } as React.CSSProperties}>
           {e === PARRY_WEAR ? (
-            // Parry: a small shield (as narrow as an element letter, so the chips stay one row on a phone).
             <svg className="wear-shield" viewBox="0 0 24 24" aria-label="Parry">
               <path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z" />
             </svg>
           ) : (
-            e
-          )}{' '}
-          {wear[e]}
+            <b>{e}</b>
+          )}
+          {wear![e]}
         </span>
       ))}
-      {all.length > worn.length && <span className="wear-more">+{all.length - worn.length}</span>}
     </div>
   )
+}
+
+/** A fighter's charge as words for their health bar, in three lengths (the bar's width picks one):
+ *  an element is its name; a combo always shows its elements: "Sunfire: Angelic + Fire", then
+ *  "Sunfire: A + F", then "Sunfire: A+F" (a long name cut to its first word). While mixing: just the elements. */
+function chargeWords(el: string | null, mix: string[]): { full: string; short: string; tiny: string; len: string } | null {
+  if (!el) return null
+  const one = (w: string) => ({ full: w, short: w, tiny: w, len: '' })
+  if (el === '?') return one('Hidden')
+  const parts = el === COMBO ? mix : COMBO_MIX[el]
+  if (!parts) return one(chargeInfo(el).name)
+  if (!parts.length) return one('Combo')
+  const name = el === COMBO ? '' : `${chargeInfo(el).name}: `
+  const full = name + parts.map((e) => ELEMENTS[e].name).join(' + ')
+  const short = name + parts.join(' + ')
+  const tiny = (el === COMBO ? '' : `${chargeInfo(el).name.split(' ')[0]}: `) + parts.join('+')
+  const len = full.length >= 24 ? 'len-l' : full.length >= 20 ? 'len-m' : full.length >= 15 ? 'len-s' : ''
+  return { full, short, tiny, len: `combo ${len}` }
 }
 
 /** The counter hint under a fighter's bar (Training dummy aid, or a practice bot's intro hint), if any. Their
@@ -1876,7 +1954,7 @@ const DummyMenu = memo(function DummyMenu(props: { twoFoes: boolean; setTwoFoes:
   const setSpellPct = (k: string, pct: number | null) => {
     const spellPct = { ...pace.spellPct }
     if (pct === null) delete spellPct[k]
-    else spellPct[k] = Math.min(SPELL_PCT.max, Math.max(SPELL_PCT.min, Math.round(pct)))
+    else spellPct[k] = Math.min(SPELL_PCT.max, Math.max(SPELL_PCT.min, Math.round(pct * 10) / 10))
     setPace({ ...pace, spellPct, template: null })
   }
   const [which, setWhich] = useState(0)

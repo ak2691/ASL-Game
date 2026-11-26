@@ -1364,6 +1364,7 @@ export class DummyArena implements Arena {
   setAttacking(on: boolean) {
     this.attacking = on
     this.enemy = null
+    this.combat.clearCast('enemy') // stopped mid-cast: its charge and drawing go too (they used to stay up)
     this.nextEnemyAt = performance.now() + 1000
   }
   sign(el: string) {

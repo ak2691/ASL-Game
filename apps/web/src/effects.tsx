@@ -29,22 +29,60 @@ export function BoltLayer({ bolts, team = false }: { bolts: Bolt[]; team?: boole
     <div className="bolt-layer">
       {bolts.filter((b) => !b.parried).map((b) => (
         b.shape === 'battlements' && b.kind === 'hit' ? (
-          // Earthquake: a crack races along the ground from your half to theirs.
-          <div key={b.id}>
-            {[21, 43, 65, 87].map((top, n) => (
-              <svg key={n} className={`quake-run from-${b.from}`} viewBox="0 0 100 10" preserveAspectRatio="none" style={{ '--fly': `${b.fly}ms`, '--row': `${top}%` } as Vars}>
-                {/* Every other crack's zigzag is mirrored for variety, inside the drawing: flipping the whole
-                    element would also flip which way it runs once portrait turns it top to bottom. */}
-                <g transform={n % 2 ? 'matrix(1 0 0 -1 0 10)' : undefined}>
-                  <polyline className="glow" points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
-                  <polyline points="0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5" />
-                </g>
-              </svg>
-            ))}
-          </div>
+          <QuakeRun key={b.id} b={b} team={team} />
         ) : (
           <FlyingBolt key={b.id} b={b} team={team} />
         )
+      ))}
+    </div>
+  )
+}
+
+const CRACK = '0,5 6,2 11,8 17,3 24,7 30,1 36,8 43,3 50,9 56,2 63,7 70,1 76,8 83,3 90,8 95,3 100,5'
+/** One crack line; every other one's zigzag is mirrored for variety (inside the drawing: flipping the whole
+ *  element would also flip which way it runs). */
+const Crack = ({ n, fly, row }: { n: number; fly: number; row: number }) => (
+  <svg className="quake-run" viewBox="0 0 100 10" preserveAspectRatio="none" style={{ '--fly': `${fly}ms`, '--row': `${row}%` } as Vars}>
+    <g transform={n % 2 ? 'matrix(1 0 0 -1 0 10)' : undefined}>
+      <polyline className="glow" points={CRACK} />
+      <polyline points={CRACK} />
+    </g>
+  </svg>
+)
+
+/** Earthquake: cracks race along the ground. 1v1: across the screen from your half to theirs. Team fights
+ *  (Nov 26): from the caster's spot to the target's, angled like the other spells (tilted on a portrait phone). */
+function QuakeRun({ b, team }: { b: Bolt; team: boolean }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [path, setPath] = useState<Vars | null>(null)
+  useLayoutEffect(() => {
+    if (!team) return
+    const layer = ref.current?.parentElement
+    const duel = layer?.parentElement
+    const from = duel?.querySelector(`[data-fid="${b.by}"]`)
+    const to = duel?.querySelector(`[data-fid="${b.to}"]`)
+    if (!layer || !from || !to || from === to) return
+    const L = layer.getBoundingClientRect()
+    const mid = (el: Element) => {
+      const r = el.getBoundingClientRect()
+      return [r.left + r.width / 2 - L.left, r.top + r.height / 2 - L.top]
+    }
+    const [x0, y0] = mid(from)
+    const [x1, y1] = mid(to)
+    setPath({ left: x0, top: y0, width: Math.hypot(x1 - x0, y1 - y0), transform: `rotate(${(Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI}deg)` })
+  }, [team, b.by, b.to])
+  if (team)
+    return (
+      <div ref={ref} className="quake-path" style={path ?? { display: 'none' }}>
+        {[4, 43, 82].map((row, n) => (
+          <Crack key={n} n={n} fly={b.fly} row={row} />
+        ))}
+      </div>
+    )
+  return (
+    <div ref={ref} className={`quake-1v1 from-${b.from}`}>
+      {[21, 43, 65, 87].map((row, n) => (
+        <Crack key={n} n={n} fly={b.fly} row={row} />
       ))}
     </div>
   )
@@ -134,7 +172,7 @@ function Projectile({ b }: { b: Bolt }) {
         <circle cx="50" cy="50" r="16" fill={core} />
       </>
     )
-  else if (el === 'F')
+  else if (b.el === 'F') // only Fire itself: Magma and Sunfire (fire mixes) have their own art below
     art = sig ? (
       // Meteor: a dark rock with glowing lava cracks inside a huge fire trail.
       <>
@@ -162,16 +200,20 @@ function Projectile({ b }: { b: Bolt }) {
       </>
     )
   else if (b.el === 'magma')
-    // Magma: a molten boulder dripping lava, in a long fire trail.
+    // Magma: not a rock but a glob of molten lava, glossy and wobbling, shedding drips along a dark-red trail.
     art = (
       <>
-        {defs('#ff5a14', '#ffb13d')}
-        <path d="M0 50 Q30 16 66 24 L66 76 Q30 84 0 50 Z" fill={trail} filter={blur} />
-        <circle cx="68" cy="50" r="30" fill={core} filter={blur} />
-        <g className="upright">
-        <path d="M50 34 L68 22 L88 30 L94 52 L84 72 L60 76 L46 58 Z" fill="#3a1c10" />
-        <path d="M56 36 L70 46 L66 60 M70 46 L86 40 M66 60 L80 66 M66 60 L54 64" fill="none" stroke="#ffb13d" strokeWidth="3" strokeLinecap="round" />
-        <path d="M58 76 Q57 86 60 90 Q63 86 62 76 Z M76 74 Q76 82 78 84 Q80 82 79 74 Z" fill="#ff7a1f" />
+        {defs('#c22a08', '#ff8a1f')}
+        <path d="M0 50 Q26 30 58 34 L58 66 Q26 70 0 50 Z" fill={trail} filter={blur} />
+        {[[14, 58, 3], [26, 63, 4], [38, 60, 5], [22, 44, 2.5]].map(([x, y, r], k) => (
+          <circle key={k} cx={x} cy={y} r={r} fill="#ff7a1f" />
+        ))}
+        <g className="wobble" style={{ transformOrigin: '66px 50px' }}>
+          <path d="M44 50 Q44 26 66 24 Q90 24 92 48 Q94 72 70 76 Q54 78 48 66 Q38 66 44 50 Z" fill="#ff5a14" />
+          <path d="M48 50 Q50 32 66 30 Q84 30 86 48 Q86 64 70 68 Q56 70 52 62 Q46 60 48 50 Z" fill="#ffa53d" />
+          <ellipse cx="62" cy="40" rx="9" ry="6" fill="#ffe9a8" opacity="0.9" />
+          <circle cx="76" cy="58" r="4" fill="#c22a08" opacity="0.7" />
+          <circle cx="58" cy="60" r="3" fill="#c22a08" opacity="0.6" />
         </g>
       </>
     )

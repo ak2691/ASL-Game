@@ -14,6 +14,7 @@ try {
   /* ignore */
 }
 document.documentElement.dataset.theme = theme && THEMES.includes(theme) ? theme : 'cartoon'
+import './scrollHint'
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(

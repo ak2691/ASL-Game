@@ -1,5 +1,5 @@
 // Combat rules shared by practice mode (in the browser) and online matches (on the server).
-// No DOM, no timers: the caller passes `now` (ms). Design: MVP Plan.md ("Spell structure v2").
+// No DOM, no timers: the caller passes `now` (ms). Design: Overview.md; numbers below.
 import { COMBO, COMBOS_ON, COMBO_CHARGES, COMBO_MIX, COUNTER, ELEMENTS, FORMS, MIXABLE, PUNCHES, QUICK, beats, canQuick, chargeInfo, comboOf, isMixCounter, isValidSpell, mixBeats, mixCounter, spellName } from './spells'
 
 export { isValidSpell }
@@ -540,6 +540,14 @@ export class Combat {
     return true
   }
 
+  /** Drop whatever `side` has going (charge, combo mix, drawing, readied spell), with no penalty. For a
+   *  training dummy whose attacks were switched off mid-cast. */
+  clearCast(side: Fid) {
+    this.charge[side] = null
+    this.ready[side] = null
+    this.strokeStart[side] = null
+  }
+
   /** The charged element (or combo) right now. */
   chargeOf(side: Fid) {
     return this.charge[side]?.el ?? null
@@ -719,11 +727,12 @@ export class Combat {
       this.charge[side] = null
       this.strokeStart[side] = null
     }
-    // The soonest parryable spell flying at `side`, inside the window.
-    const f = this.flying
+    // Every parryable spell flying at `side` that's inside its window right now (Nov 26: two foes' spells
+    // arriving together are both parried by one push). One outside its window just lands as usual.
+    const caught = this.flying
       .filter((x) => x.target === side && x.caster !== side && x.bolt.parryable && x.landAt - now <= parryMs(x.bolt))
-      .sort((a, b) => a.landAt - b.landAt)[0]
-    if (!f) {
+      .sort((a, b) => a.landAt - b.landAt)
+    if (!caught.length) {
       this.parryLockUntil[side] = Math.max(this.parryLockUntil[side], now + PARRY_MISS_MS)
       this.staggeredUntil[side] = now + PARRY_MISS_MS
       // A miss wears your parry too (Nov 25): every push counts, so spamming it costs you.
@@ -732,34 +741,38 @@ export class Combat {
       this.note(side, 'Parry missed', `${this.parryOff(side, now)}staggered ${PARRY_MISS_MS / 1000} s`, '#999', false, now)
       return 'missed'
     }
-    this.flying = this.flying.filter((x) => x !== f)
-    f.bolt.kind = 'missed'
-    f.bolt.parried = true
     // Parry wear (Nov 25): each landed parry wears your parry like casting wears an element, so the next
-    // reflect goes back weaker (same step, floor and recovery as element wear).
+    // reflect goes back weaker (same step, floor and recovery as element wear). One push, one stack.
     const parryPower = this.powerOf(side, PARRY_WEAR, now)
     this.wear[side][PARRY_WEAR] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(side, PARRY_WEAR, now) + 1), at: now }
-    // A worn parry lets the rest through: at 70% parry power, 30% of the spell still hits you.
-    if (parryPower < 1) this.leak(f, side, 1 - parryPower, now)
-    if (this.winner) return null // what got through ended it
-    const reflects = f.reflects ?? 0
-    if (reflects >= REFLECT_POWER.length) {
-      // The last parry of a chain: the spell is destroyed (nothing goes back).
-      this.float(side, 'Destroyed!', '#ffffff', now)
-      this.note(side, 'Destroyed!', `${f.bolt.name} broke apart`, '#ffffff', true, now)
-      return 'ended'
+    let result: 'reflected' | 'ended' = 'ended'
+    for (const f of caught) {
+      this.flying = this.flying.filter((x) => x !== f)
+      f.bolt.kind = 'missed'
+      f.bolt.parried = true
+      // A worn parry lets the rest through: at 70% parry power, 30% of the spell still hits you.
+      if (parryPower < 1) this.leak(f, side, 1 - parryPower, now)
+      if (this.winner) return null // what got through ended it
+      const reflects = f.reflects ?? 0
+      if (reflects >= REFLECT_POWER.length) {
+        // The last parry of a chain: the spell is destroyed (nothing goes back).
+        this.float(side, 'Destroyed!', '#ffffff', now)
+        this.note(side, 'Destroyed!', `${f.bolt.name} broke apart`, '#ffffff', true, now)
+        continue
+      }
+      const power = REFLECT_POWER[reflects] * parryPower
+      const back = this.bolt(side, f.caster, f.bolt.name, f.bolt.color, 'hit', now, f.el, f.shape)
+      back.parryable = true
+      back.reflected = true
+      back.power = power
+      back.fly = Math.round(back.fly / REFLECT_SPEED)
+      back.parryMs = PARRY_WINDOW_MS
+      this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, wear: f.wear, reflects: reflects + 1 })
+      this.float(side, 'Reflected!', '#ffffff', now)
+      this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%${parryPower < 1 ? `, ${Math.round((1 - parryPower) * 100)}% got through` : ''}`, '#ffffff', true, now)
+      result = 'reflected'
     }
-    const power = REFLECT_POWER[reflects] * parryPower
-    const back = this.bolt(side, f.caster, f.bolt.name, f.bolt.color, 'hit', now, f.el, f.shape)
-    back.parryable = true
-    back.reflected = true
-    back.power = power
-    back.fly = Math.round(back.fly / REFLECT_SPEED)
-    back.parryMs = PARRY_WINDOW_MS
-    this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, wear: f.wear, reflects: reflects + 1 })
-    this.float(side, 'Reflected!', '#ffffff', now)
-    this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%${parryPower < 1 ? `, ${Math.round((1 - parryPower) * 100)}% got through` : ''}`, '#ffffff', true, now)
-    return 'reflected'
+    return result
   }
 
   /** Part of a parried spell gets through a worn parry: only its direct damage, at `share` of its power, lands
@@ -1216,49 +1229,6 @@ export class Combat {
       bolts: [...this.bolts],
       over: this.winner,
     }
-  }
-}
-
-/** The same view seen from the other side (online: the server runs one Combat; player B sees it flipped). */
-export function flipView(v: CombatView): CombatView {
-  const f = <T,>(r: Record<Fid, T>) => ({ player: r.enemy, enemy: r.player })
-  const o = (id: Fid) => (id === 'player' ? 'enemy' : id === 'enemy' ? 'player' : id)
-  return {
-    fighters: [...v.fighters].reverse().map((x) => ({ ...x, id: o(x.id), team: other(x.team) })),
-    aim: { player: v.aim.enemy && o(v.aim.enemy), enemy: v.aim.player && o(v.aim.player) },
-    hp: f(v.hp),
-    maxHp: f(v.maxHp),
-    silenced: f(v.silenced),
-    static: f(v.static),
-    chill: f(v.chill),
-    chillMs: f(v.chillMs),
-    burning: f(v.burning),
-    regen: f(v.regen),
-    knocked: f(v.knocked),
-    charge: f(v.charge),
-    mix: f(v.mix),
-    ready: f(v.ready),
-    fizzled: f(v.fizzled),
-    staggered: f(v.staggered),
-    locked: f(v.locked),
-    recover: f(v.recover),
-    shield: f(v.shield),
-    mirror: f(v.mirror),
-    doom: f(v.doom),
-    shroud: f(v.shroud),
-    guard: f(v.guard),
-    exposed: f(v.exposed),
-    fog: f(v.fog),
-    fogShots: f(v.fogShots),
-    noHeal: f(v.noHeal),
-    wear: f(v.wear),
-    glacier: f(v.glacier),
-    storm: f(v.storm),
-    notes: v.notes.map((n) => ({ ...n, side: o(n.side) })),
-    dealt: f(v.dealt),
-    floats: v.floats.map((x) => ({ ...x, side: o(x.side) })),
-    bolts: v.bolts.map((b) => ({ ...b, from: other(b.from), by: o(b.by), to: o(b.to) })),
-    over: v.over && other(v.over),
   }
 }
 

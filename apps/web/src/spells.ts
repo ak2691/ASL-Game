@@ -1,5 +1,5 @@
 // Spell = element (an ASL letter, signed first) × shape (drawn with the index finger).
-// A circle is the counterspell. Design notes: MVP Plan.md.
+// A circle is the counterspell. Design notes: Overview.md.
 
 export const ELEMENTS: Record<string, { name: string; color: string }> = {
   F: { name: 'Fire', color: '#ff6a3d' },
@@ -13,15 +13,6 @@ export const ELEMENTS: Record<string, { name: string; color: string }> = {
 
 /** The element (or C) a recognized letter charges, or null. */
 export const elementOfSign = (letter: string): string | null => (ELEMENTS[letter] || (letter === COMBO && COMBOS_ON) ? letter : null)
-
-/** One-line identity of each element's punches (shown in the guide). */
-export const TRAITS: Record<string, string> = {
-  E: 'Hardest direct hits',
-  F: 'Burn: extra damage over time (most total)',
-  W: 'Mend: heals you half of what you deal',
-  L: 'Static: throws fizzle during its pulses',
-  I: 'Chill: their next hit taken does extra',
-}
 
 /** Counter cycle: each element beats the next. Used by counterspells. */
 export const BEATS: Record<string, string> = { W: 'F', F: 'I', I: 'E', E: 'L', L: 'W', A: 'U', U: 'A' }

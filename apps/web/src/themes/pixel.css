@@ -40,7 +40,6 @@
 [data-theme='pixel'] .tier-light .impact-name { font-size: clamp(12px, 3.5cqw, 20px); }
 [data-theme='pixel'] .tier-heavy .impact-name { font-size: clamp(16px, 5cqw, 36px); }
 [data-theme='pixel'] .tier-signature .impact-name { font-size: clamp(20px, 6.5cqw, 64px); }
-[data-theme='pixel'] :is(.status-strip, .stage-overlay, .hp-text, .st-silence b) { text-shadow: 2px 2px 0 var(--edge) !important; }
 
 /* Buttons: flat block, 2px dark outline, hard shadow that the press "pushes in". */
 [data-theme='pixel'] button {
@@ -95,27 +94,21 @@
 
 /* Panels and menus: dark box, double outline. */
 [data-theme='pixel'] .menu-overlay { background: rgba(10, 10, 20, 0.75); }
-[data-theme='pixel'] .menu-card,
-[data-theme='pixel'] .online-panel {
+[data-theme='pixel'] .menu-card {
   background: var(--bg);
   border: 3px solid var(--text);
   box-shadow: 0 0 0 3px var(--edge), 6px 6px 0 3px var(--edge);
 }
 [data-theme='pixel'] .pause-menu button { width: 100%; }
-[data-theme='pixel'] .shape-card { background: var(--sub-alt); border: 2px solid var(--edge); }
-[data-theme='pixel'] .tag { border: 2px solid var(--edge); }
 [data-theme='pixel'] .code-input { border: 2px solid var(--text); font-family: var(--title); font-size: 14px; }
 
 /* Bars: segmented blocks with a dark frame. */
-[data-theme='pixel'] .hp-bar,
-[data-theme='pixel'] .cast-bar { background: var(--edge); border: 2px solid var(--edge); box-shadow: 0 0 0 2px var(--sub); }
-[data-theme='pixel'] .hp-fill,
-[data-theme='pixel'] .cast-fill {
+[data-theme='pixel'] .hp-bar { background: var(--edge); border: 2px solid var(--edge); box-shadow: 0 0 0 2px var(--sub); }
+[data-theme='pixel'] .hp-fill {
   box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.25), inset 0 -4px 0 rgba(0, 0, 0, 0.25);
   -webkit-mask: repeating-linear-gradient(90deg, #000 0 10px, transparent 10px 12px);
   mask: repeating-linear-gradient(90deg, #000 0 10px, transparent 10px 12px);
 }
-[data-theme='pixel'] .hp-text { font-family: var(--title); font-size: 9px; }
 [data-theme='pixel'] .fighter-name { font-family: var(--title); font-size: 11px; font-weight: normal; }
 
 /* Duel halves: flat backgrounds, a hard divider, a solid HUD strip. */
@@ -132,11 +125,6 @@
 [data-theme='pixel'] .p.sparkle { background: #a7f070; }
 [data-theme='pixel'] .impact-flash { background: currentColor; }
 [data-theme='pixel'] .impact .ring { border-width: 4px; border-style: dashed; }
-[data-theme='pixel'] .sig-meteor .ball {
-  background: #ef7d57;
-  box-shadow: inset -2cqw -2cqw 0 #b13e53, inset 2cqw 2cqw 0 #ffcd75 !important;
-  clip-path: polygon(30% 0, 70% 0, 70% 10%, 90% 10%, 90% 30%, 100% 30%, 100% 70%, 90% 70%, 90% 90%, 70% 90%, 70% 100%, 30% 100%, 30% 90%, 10% 90%, 10% 70%, 0 70%, 0 30%, 10% 30%, 10% 10%, 30% 10%);
-}
 [data-theme='pixel'] .sig-bar { background: #73eff7; box-shadow: inset -4px 0 0 #41a6f6 !important; }
 [data-theme='pixel'] :is(.st-regen, .st-chill, .st-static.on, .st-static.gap, .impact .frost) { box-shadow: inset 0 0 0 8px currentColor !important; }
 [data-theme='pixel'] .st-regen { color: #38b764; }
@@ -156,14 +144,9 @@
 [data-theme='pixel'] .tut-hint { font-family: 'Pixelify Sans', monospace; font-size: 14px; }
 [data-theme='pixel'] .tut-push { font-size: 22px; animation-timing-function: steps(2, end) !important; }
 [data-theme='pixel'] .tut-count { font-family: var(--title); font-size: 10px; }
-[data-theme='pixel'] .asl-mini { border: 2px solid var(--edge); }
 [data-theme='pixel'] .tut-card { border: 3px solid var(--edge); box-shadow: 6px 6px 0 var(--edge); }
 [data-theme='pixel'] .tut-head .tut-title { font-size: 14px; text-shadow: none !important; }
-[data-theme='pixel'] .tut-list { border: 3px solid var(--edge); }
-[data-theme='pixel'] .tut-list-title { font-family: var(--title); font-size: 9px; }
 [data-theme='pixel'] :focus-visible { outline: 3px dashed var(--main); }
-[data-theme='pixel'] button.tut-dot { width: 18px; height: 18px; padding: 0; background: transparent; box-shadow: none; font-size: 8px; }
-[data-theme='pixel'] button.tut-dot.done { background: var(--you); }
 [data-theme='pixel'] .info-card { border: 3px solid var(--edge); box-shadow: 4px 4px 0 var(--edge); }
 [data-theme='pixel'] .info-card h2 { font-family: var(--title); font-size: 14px; font-weight: normal; }
 [data-theme='pixel'] .enemy-canvas svg path { stroke-linecap: square; stroke-linejoin: miter; }

@@ -9,7 +9,7 @@ const NAMES = [
   'burn_tick', 'chill_tick', 'mend_tick', 'static_tick', 'regen_tick',
   ...['F', 'I', 'W', 'E', 'L'].flatMap((e) => [`${e}_cast`, `${e}_travel`, `${e}_impact`]),
   'A_impact', 'F_impact2',
-  'charge_F', 'charge_I', 'charge_W', 'charge_E', 'charge_L', 'charge_A',
+  'charge', 'charge_F', 'charge_I', 'charge_W', 'charge_E', 'charge_L', 'charge_A', // 'charge': C (a combo)
   'E_impact2', 'sig_F', 'sig_I', 'sig_L', 'sig_E', 'sig_W',
 ] as const
 export type Sfx = (typeof NAMES)[number]
@@ -51,18 +51,26 @@ function init() {
 }
 
 // Browsers only allow audio after a user gesture: start on the first click or key.
+// Phones also suspend audio when the page is hidden, the screen locks or a call or notification takes the
+// audio over. A fight has no taps (you sign), so it must wake by itself (Nov 26: sounds dropped out until
+// the next tap): when the page shows again, and before any sound plays.
 if (typeof window !== 'undefined') {
   const unlock = () => {
     init()
-    ctx?.resume()
+    wake()
   }
   window.addEventListener('pointerdown', unlock, { capture: true })
   window.addEventListener('keydown', unlock, { capture: true })
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake())
+}
+function wake() {
+  if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {})
 }
 
 /** Play a sound. `pitch` 1 = as recorded; a little random variance keeps repeats from sounding robotic. */
 export function play(name: Sfx, opts: { vol?: number; pitch?: number; delay?: number } = {}) {
   if (!ctx || !master || volume === 0) return
+  wake()
   const buf = buffers.get(name)
   if (!buf) return
   const src = ctx.createBufferSource()
@@ -106,6 +114,7 @@ function noiseHit(opts: { type: BiquadFilterType; freq: number; q?: number; ms: 
  *  mid body, a deep sub sweeping down, and a low rumble tail so it rings out. `size` 0..1 scales it. */
 export function impact(size: number, delay = 0) {
   if (!ctx || !master || volume === 0) return
+  wake()
   const t = ctx.currentTime + delay / 1000
   const s = Math.max(0, Math.min(1, size))
   for (let i = impactEnds.length - 1; i >= 0; i--) if (impactEnds[i] <= ctx.currentTime) impactEnds.splice(i, 1)
@@ -235,8 +244,9 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
     }
     if (v.ready[me] && !p?.ready[me]) play('lockin', { vol: 0.6 })
 
-    // Fizzles (static, faded, bad throw), either side.
-    for (const s of ['player', 'enemy'] as Side[])
+    // Fizzles (static, faded, bad throw), any fighter (2v2 too).
+    const ids = v.fighters.map((f) => f.id)
+    for (const s of ids)
       if (v.fizzled[s] > 0 && !(p && p.fizzled[s] > 0)) {
         play('fizzle_tone', { vol: 0.6 })
         play('fizzle_poof', { vol: 0.7 })
@@ -316,7 +326,7 @@ export function useFightSfx(v: CombatView & { running?: boolean }, me: Side, isM
     }
 
     // Chill mark applied, static pulse starting.
-    for (const s of ['player', 'enemy'] as Side[]) {
+    for (const s of ids) {
       if (v.chill[s] > 0 && !(p && p.chill[s] > 0)) play('chill_tick', { vol: 0.5, delay: 120 })
       if (v.static[s] === 'on' && p?.static[s] !== 'on') play('static_tick', { vol: 0.4 })
     }

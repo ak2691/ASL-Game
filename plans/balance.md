@@ -544,3 +544,10 @@ User: a combo's chill was weaker and shorter than Frozen Prison's (+50% for 4 s 
 (THERMAL.chill 0.5 -> 0.75, new chillMs 6000). Vs all: 38 hit + 22 burn = 60 alone (Magma 90); with a heavy Earth
 follow-up (24 -> 42) about 102, so it beats Magma only if the follow-up lands in time: still a setup spell. Bots'
 setup follow-up window uses the 6 s. Prison keeps its stun as its edge.
+
+### Parry: one push catches every spell in its window (Nov 26)
+User: against two foes, spells arriving together should both be parried if the push lands inside both windows.
+`parry()` now reflects (or destroys) every parryable spell in its window at the push; a spell outside its window
+just lands, no stagger. Parry wear: one stack per push, so a double parry is a bit stronger than two single
+ones. 1v1 is unchanged (one spell in flight at you at a time). Checked in the browser with the real Combat:
+40 ms apart, push 30 ms before the first: both reflected; 150 ms apart: first reflected, second lands.

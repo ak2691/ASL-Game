@@ -37,11 +37,6 @@
   paint-order: stroke fill;
   text-shadow: 0 0.12em 0 var(--ink) !important;
 }
-[data-theme='cartoon'] :is(.status-strip, .stage-overlay, .hp-text, .fighter-name) {
-  -webkit-text-stroke: 4px var(--ink);
-  paint-order: stroke fill;
-  text-shadow: none !important;
-}
 
 /* Bouncy pop-ins: overshoot, then settle. */
 [data-theme='cartoon'] :is(.cast, .impact-name, .float, .tut-push, .result) { animation-timing-function: var(--bounce) !important; }
@@ -98,8 +93,7 @@
 [data-theme='cartoon'] .menu-overlay { background: rgba(21, 19, 46, 0.7); }
 /* Menus and panels share the home Settings panel's darker color (Nov 25): element colors read better on it
    than on the arena's blue (--sub-alt), and a menu over the arena stands apart from it. */
-[data-theme='cartoon'] .menu-card,
-[data-theme='cartoon'] .online-panel {
+[data-theme='cartoon'] .menu-card {
   background: var(--panel);
   border: 4px solid var(--ink);
   border-radius: 24px;
@@ -108,17 +102,12 @@
 /* In-game menus open instantly, like the home Settings panel (Nov 25). */
 @keyframes toon-in { from { transform: scale(0.6) rotate(-4deg); opacity: 0; } }
 [data-theme='cartoon'] .pause-menu button { width: 100%; }
-[data-theme='cartoon'] .shape-card { background: var(--bg); border: 3px solid var(--ink); border-radius: 16px; }
-[data-theme='cartoon'] .tag { border: 2px solid var(--ink); border-radius: 5px; padding: 1px 8px; font-weight: 800; }
 [data-theme='cartoon'] .code-input { border: 3px solid var(--ink); border-radius: 12px; font-family: var(--title); background: #fff; color: var(--ink); }
 
 /* Bars: fat rounded tubes with an outline and a shiny stripe. */
 [data-theme='cartoon'] .hp-bar { height: 22px; }
-[data-theme='cartoon'] .hp-bar,
-[data-theme='cartoon'] .cast-bar { background: var(--ink); border: 3px solid var(--ink); border-radius: 999px; }
-[data-theme='cartoon'] .hp-fill,
-[data-theme='cartoon'] .cast-fill { border-radius: 999px; box-shadow: inset 0 5px 0 rgba(255, 255, 255, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.2); transition: width 0.35s var(--bounce); }
-[data-theme='cartoon'] .hp-text { font-family: var(--title); font-size: 14px; }
+[data-theme='cartoon'] .hp-bar { background: var(--ink); border: 3px solid var(--ink); border-radius: 999px; }
+[data-theme='cartoon'] .hp-fill { border-radius: 999px; box-shadow: inset 0 5px 0 rgba(255, 255, 255, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.2); transition: width 0.35s var(--bounce); }
 [data-theme='cartoon'] .fighter-name { font-family: var(--title); font-weight: normal; font-size: 18px; }
 [data-theme='cartoon'] .float { font-family: var(--title); font-size: 26px; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: none; }
 
@@ -138,11 +127,6 @@
 [data-theme='cartoon'] .p.sparkle { background: #5ee06b; }
 [data-theme='cartoon'] .p.rock { border-radius: 30%; }
 [data-theme='cartoon'] .impact .ring { border-width: 6px; box-shadow: 0 0 0 3px var(--ink); }
-[data-theme='cartoon'] .sig-meteor .ball {
-  background: radial-gradient(circle at 35% 30%, #fff 0 8%, #ffd23f 9% 25%, #ff9f1c 26% 55%, #ff5470 56%);
-  border: 5px solid var(--ink);
-  box-shadow: 0 0 0 0 transparent !important;
-}
 [data-theme='cartoon'] .sig-bar { background: #bff3ff; border: 3px solid var(--ink); border-radius: 12px; box-shadow: inset -6px 0 0 #6fd3f5 !important; }
 [data-theme='cartoon'] .sig-wave path { stroke: var(--ink); stroke-width: 4px; fill: #3d8bff; }
 [data-theme='cartoon'] .sig-crack polyline,
@@ -165,21 +149,12 @@
 [data-theme='cartoon'] .tut-push { font-size: 42px; color: var(--main); animation: toon-push 0.9s var(--bounce) infinite; }
 @keyframes toon-push { 0%, 100% { transform: scale(1); } 30% { transform: scale(0.8, 1.15); } 60% { transform: scale(1.3, 0.9); } }
 [data-theme='cartoon'] .tut-tip { font-size: 17px; }
-[data-theme='cartoon'] .asl-mini { border: 2px solid var(--ink); border-radius: 8px; }
 [data-theme='cartoon'] .tut-demo svg circle { fill: var(--ink); }
 [data-theme='cartoon'] .tut-card { border: 4px solid var(--ink); border-radius: 24px; box-shadow: 0 8px 0 var(--ink); background: var(--panel); }
 [data-theme='cartoon'] .tut-head { border-bottom: 4px solid var(--ink); padding: 10px 18px; }
 [data-theme='cartoon'] .tut-head .tut-title { color: #fff; font-size: 30px; transform: none; }
 [data-theme='cartoon'] .tut-head .tut-count { color: var(--ink); font-family: var(--title); font-size: 16px; opacity: 1; background: #fffaf0; border: 3px solid var(--ink); border-radius: 6px; padding: 0 10px; }
-[data-theme='cartoon'] .tut-list { background: rgba(21, 19, 46, 0.55); border: 3px solid rgba(255, 250, 240, 0.25); border-radius: 20px; }
-[data-theme='cartoon'] .tut-list-title { font-family: var(--title); font-size: 16px; color: var(--main); letter-spacing: 0.04em; }
-[data-theme='cartoon'] .tut-row-name { font-weight: 800; }
-[data-theme='cartoon'] .tut-dot { border: 3px solid currentColor; box-shadow: none; transform: none; }
-[data-theme='cartoon'] .tut-dot.done { animation: toon-in 0.35s var(--bounce); }
 [data-theme='cartoon'] :focus-visible { outline: 4px solid var(--main); outline-offset: 3px; }
-[data-theme='cartoon'] button.tut-dot { width: 24px; height: 24px; padding: 0; background: transparent; font-size: 12px; color: inherit; }
-[data-theme='cartoon'] button.tut-dot.done { background: var(--you); border-color: var(--ink); color: var(--ink) !important; }
-[data-theme='cartoon'] button.tut-dot:hover { transform: scale(1.15); }
 [data-theme='cartoon'] .info-card { border: 4px solid var(--ink); border-radius: 22px; box-shadow: 0 6px 0 var(--ink); }
 [data-theme='cartoon'] .info-card h2 { font-family: var(--title); font-weight: normal; font-size: 26px; }
 [data-theme='cartoon'] .info-top .logo { font-size: 44px; transform: rotate(-2deg); }
@@ -190,11 +165,6 @@
 [data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(1) { background: #ffd23f; color: var(--ink); }
 [data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(2) { background: #2ec4b6; }
 [data-theme='cartoon'] .home .corner-icons .icon-btn:nth-of-type(3) { background: #ff5470; }
-
-/* Outlined game text: the 4px stroke is painted behind the letters, so each glyph grows ~2px per side and eats
-   the gaps between characters ("40%", "100 +40" touch). Give back that space; tags are too small for the stroke. */
-[data-theme='cartoon'] :is(.status-strip, .stage-overlay, .hp-text, .fighter-name) { letter-spacing: 0.08em; word-spacing: 0.2em; }
-[data-theme='cartoon'] .tag { -webkit-text-stroke: 0; letter-spacing: 0.02em; }
 
 /* Result: a tilted sticker that pops in, like the title and buttons (no dark box). */
 [data-theme='cartoon'] .result-banner {
@@ -217,22 +187,6 @@
 [data-theme='cartoon'] .result-banner.lost { background: var(--foe); border-color: var(--ink); transform: translate(-50%, -50%) rotate(3deg); }
 @keyframes result-pop { from { opacity: 0; transform: translate(-50%, -50%) rotate(-12deg) scale(0.4); } }
 
-/* Status timers (Mirror, Shroud, Steam, ...): outlined pills that drain like the health tube. */
-[data-theme='cartoon'] .st-timer {
-  padding: 4px 14px 5px;
-  border: 3px solid var(--ink);
-  border-radius: 999px;
-  background: var(--ink);
-  box-shadow: 0 3px 0 var(--ink);
-  font-family: var(--title);
-  font-weight: normal;
-  font-size: 14px;
-  letter-spacing: 0.03em;
-}
-[data-theme='cartoon'] .st-timer i { top: 0; height: auto; border-radius: 999px; opacity: 0.8; box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.35); transition: width 0.2s linear; }
-[data-theme='cartoon'] .st-timer span { position: relative; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; }
-[data-theme='cartoon'] .st-timers.mine .st-timer { font-size: 17px; padding: 6px 18px 7px; }
-
 /* Online room: two team cards. */
 [data-theme='cartoon'] .room-team { border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink); }
 [data-theme='cartoon'] .room-team-name { font-family: var(--title); font-weight: normal; }
@@ -246,7 +200,6 @@
 /* Nov 24: the HUD status ("no charge", "Fire charged", "seeing") and menu headings use the title font, not the
    body font with a stroke and wide spacing (that read as a default font). */
 [data-theme='cartoon'] .status-strip { font-family: var(--title); font-weight: normal; letter-spacing: 0.03em; word-spacing: 0.08em; }
-[data-theme='cartoon'] .status-strip .charge { font-weight: normal; }
 [data-theme='cartoon'] .dm-section { font-family: var(--title); font-weight: normal; font-size: 17px; letter-spacing: 0.04em; text-transform: none; }
 [data-theme='cartoon'] .pause-menu .pm-title, [data-theme='cartoon'] .dm-head .leave-title { font-family: var(--title); font-weight: normal; font-size: 26px; }
 
@@ -298,16 +251,6 @@
 [data-theme='cartoon'] body:has(.info-page:not(.in-match)) .home-backdrop::after { content: ''; position: absolute; inset: 0; background: rgba(12, 9, 30, 0.4); } /* dimmer behind reading pages */
 .home-backdrop svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 /* The theme strips filters everywhere; the backdrop's spells and signs keep their glow. */
-[data-theme='cartoon'] .home-backdrop .hbw-soft { filter: url(#hbw-soft) !important; }
-[data-theme='cartoon'] .home-backdrop .hbw-glow-w { filter: url(#hbw-glow-w) !important; }
-[data-theme='cartoon'] .home-backdrop .hbw-glow-f { filter: url(#hbw-glow-f) !important; }
-[data-theme='cartoon'] .home-backdrop .hbw-inv-w { filter: url(#hbw-inv-w) !important; }
-[data-theme='cartoon'] .home-backdrop .hbw-inv-f { filter: url(#hbw-inv-f) !important; }
-[data-theme='cartoon'] .home-backdrop .hbt-soft { filter: url(#hbt-soft) !important; }
-[data-theme='cartoon'] .home-backdrop .hbt-glow-w { filter: url(#hbt-glow-w) !important; }
-[data-theme='cartoon'] .home-backdrop .hbt-glow-f { filter: url(#hbt-glow-f) !important; }
-[data-theme='cartoon'] .home-backdrop .hbt-inv-w { filter: url(#hbt-inv-w) !important; }
-[data-theme='cartoon'] .home-backdrop .hbt-inv-f { filter: url(#hbt-inv-f) !important; }
 .home-backdrop .hb-wide { display: none; }
 @media (min-width: 900px), (orientation: landscape) {
   .home-backdrop .hb-wide { display: block; }
@@ -315,7 +258,7 @@
 }
 [data-theme='cartoon'] .info-page::before { opacity: 0.55; } /* dimmer behind reading pages */
 [data-theme='cartoon'] .info-page > * { position: relative; z-index: 1; }
-[data-theme='cartoon'] .info-page .logo, [data-theme='cartoon'] .info-page .info-lead { color: #fffaf0; }
+[data-theme='cartoon'] .info-page .logo { color: #fffaf0; }
 [data-theme='cartoon'] .home > .home-corner { position: absolute; z-index: 3; }
 
 /* Custom game: the tower's dueling hall. */
@@ -353,16 +296,6 @@
 [data-theme='cartoon'] .tower-room { background-size: 100% 14px, 100% 3px, auto, 96px 48px; }
 [data-theme='cartoon'] .lobby-card .room-seat { flex-wrap: wrap; row-gap: 4px; }
 [data-theme='cartoon'] .lobby-card .room-hp { flex: 1 1 120px; }
-
-/* Custom game HP (Nov 24): a stepper (- 350 HP +) instead of a slider. */
-[data-theme='cartoon'] .hp-step { display: inline-flex; align-items: center; gap: 6px; }
-[data-theme='cartoon'] .hp-step b { min-width: 72px; text-align: center; font-family: var(--title); font-weight: normal; font-size: 16px; color: #fffaf0; }
-[data-theme='cartoon'] .hp-step button { all: unset; cursor: pointer; box-sizing: border-box; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px;
-  font-family: var(--title); font-size: 20px; line-height: 1; color: var(--ink); background: #fffaf0; border: 3px solid var(--ink); box-shadow: 0 3px 0 var(--ink); }
-[data-theme='cartoon'] .hp-step button:hover:not(:disabled) { background: var(--main); }
-[data-theme='cartoon'] .hp-step button:disabled { opacity: 0.35; cursor: default; }
-[data-theme='cartoon'] .hp-step button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
-@media (pointer: coarse) { [data-theme='cartoon'] .hp-step button { width: 40px; height: 40px; } }
 
 /* Lobby contrast (Nov 24): the wall steps back (darker, a dark pool of shadow behind the middle) so the title,
    plaque and banners pop; banners get the ink outline (an ink layer, the cloth inset on top), the plaque is
@@ -465,7 +398,6 @@
     column-gap: 16px; row-gap: 8px; padding: 12px 14px; align-items: start; }
   [data-theme='cartoon'] .pause-menu .pm-title { grid-column: 1; grid-row: 1; font-size: 22px; }
   [data-theme='cartoon'] .pause-menu .pm-tiles { grid-column: 1; grid-row: 2 / span 2; align-content: start; grid-template-columns: 1fr 1fr; }
-  [data-theme='cartoon'] .pause-menu .pm-actions { grid-column: 1; grid-row: 3; flex-direction: column; }
   [data-theme='cartoon'] .pause-menu .slab-section { grid-column: 2; }
   [data-theme='cartoon'] .pause-menu .slab-section:nth-of-type(1) { grid-row: 1 / span 2; }
   [data-theme='cartoon'] .pause-menu .slab-section:nth-of-type(2) { grid-row: 3; }
@@ -501,4 +433,4 @@
   [data-theme='cartoon'] .home .home-brand .hero-logo { height: 46px; margin: 0; }
   [data-theme='cartoon'] .home .home-brand .logo { font-size: 1.9rem; margin: 0; white-space: nowrap; }
 }
-.home-backdrop .hb-face, .home-backdrop .hb-face .portrait { width: 100%; height: 100%; display: block; }
+[data-theme='cartoon'] .team-card .enemy-ink { stroke-width: 15px; } /* non-scaling on 2v2 cards: a 3px ink edge round the 9px stroke */

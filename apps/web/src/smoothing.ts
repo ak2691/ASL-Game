@@ -23,60 +23,6 @@ class OneEuro {
   }
 }
 
-// ---- Finger jump filter -----------------------------------------------------------------
-// When one finger hides another, MediaPipe guesses where the hidden finger is, and the
-// guess can jump. Real fingers can't teleport: if ONE finger jumps far (relative to the
-// hand) in a single frame while the others barely move, keep its previous position
-// briefly. If the new position persists, it was a real move and we accept it.
-
-const FINGERS = [
-  [2, 3, 4], // thumb
-  [6, 7, 8], // index
-  [10, 11, 12], // middle
-  [14, 15, 16], // ring
-  [18, 19, 20], // pinky
-]
-const JUMP = 0.5 // palm units in one frame = a suspicious jump
-const CALM = 0.15 // ...while every other finger moved less than this
-const MAX_HOLD_MS = 150 // never hold a finger longer than this
-
-type Rel = { x: number; y: number; z: number }[]
-
-export class JumpFilter {
-  private prevRel: Rel | null = null
-  private heldSince: (number | null)[] = FINGERS.map(() => null)
-
-  filter(lm: NormalizedLandmark[], t: number): NormalizedLandmark[] {
-    const w = lm[0]
-    const scale = Math.hypot(lm[9].x - w.x, lm[9].y - w.y) || 1
-    const rel: Rel = lm.map((p) => ({ x: (p.x - w.x) / scale, y: (p.y - w.y) / scale, z: (p.z - w.z) / scale }))
-    const prev = this.prevRel
-    if (!prev) {
-      this.prevRel = rel
-      return lm
-    }
-    const moved = FINGERS.map((f) => Math.max(...f.map((i) => Math.hypot(rel[i].x - prev[i].x, rel[i].y - prev[i].y))))
-    const out = rel.map((p) => ({ ...p }))
-    FINGERS.forEach((f, k) => {
-      const othersCalm = moved.every((m, j) => j === k || m < CALM)
-      const held = this.heldSince[k]
-      if (moved[k] > JUMP && othersCalm && (held === null || t - held < MAX_HOLD_MS)) {
-        this.heldSince[k] ??= t
-        for (const i of f) out[i] = { ...prev[i] } // keep the finger where it was
-      } else {
-        this.heldSince[k] = null
-      }
-    })
-    this.prevRel = out
-    return out.map((p, i) => ({ ...lm[i], x: w.x + p.x * scale, y: w.y + p.y * scale, z: w.z + p.z * scale }))
-  }
-
-  reset() {
-    this.prevRel = null
-    this.heldSince = FINGERS.map(() => null)
-  }
-}
-
 // ---- Bad frame guard --------------------------------------------------------------------
 // A fast hand blurs, and the tracker still returns a skeleton for it: a wrong guess (fingers fold or
 // shrink, the tip snaps away). Compared with the last good frame, reject one where in a single frame

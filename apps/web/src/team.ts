@@ -1,8 +1,8 @@
-// Training dummy with a second enemy (Future Plans.md, "Team modes"): you against two dummies, each with
+// Training dummy with a second enemy (Overview.md, "Team modes"): you against two dummies, each with
 // its own spells. Nobody can be hurt. The fight engine supports teams; this is the first use of it.
 import { signsFor } from './spells'
 import { Combat, type Fid, type FighterSpec } from './combat'
-import { DUMMY_EVERY_MS, dummyParry, dummyPick, dummySpell, signTimes, spellOf, type Arena, type OppCast, type Pt01, type Snapshot } from './battle'
+import { DUMMY_EVERY_MS, dummyParry, dummyPick, dummySpell, signTimes, spellOf, type Arena, type OppCast, type Snapshot } from './battle'
 
 export const FOES: Fid[] = ['enemy', 'enemy2'] // left, right
 const JITTER = 0.2
@@ -38,6 +38,7 @@ export class TeamArena implements Arena {
   }
   setAttacking(on: boolean) {
     this.attacking = on
+    FOES.forEach((id) => this.combat.clearCast(id)) // stopped mid-cast: their charges and drawings go too
     this.restartCasts()
   }
   private restartCasts() {
@@ -50,7 +51,7 @@ export class TeamArena implements Arena {
   sign(el: string) {
     this.combat.sign('player', el, performance.now())
   }
-  stroke(_points: Pt01[], _aspect: number) {
+  stroke() {
     this.combat.drawing('player', performance.now())
   }
   drew(shape: string | null) {

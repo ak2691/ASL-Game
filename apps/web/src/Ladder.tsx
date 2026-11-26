@@ -101,22 +101,6 @@ export const CHAT: Record<Difficulty, Record<Exclude<Bark, 'habit'>, string> & {
 }
 /** The line for a bark (habit: one of its lines at random). */
 export const chatLine = (d: Difficulty, key: Bark) => (key === 'habit' ? CHAT[d].habit[Math.floor(Math.random() * CHAT[d].habit.length)] : CHAT[d][key])
-/** One tip per rung, shown when you lose to it. */
-export const TIP: Record<Difficulty, string> = {
-  pebble: 'Watch its element while it charges, then counter before it throws.',
-  ember: 'Parry its lights. Its Lightning wears down fast, then punish.',
-  frost: 'When you are chilled, its next hit is the big one. Parry or counter that one.',
-  cleric: 'Hit hard between its heals, and counter the heal itself.',
-  hexer: 'When Doomed, throw anything fast. Do not sit cursed while it can Execute.',
-  tide: 'Switch elements late, or use lights. They are too quick to counter.',
-  zealot: 'You cannot see its spell. Watch its timing and be ready to parry.',
-  warden: 'Do not start a big drawing while it is ready. Mix in quick spells.',
-  adept: 'Read its combo letters and answer with the combo counterspell.',
-  magus: 'Play clean. A stun, a whiff or a fizzle hands it a big spell.',
-  archmage: 'When its style changes, change your answer.',
-  lich: 'Mix your elements. It learns your favorite and waits for it.',
-  ascendant: 'It answers whatever you lean on. Vary everything.',
-}
 /** The badges: read from the bot itself (battle.ts AI), so they can't drift from what it really throws.
  *  Its attack elements, plus Angelic if it heals or casts Aegis, plus Unholy if it casts any curse. */
 const UNHOLY = ['scythe', 'veil', 'blade']
