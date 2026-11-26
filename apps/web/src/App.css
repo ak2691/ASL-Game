@@ -1359,3 +1359,21 @@ html[data-theme] :is(.tut-body, .tutorial, .dm-body, .menu-card, .book-leaf.righ
     linear-gradient(rgba(243, 226, 184, 0), #f3e2b8 75%);
   filter: none; }
 .tut-body.more-below::after { bottom: 60px; }
+
+/* HUD scales with the window (Nov 26): phone sizes are the minimum (unchanged on phones); bigger screens grow
+   it with the shorter side of the window (vmin), about 1.5x a phone's at 900 px tall, up to a cap. */
+html[data-theme] .duel .fighter-label { font-size: clamp(13px, 2.2vmin, 26px); }
+html[data-theme] .duel .team-card .fighter-label { font-size: clamp(12px, 1.9vmin, 22px); }
+html[data-theme] .duel .fighter-name { min-height: clamp(18px, 3vmin, 34px); }
+.duel .hp-count { font-size: clamp(14px, 2.3vmin, 28px); }
+.duel .team-card .hp-count { font-size: clamp(13px, 2vmin, 24px); }
+html[data-theme] .duel .hp-bar { height: clamp(30px, 4.8vmin, 54px); }
+html[data-theme] .duel .team-card .hp-bar { height: clamp(26px, 4vmin, 44px); }
+.duel .hp-charge { font-size: clamp(17px, 2.9vmin, 34px); }
+.duel .team-card .hp-charge { font-size: clamp(14px, 2.4vmin, 28px); }
+.duel .status-slot .st-icon { width: clamp(22px, 3.4vmin, 38px); height: clamp(22px, 3.4vmin, 38px); }
+.duel .status-slot .st-icon svg { width: 64%; height: 64%; }
+.duel .team-card .status-slot .st-icon { width: clamp(20px, 3vmin, 34px); height: clamp(20px, 3vmin, 34px); }
+.duel .wear-grid { grid-auto-rows: clamp(18px, 2.9vmin, 32px); max-width: clamp(380px, 52vmin, 600px); }
+.duel .wear-grid span { font-size: clamp(11px, 1.8vmin, 20px); }
+.duel .side-hud .sub-line { font-size: clamp(13px, 2vmin, 24px); }
