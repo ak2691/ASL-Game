@@ -869,7 +869,6 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
   .duel-side.opp > .stage-center:has(.tower-wrap) { padding: 10px 10px 64px; gap: 8px; }
   .stage-center .tower-wrap > .sub-line { font-size: 13px; }
 }
-}
 
 /* Interrupted (or whiffed): locked out for a moment. The half greys and shakes, a bar drains to free. */
 .st-locked { display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.12); }
