@@ -45,9 +45,9 @@ const TIPS: Record<string, string> = {
   'grave tomb': `No healing or armor for them, for ${secs(GRAVE.ms)}. A Heal clears it but heals nothing.`,
   'W circle': `If they still hold the element yours beats, they're stunned until your next hit, up to ${secs(COUNTER_SILENCE_MS)}. Needs ${pct(COUNTER_CUTOFF)}+ power in that element. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.`,
   'W jab': `Sign and push, no drawing. Stops a plain element charge only. Hit: they can't act for ${secs(INTERRUPT_LOCK_MS)}. Miss, or under ${pct(COUNTER_CUTOFF)} power: you can't act for ${secs(WHIFF_MS)}.`,
-  'A circle': "Angelic beats Unholy. Any element's circle also stops a heal charge or a regen.",
-  'U circle': 'Unholy beats Angelic. Angelic and Unholy can only be countered with the circle.',
-  'CIW circle': 'Sign C and the two elements that beat the combo, then draw the circle. Ice and Water beat Magma. Fire and Ice also break a Glacier on its way.',
+  'A circle': "Angelic beats Unholy. Any element's counterspell also stops a heal charge or a regen.",
+  'U circle': 'Unholy beats Angelic. Angelic and Unholy can only be countered with the full counterspell.',
+  'CIW circle': 'Sign C and the two elements that beat the combo, then draw the counterspell. Ice and Water beat Magma. Fire and Ice also break a Glacier on its way.',
 }
 
 /** How to draw each shape: count and orientation. */
@@ -61,7 +61,7 @@ const HINTS: Record<string, string> = {
   spiral: 'From the middle out, either way round',
   star: '5 lines, point up',
   hourglass: 'Top, diagonal, bottom, diagonal back',
-  circle: 'Any direction',
+  circle: 'A circle, then a diagonal line through it',
   aegis: 'Shield outline, then a line up the middle',
   mirror: 'Sideways 8',
   scythe: 'Up, a big blade out and back, then cross the handle twice',

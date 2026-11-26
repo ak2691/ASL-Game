@@ -1,5 +1,5 @@
 // Spell = element (an ASL letter, signed first) × shape (drawn with the index finger).
-// A circle is the counterspell. Design notes: Overview.md.
+// A circle with a diagonal line (a null sign) is the counterspell. Design notes: Overview.md.
 
 export const ELEMENTS: Record<string, { name: string; color: string }> = {
   F: { name: 'Fire', color: '#ff6a3d' },
@@ -18,7 +18,7 @@ export const elementOfSign = (letter: string): string | null => (ELEMENTS[letter
 export const BEATS: Record<string, string> = { W: 'F', F: 'I', I: 'E', E: 'L', L: 'W', A: 'U', U: 'A' }
 export const beats = (a: string, b: string) => BEATS[a] === b
 
-/** The counterspell's shape: a circle, with any element in the counter cycle. */
+/** The counterspell's shape: a circle with a diagonal line through it (the key stays 'circle'), with any element in the counter cycle. */
 export const COUNTER = 'circle'
 /** The quick interrupt: charge the matching element and push, no drawing. Weaker, faster. */
 export const QUICK = 'jab'

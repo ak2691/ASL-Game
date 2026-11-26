@@ -144,6 +144,55 @@ function isLine(points: Pt[]) {
   return Math.hypot(b.x - a.x, b.y - a.y) / (len || 1) > 0.9
 }
 
+/** Counterspell (Nov 26): a null sign, a circle with a straight diagonal line through it. One stroke, so the
+ *  line is the stroke's straight start or end; the rest must be a round, closed loop. The line has to be
+ *  diagonal (25-65 degrees), pass near the middle and reach the circle on both sides (a little past is fine). */
+export function nullSign(points: Pt[]) {
+  const N = 96
+  const p = resample(points, N)
+  const total = pathLength(p) || 1
+  const straight = (s: Pt[]) => {
+    const a = s[0]
+    const b = s[s.length - 1]
+    return Math.hypot(b.x - a.x, b.y - a.y) / (pathLength(s) || 1)
+  }
+  for (const q of [p, [...p].reverse()]) {
+    // Grow the line back from the end while it stays straight.
+    let k = N - 8
+    if (straight(q.slice(k)) < 0.85) continue
+    while (k > 0 && straight(q.slice(k - 1)) >= 0.9) k--
+    const line = q.slice(k)
+    const head = q.slice(0, k + 1)
+    if (head.length < 24 || pathLength(line) < 0.12 * total) continue
+    // The loop: round (steady distance from its center) and closed (goes most of the way around).
+    const cx = head.reduce((s, t) => s + t.x, 0) / head.length
+    const cy = head.reduce((s, t) => s + t.y, 0) / head.length
+    const d = head.map((t) => Math.hypot(t.x - cx, t.y - cy))
+    const r = d.reduce((s, v) => s + v, 0) / d.length
+    if (r <= 0) continue
+    const sd = Math.sqrt(d.reduce((s, v) => s + (v - r) ** 2, 0) / d.length)
+    if (sd / r > 0.25) continue
+    let turn = 0
+    for (let i = 1; i < head.length; i++) turn += wrap(Math.atan2(head[i].y - cy, head[i].x - cx) - Math.atan2(head[i - 1].y - cy, head[i - 1].x - cx))
+    if (Math.abs(turn) < 1.6 * Math.PI) continue
+    // The line: diagonal, through the middle, touching both sides.
+    const a = line[0]
+    const b = line[line.length - 1]
+    const m = line[Math.floor(line.length * 0.35)] // angle from the line's core (its start can bleed into the circle)
+    const ang = (Math.atan2(Math.abs(b.y - m.y), Math.abs(b.x - m.x)) * 180) / Math.PI
+    if (ang < 25 || ang > 65) continue
+    const len = Math.hypot(b.x - a.x, b.y - a.y)
+    const off = Math.abs((b.x - a.x) * (cy - a.y) - (b.y - a.y) * (cx - a.x)) / len
+    if (off > 0.4 * r) continue
+    const da = Math.hypot(a.x - cx, a.y - cy)
+    const db = Math.hypot(b.x - cx, b.y - cy)
+    if ((a.x - cx) * (b.x - cx) + (a.y - cy) * (b.y - cy) >= 0) continue // both ends on opposite sides
+    if (Math.min(da, db) < 0.75 * r || Math.max(da, db) > 2 * r) continue
+    return true
+  }
+  return false
+}
+
 /** Meteor's spikes: sharp upward tips above the circle. The circle is fitted to the bottom half of the
  *  stroke (all circle); only tips higher than 0.8 radius above its center count, so the circle's own
  *  top and the corners where the crown joins it don't. Tuned on ml/synth data (see ml/eval_shapes.py). */
@@ -400,7 +449,14 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
   if (isLine(points)) return { name: 'line', score: 1, top: [{ name: 'line', prob: 1 }] }
   let x = shapeFeatures(points)
   for (const l of model.layers) x = runLayer(l, x)
-  const top = Array.from(x, (prob, i) => ({ name: model.labels[i], prob })).sort((a, b) => b.prob - a.prob)
+  let top = Array.from(x, (prob, i) => ({ name: model.labels[i], prob })).sort((a, b) => b.prob - a.prob)
+  // Counterspell: judged by a rule only (the network was trained on a plain circle).
+  if (nullSign(points)) {
+    top = [{ name: 'circle', prob: 1 }, ...top.filter((t) => t.name !== 'circle')]
+    return { name: 'circle', score: 1, top }
+  }
+  top = top.map((t) => (t.name === 'circle' ? { ...t, prob: 0 } : t)).sort((a, b) => b.prob - a.prob)
+  if (x[model.labels.indexOf('circle')] > 0.5) return { name: 'none', score: top[0].prob, top, near: 'circle', why: 'needs a diagonal line through it' }
   // Meteor: the network can't count spikes reliably, so a rule does. Exactly 4 spikes (and a network that
   // at least leans Meteor) is a Meteor even if the drawing is wobbly; any other count never is.
   const flame = top.find((t) => t.name === 'flame')!.prob
@@ -471,6 +527,7 @@ export function passesRules(name: string, points: Pt[]) {
   if (name === 'plasma') return plasmaPetals(points) === 3
   if (name === 'cloud') return stormShape(points)
   if (name === 'scythe') return bladeCurve(points) >= DOOM_CURVE
+  if (name === 'circle') return nullSign(points)
   return true
 }
 

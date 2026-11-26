@@ -160,7 +160,7 @@ const READY_MS = 500
 // Counter pace and rate caps (Nov 26: testers were countered almost every time, near-instantly, at the top).
 const COUNTER_CHANCE_MAX = 0.7 // its chance to counter a charge (not a heal or combo) never goes above this
 const COUNTER_REACT_MIN_MS = 450 // never starts a counter sooner than this after your charge (was 250)
-const COUNTER_DRAW_MIN_MS = 500 // a counter circle takes at least this long to draw (about a person's quickest)
+const COUNTER_DRAW_MIN_MS = 650 // Nov 26: was 500 (circle + line). A counterspell takes at least this long to draw (about a person's quickest)
 const COUNTER_READY_MS = 80 // a counter is thrown the moment it's drawn (no waiting around)
 const COUNTER_HOLD_MS = 350 // a counter's charge before it throws, at speed 1 (never under the letter hold)
 // Punishing a silence: its spell must be out before you can react once the silence ends
@@ -179,7 +179,7 @@ const DRAW_MS: Record<string, number> = {
   zigzag7: 2200,
   battlements: 2400,
   spiral: 2200,
-  circle: 700,
+  circle: 900, // Nov 26: was 700 (now a circle plus a diagonal line)
   jab: 0,
   aegis: 2000,
   mirror: 1800,
@@ -242,7 +242,9 @@ function rawShape(shape: string): Pt01[] {
   if (shape === 'spiral') return spiralPoints()
   if (shape === 'circle') {
     const pts: Pt01[] = []
-    for (let i = 0; i <= 48; i++) pts.push({ x: Math.cos(-Math.PI / 2 + (2 * Math.PI * i) / 48), y: Math.sin(-Math.PI / 2 + (2 * Math.PI * i) / 48) })
+    // Null sign: round from the upper right, then the diagonal line through to the lower left.
+    for (let i = 0; i <= 48; i++) pts.push({ x: Math.cos(-Math.PI / 4 + (2 * Math.PI * i) / 48), y: Math.sin(-Math.PI / 4 + (2 * Math.PI * i) / 48) })
+    for (let i = 1; i <= 16; i++) pts.push({ x: Math.SQRT1_2 - (i / 16) * 2.3 * Math.SQRT1_2, y: -Math.SQRT1_2 + (i / 16) * 2.3 * Math.SQRT1_2 })
     return pts
   }
   const c = SHAPE_CORNERS[shape]

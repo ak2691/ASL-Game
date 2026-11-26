@@ -97,8 +97,7 @@ const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const PARRY_FLASH_MS = 800 // "Reflected" / "Destroyed" stays on your hand this long
 const MESSAGE_MS = 1500 // a failed-cast message (fizzle, missed parry) shows this long, or while its lock lasts
-const CIRCLE_SCORE = 0.5 // the counterspell circle is the most forgiving: it's drawn under pressure
-const CIRCLE_FALLBACK = 0.3 // a closed loop that would otherwise fizzle counts as a circle at this much
+const CIRCLE_SCORE = 0.5 // the counterspell (circle + diagonal line) is judged by a rule in shapes.ts
 const DROPOUT_MS = 150
 const REHOLD_MS = 100 // ...or keep holding it this long after the throw (charges again without letting go). Was 400; a whiffed interrupt now carries the spam cost
 const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
@@ -582,13 +581,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           if (el && el !== 'C' && !(el in COMBO_MIX) && (!shape || !isValidSpell(el, shape)) && m.name !== 'line') {
             const cands = [...shapesFor(el), ...(el in BEATS || el === 'A' || el === 'U' ? [COUNTER] : [])]
             shape = matchAmong(m, pts, cands, (n) => (n === COUNTER ? 0.3 : STRICT_SHAPES.has(n) ? Infinity : n === 'h' ? 0.4 : 0.5))
-          }
-          // A wobbly circle: if what was read wouldn't cast (no spell for this charge) but the drawing is a
-          // closed loop that leans circle, it's the counterspell. Never overrides a spell that would cast.
-          const counterReady = !!el && (el in BEATS || fightRef.current.mix.player.length === 2)
-          if (counterReady && !(shape && isValidSpell(el, shape))) {
-            const circleProb = m.top.find((t) => t.name === COUNTER)?.prob ?? 0
-            if (circleProb >= CIRCLE_FALLBACK && closedLoop(pts)) shape = COUNTER
           }
           if (DEBUG) {
             const ft = shapeFeatures(pts)
@@ -1635,16 +1627,6 @@ function ArmorBar({ hp, max, armor }: { hp: number; max: number; armor: number }
       {over > 0 && <div className="armor-fill over" style={{ left: 0, width: `${(100 * Math.min(over, m)) / m}%` }} />}
     </>
   )
-}
-
-/** The stroke ends near where it started (within a quarter of its size): a closed loop. */
-function closedLoop(pts: Pt[]) {
-  const xs = pts.map((p) => p.x)
-  const ys = pts.map((p) => p.y)
-  const size = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) || 1
-  const a = pts[0]
-  const b = pts[pts.length - 1]
-  return Math.hypot(a.x - b.x, a.y - b.y) <= size / 4
 }
 
 /** Your charge's power when worn (an element, or a combo: the average of its two), else null. */

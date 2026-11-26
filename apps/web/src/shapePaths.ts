@@ -26,7 +26,7 @@ export const SHAPE_PATHS: Record<string, string> = {
   cage: 'M8 8 L32 8 L32 32 L8 32 L8 8 L32 32 L32 8 L8 32',
   zigzag7: 'M3 8 L8 32 L13 14 L18 32 L23 14 L28 32 L33 14 L38 32',
   battlements: 'M3 30 L3 14 L9 14 L9 30 L15 30 L15 14 L21 14 L21 30 L27 30 L27 14 L33 14 L33 30',
-  circle: 'M20 6 A14 14 0 1 1 19.9 6',
+  circle: 'M29.9 10.1 A14 14 0 1 1 29.8 10 L8.5 31.5', // null sign: the circle, then a diagonal line through it
   spiral: 'M20 20 A2 2 0 0 1 24 20 A4 4 0 0 1 16 20 A6 6 0 0 1 28 20 A8 8 0 0 1 12 20 A10 10 0 0 1 32 20 A12 12 0 0 1 8 20 A14 14 0 0 1 36 20',
   // Angelic
   aegis: 'M20 36 L20 5 L34 5 C34 20 29 29 20 36 C11 29 6 20 6 5 L20 5',
@@ -57,7 +57,7 @@ export const SHAPE_STARTS: Record<string, [number, number]> = {
   zigzag7: [3, 8],
   battlements: [3, 30],
   spiral: [20, 20],
-  circle: [20, 6],
+  circle: [29.9, 10.1],
   aegis: [20, 36],
   mirror: [20, 20],
   scythe: [12, 39],

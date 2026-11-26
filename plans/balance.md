@@ -551,3 +551,12 @@ User: against two foes, spells arriving together should both be parried if the p
 just lands, no stagger. Parry wear: one stack per push, so a double parry is a bit stronger than two single
 ones. 1v1 is unchanged (one spell in flight at you at a time). Checked in the browser with the real Combat:
 40 ms apart, push 30 ms before the first: both reflected; 150 ms apart: first reflected, second lands.
+
+## Nov 26: Counterspell is a null sign
+
+The counterspell is now a circle with a diagonal line through it (25-65 degrees, through the middle, touching
+both sides; a little past is fine), judged by a rule (`nullSign` in shapes.ts) instead of the network. The plain
+circle and its closed-loop fallback are gone. Bots draw it a little slower: 900 ms (was 700), floor 650 ms (was
+500). Against every other spell: counters land about 150-200 ms later, so heavies and signatures are a touch
+safer to throw; quick interrupts (no drawing) are unchanged and become the relatively faster answer to lights.
+No other shape passes the rule (plain circle, horizontal/vertical lines, half circle, hourglass, cage tested).
