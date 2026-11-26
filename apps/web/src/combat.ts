@@ -46,7 +46,7 @@ export const TWILIGHT_EXPOSE = 1 // they take this much more (Nov 23 buff: was 0
 export const STEAM_MS = 6000
 export const STEAM_SHOTS = 2
 export const STEAM_HIT = 40
-export const THERMAL = { hit: 38, burn: 22, chill: 0.5 } // a hit, a burn and a chill
+export const THERMAL = { hit: 38, burn: 22, chill: 0.75, chillMs: 6000 } // a hit, a burn and the strongest chill (Nov 26: was +50% for 4 s)
 // Plasma (Nov 24): no stun. It knocks their charge off like Earthquake and drops every one of their
 // elements to `cap` power at most (lower ones stay where they are).
 export const PLASMA = { hit: 46, burn: 20, cap: 0.5 }
@@ -1018,7 +1018,7 @@ export class Combat {
         // Hot and cold at once: a hit, then a burn and a chill.
         this.hit(target, THERMAL.hit, color, now)
         this.burn(target, THERMAL.burn, 4, color, now)
-        this.chillOn(target, THERMAL.chill, now)
+        this.chillOn(target, THERMAL.chill, now, THERMAL.chillMs)
         break
       }
       case 'plasma': { // knocks their charge off and wears all their elements down to PLASMA.cap

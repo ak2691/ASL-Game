@@ -39,7 +39,7 @@ const TIPS: Record<string, string> = {
   'glacier iceberg': `Arrives after ${secs(GLACIER_MS)} and can't be parried. Only a Fire + Ice combo counterspell stops it.`,
   'twilight yinyang': `For ${secs(TWILIGHT_MS)}, you take ${pct(TWILIGHT_GUARD)} less damage and they take +${pct(TWILIGHT_EXPOSE)}.`,
   'steam puff': `Their next ${STEAM_SHOTS} attacks miss, for up to ${secs(STEAM_MS)}.`,
-  'thermal thermo': `Burns them for ${THERMAL.burn} and chills them: their next hit taken does +${pct(THERMAL.chill)}.`,
+  'thermal thermo': `Burns them for ${THERMAL.burn} and chills them: their next hit taken does +${pct(THERMAL.chill)}, for ${secs(THERMAL.chillMs)}.`,
   'plasma plasma': `Burns them, knocks off their charge, and drops their elements and parry to ${pct(PLASMA.cap)} power.`,
   'sunfire sun': `Burns them for ${SUNFIRE[1]} over 6 s and heals you the same.`,
   'grave tomb': `No healing or armor for them, for ${secs(GRAVE.ms)}. A Heal clears it but heals nothing.`,

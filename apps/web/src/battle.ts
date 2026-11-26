@@ -1,6 +1,6 @@
 // Arenas: what the Spells page fights in. Practice = an AI enemy in the browser; online = a real
 // opponent through the server (online.ts). Both give the page the same Snapshot to draw.
-import { CHILL_HEAVY_MS, CHILL_MS, Combat, COUNTER_CUTOFF, WEAR_STEP, FIZZLE_LOCK_MS, FLY_MS, TWILIGHT_MS, MAX_HP, PARRY_WEAR, PARRY_WINDOW_MS, STATIC_CUTOFF, type CombatView, type Fid } from './combat'
+import { CHILL_HEAVY_MS, CHILL_MS, THERMAL, Combat, COUNTER_CUTOFF, WEAR_STEP, FIZZLE_LOCK_MS, FLY_MS, TWILIGHT_MS, MAX_HP, PARRY_WEAR, PARRY_WINDOW_MS, STATIC_CUTOFF, type CombatView, type Fid } from './combat'
 import { BEATS, canQuick, chargeInfo, COMBOS_ON, COMBO_MIX, COMBO_SHAPE, COUNTER, QUICK, SIGNATURE, mixCounter, signsFor, spellName } from './spells'
 import { samplePath } from './shapePaths'
 import { spiralPoints } from './shapes'
@@ -1284,7 +1284,7 @@ export class PracticeArena implements Arena {
           // Adept and up always do, after a short beat to react (0.6 s at Morwen down to 0.15 s at the top).
           const setupMs = e.counter || e.shape === QUICK ? 0
             : e.el === 'I' ? (e.shape === 'line' ? CHILL_MS : CHILL_HEAVY_MS)
-            : e.el === 'thermal' ? CHILL_MS : e.el === 'twilight' ? TWILIGHT_MS : 0
+            : e.el === 'thermal' ? THERMAL.chillMs : e.el === 'twilight' ? TWILIGHT_MS : 0
           const delay = this.style.setupDelay
           if (setupMs && !this.followUp && delay !== undefined) {
             this.payoff = { until: now + (e.shape === 'line' ? FLY_MS.light : FLY_MS.heavy) + setupMs }

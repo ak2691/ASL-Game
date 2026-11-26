@@ -71,7 +71,7 @@ const COMBO_DOES: Record<string, { dmg: number; does: string }> = {
   glacier: { dmg: GLACIER_DMG, does: `Arrives after ${s(GLACIER_MS)} and can't be parried. Only a Fire + Ice combo counterspell stops it.` },
   twilight: { dmg: 0, does: `For ${s(TWILIGHT_MS)}, you take ${TWILIGHT_GUARD * 100}% less damage and they take +${TWILIGHT_EXPOSE * 100}%.` },
   steam: { dmg: STEAM_HIT, does: `Their next ${STEAM_SHOTS} attacks miss, for up to ${s(STEAM_MS)}.` },
-  thermal: { dmg: THERMAL.hit, does: `Burns them for ${THERMAL.burn} and chills them: their next hit taken does +${THERMAL.chill * 100}%.` },
+  thermal: { dmg: THERMAL.hit, does: `Burns them for ${THERMAL.burn} and chills them: their next hit taken does +${THERMAL.chill * 100}%, for ${s(THERMAL.chillMs)}. The strongest chill.` },
   plasma: { dmg: PLASMA.hit, does: `Burns them for ${PLASMA.burn}, knocks off their charge, and drops their elements and parry to ${PLASMA.cap * 100}% power.` },
   sunfire: { dmg: SUNFIRE[0], does: `Burns them for ${SUNFIRE[1]} over 6 s and heals you the same.` },
   grave: { dmg: GRAVE.hit, does: `No healing or armor for them, for ${s(GRAVE.ms)}. A Heal clears it but heals nothing.` },
@@ -202,7 +202,7 @@ const GROUPS: { name: string; rows: StatusInfo[] }[] = [
     name: 'Damage',
     rows: [
       { icon: 'burn', name: 'Burning', effect: 'Takes damage every 0.5 s.', stats: [`Light ${BURN[0]}, heavy ${BURN[1]} over 1.5 s`, `Magma ${MAGMA[1]} over 5 s`, `Sunfire ${SUNFIRE[1]} over 6 s, heals the caster`, `Thermal ${THERMAL.burn}, Plasma ${PLASMA.burn} over 2 s`] },
-      { icon: 'chill', name: 'Chilled', effect: 'The next hit you take does more.', stats: [`Light +${CHILL[0] * 100}% for ${s(CHILL_MS)}`, `Heavy +${CHILL[1] * 100}% for ${s(CHILL_HEAVY_MS)}`, `Frozen Prison +${PRISON_CHILL * 100}% for ${s(CHILL_HEAVY_MS)}`] },
+      { icon: 'chill', name: 'Chilled', effect: 'The next hit you take does more.', stats: [`Light +${CHILL[0] * 100}% for ${s(CHILL_MS)}`, `Heavy +${CHILL[1] * 100}% for ${s(CHILL_HEAVY_MS)}`, `Frozen Prison +${PRISON_CHILL * 100}% for ${s(CHILL_HEAVY_MS)}`, `Thermal Shock +${THERMAL.chill * 100}% for ${s(THERMAL.chillMs)}`] },
     ],
   },
   {

@@ -538,3 +538,9 @@ AI_DRAW.combo top 3500 -> 2700 ms: at the top, Grave (fastest) 3.2 -> 2.5 s to d
 all in proportion (late in a fight ~10% faster still). Floor 1 unchanged; mid floors ~0.3 s quicker. Quick sim
 (10 games, about +-16%): order within noise of earlier runs; no other changes.
 Then top 2700 -> 3000 (user: signatures already fast): Grave 2.76 s, Sunfire 3.3 s at the top.
+
+### Thermal Shock: the strongest chill (Nov 26)
+User: a combo's chill was weaker and shorter than Frozen Prison's (+50% for 4 s vs +60% for 5 s). Now +75% for 6 s
+(THERMAL.chill 0.5 -> 0.75, new chillMs 6000). Vs all: 38 hit + 22 burn = 60 alone (Magma 90); with a heavy Earth
+follow-up (24 -> 42) about 102, so it beats Magma only if the follow-up lands in time: still a setup spell. Bots'
+setup follow-up window uses the 6 s. Prison keeps its stun as its edge.
