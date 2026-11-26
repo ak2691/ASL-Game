@@ -126,7 +126,8 @@
 [data-theme='cartoon'] .duel { gap: 6px; background: var(--ink); }
 /* Opponent's board (Nov 25): a deeper navy, bluer than the menus' grey-purple so the two stay apart, and dark
    enough that every element reads on it (Unholy 3.0, was 2.4 on #3d3a78). */
-[data-theme='cartoon'] .duel-side.opp { background: radial-gradient(circle, #303a6c 0 4px, transparent 4.5px) 0 0 / 28px 28px, #28305e; }
+[data-theme='cartoon'] :is(.duel-side.opp, .team-card.foe) { background: radial-gradient(circle, #303a6c 0 4px, transparent 4.5px) 0 0 / 28px 28px, #28305e; }
+[data-theme='cartoon'] .team-foes { background: var(--ink); } /* the split between two foes: the same ink line as the halves */
 [data-theme='cartoon'] .side-hud { background: linear-gradient(to bottom, var(--bg), transparent); }
 [data-theme='cartoon'] .menu-btn { opacity: 1; }
 

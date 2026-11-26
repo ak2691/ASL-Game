@@ -11,7 +11,7 @@ import {
 import { COMBO, COMBO_CHARGES, COMBO_MIX, COMBO_SHAPE, COMBOS_ON, COUNTER, ELEMENTS, SIGNATURE } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import { loadDrawHand } from './settings'
-import { HomeButton } from './HomeCorner'
+import { Chevron, HomeButton } from './HomeCorner'
 import { iconPath, type RowIcon } from './statusIcons'
 
 const s = (ms: number) => `${ms / 1000} s`
@@ -137,17 +137,17 @@ const ThrowArt = () => {
     </div>
   )
 }
-/** Wear: the same chips a fight shows under your health bar (only worn elements appear). */
+/** Wear: the same chips a fight shows on your status row (only worn elements appear). */
 const wearArt = (
   <div className="book-wear-demo">
     <div className="wear-chips">
       {[['F', 70], ['I', 40], ['W', 85]].map(([e, v]) => (
         <span key={e as string} style={{ '--el': ELEMENTS[e as string].color } as React.CSSProperties}>
-          {e} {v}%
+          {e} {v}
         </span>
       ))}
     </div>
-    <small>Shown under your health bar. Fresh elements don't show.</small>
+    <small>Power left, shown under your health bar. Fresh elements don't show.</small>
   </div>
 )
 
@@ -352,11 +352,13 @@ const CHAPTERS: { id: string; name: string; color: string }[] = [
 ]
 
 /** `inMatch`: opened from the in-match menu, as an overlay over the fight, with Back instead of Home. */
+let lastPage = 0 // the book opens where you left it (this visit)
 export function Spellbook({ onHome, inMatch }: { onHome: () => void; inMatch?: boolean }) {
-  const [i, setI] = useState(0)
+  const [i, setI] = useState(() => lastPage)
   const go = (to: number) => {
     const n = Math.max(0, Math.min(PAGES.length - 1, to))
     if (n === i) return
+    lastPage = n
     setI(n)
   }
   const goRef = useRef(go)
@@ -422,16 +424,17 @@ export function Spellbook({ onHome, inMatch }: { onHome: () => void; inMatch?: b
       </section>
       <div className="book-nav">
         <button className="small" onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous page">
-          ◀
+          <Chevron dir="left" />
         </button>
         <span>
           {i + 1} / {PAGES.length}
         </span>
         <button className="small" onClick={() => go(i + 1)} disabled={i === PAGES.length - 1} aria-label="Next page">
-          ▶
+          <Chevron dir="right" />
         </button>
       </div>
     </main>
   )
 }
+
 

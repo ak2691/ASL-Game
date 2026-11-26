@@ -482,7 +482,8 @@ function Impact({ b, landed = false }: { b: Bolt; landed?: boolean }) {
   const add = (cls: string, v: Vars) => parts.push(<i key={parts.length} className={cls} style={v} />)
   const d = (extra = 0) => `${delay + extra}ms`
 
-  if (els.includes('F'))
+  // Magma and Sunfire bring their own look (special()), not Fire's ember burst, so the three fire spells differ.
+  if (els.includes('F') && b.el !== 'magma' && b.el !== 'sunfire')
     for (let i = 0; i < n; i++) {
       const a = r() * Math.PI * 2
       const dist = 60 + r() * (b.tier === 'signature' ? 380 : 200)
@@ -607,7 +608,15 @@ export function StatusFx({ side, view }: { side: Fid; view: CombatView }) {
 function signature(b: Bolt, r: () => number, parts: ReactElement[]) {
   const k = () => parts.length
   const fromLeft = b.from === 'player' // the caster's side, as the target sees it
-  if (b.el === 'F') parts.push(<div key={k()} className="sig-scorch" />) // Meteor: the rock itself flies over
+  if (b.el === 'F') {
+    // Meteor: the rock itself flies over, then it craters: a dust shockwave, a scorch and rock chunks flung out.
+    parts.push(<div key={k()} className="sig-scorch" />, <div key={k() + 1} className="sig-shock" />)
+    for (let i = 0; i < 12; i++) {
+      const a = -Math.PI * (0.05 + r() * 0.9)
+      const dist = 120 + r() * 260
+      parts.push(<i key={k()} className="p chunk" style={{ '--dx': `${Math.cos(a) * dist}px`, '--dy': `${Math.sin(a) * dist * 0.8}px`, '--rot': `${r() * 540 - 270}deg`, '--s': `${10 + r() * 16}px`, '--d': `calc(var(--fly) + ${Math.round(r() * 60)}ms)`, '--t': `${900 + r() * 500}ms` } as Vars} />)
+    }
+  }
   if (b.el === 'I')
     // Frozen Prison: ice bars slam down over the half and hold for the silence, then shatter.
     // Four thin bars, kept toward the edges so the middle (where they draw) stays clear.
@@ -690,8 +699,10 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
     case 'veil': // dark fog rolls over the caster
       parts.push(<div key={k()} className="fx-shroud" style={{ '--d': d() } as Vars} />)
       break
-    case 'volcano': // lava wells up from below
+    case 'volcano': // lava wells up from below and spits molten globs that fall back
       parts.push(<div key={k()} className="fx-lava" style={{ '--d': d() } as Vars} />)
+      for (let i = 0; i < 16; i++)
+        parts.push(<i key={k()} className="p glob" style={{ '--x': `${(r() - 0.5) * 90}%`, '--h': `${14 + r() * 22}vh`, '--s': `${12 + r() * 16}px`, '--d': d(150 + r() * 500), '--t': `${800 + r() * 400}ms` } as Vars} />)
       break
     case 'iceberg': // the glacier crushes in, snow everywhere
     case 'thermo': // hot and cold at once
@@ -701,8 +712,11 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
     case 'puff': // steam rolls over them
       parts.push(<div key={k()} className="fx-steam" style={{ '--d': d() } as Vars} />)
       break
-    case 'sun': // a blaze of sunlight
-      parts.push(<div key={k()} className="fx-sun" style={{ '--d': d() } as Vars} />)
+    case 'sun': // a sun rises over them: turning rays, beams of light down, golden motes drifting up
+      parts.push(<div key={k()} className="fx-sun" style={{ '--d': d() } as Vars} />, <div key={k() + 1} className="fx-sunburst" style={{ '--d': d() } as Vars} />)
+      for (let i = 0; i < 4; i++) parts.push(<div key={k()} className="fx-beam" style={{ '--x': `${14 + i * 24 + r() * 8}%`, '--d': d(120 + i * 90) } as Vars} />)
+      for (let i = 0; i < 14; i++)
+        parts.push(<i key={k()} className="p mote" style={{ '--x': `${(r() - 0.5) * 80}%`, '--s': `${4 + r() * 6}px`, '--d': d(200 + r() * 600), '--t': `${1000 + r() * 600}ms` } as Vars} />)
       break
     case 'tomb': // a grave's gloom
       parts.push(<div key={k()} className="fx-shroud" style={{ '--d': d() } as Vars} />)

@@ -1116,22 +1116,38 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // A stopped or finished fight shows no effects (statuses, armor, spells in flight): ending a match clears them at once.
   const fxOn = fight.running && !fight.over
   const armorOf = (side: Fid) => (fxOn ? fight.shield[side] : 0)
-  const fighterHead = (side: Fid, name?: string) => (
+  /** What a fighter has charged, for the badge and the glow on their bar: '?' while Shrouded (yours always shows). */
+  const chargeOf = (side: Fid): { el: string | null; mix: string[] } => {
+    if (side === 'player') return { el: charge, mix: fight.mix.player }
+    if (!fight.running) return { el: null, mix: [] }
+    if (fight.shroud[side] > 0 && !(fight.silenced[side] > 0)) return { el: '?', mix: [] }
+    const c = side === 'enemy' && !isTeam ? fight.enemyCast : tf.casts?.[side] ?? null
+    return { el: fight.charge[side] ?? (c && c.el !== '?' ? c.el : null), mix: fight.mix[side] ?? [] }
+  }
+  // The fighter's frame (Nov 26): the name and status icons on one row, then the health bar. The charge is
+  // written inside the bar (a word, so it reads without telling colors apart) and the bar glows its color.
+  const fighterHead = (side: Fid, name?: string) => {
+    const ch = chargeOf(side)
+    const glow = ch.el === '?' ? ELEMENTS.U.color : ch.el ? chargeInfo(ch.el).color : undefined
+    const word = ch.el === '?' ? 'Hidden' : !ch.el ? '' : ch.el === COMBO ? 'Combo' : chargeInfo(ch.el).name
+    return (
     <div className="fighter">
       <div className="fighter-name">
-        {name ?? (side === 'player' ? 'You' : oppName)}
+        <span className="fighter-label">{name ?? (side === 'player' ? 'You' : oppName)}</span>
         {/* Every status as icons, on the name row (a fixed height, so nothing below ever moves). Your own
             "can't act" ones are on your hand. Too many: the first few and "+N". */}
         {fxOn && <StatusRow view={fight} side={side} hand={side === 'player'} max={side.startsWith('ally') || (isTeam && side !== 'player') ? 3 : 5} />}
       </div>
-      <div className="hp-bar">
+      <div className={`hp-bar ${glow ? 'charged' : ''}`} style={{ '--charge': glow } as React.CSSProperties}>
         <div
           className="hp-fill"
           style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: armorOf(side) > 0 ? 'var(--armor-hp)' : teamOf(side) === 'player' ? 'var(--you)' : 'var(--foe)' }}
         />
         <ArmorBar hp={fight.hp[side]} max={fight.maxHp[side]} armor={armorOf(side)} />
+        {word && <span className="hp-charge">{word}</span>}
         <span className="hp-text">
-          {fight.maxHp[side] === Infinity ? '∞' : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
+          {/* A 2v2 foe card's bar is narrow: just the HP left, so it never runs into the charge word. */}
+          {fight.maxHp[side] === Infinity ? '∞' : isTeam && side !== 'player' && !side.startsWith('ally') ? Math.ceil(fight.hp[side]) : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
           {armorOf(side) > 0 && <b className="armor-text">+{armorOf(side)}</b>}
         </span>
         {fight.floats
@@ -1143,7 +1159,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           ))}
       </div>
     </div>
-  )
+    )
+  }
   // Team modes.
   const tf = fight as TeamSnapshot
   const online2 = mode === 'online' && fight.fighters.length > 2 // an online team match (1v2, 2v1, 2v2)
@@ -1182,8 +1199,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     return (
       <div key={id} data-fid={id} className={`team-card ally ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
         {fighterHead(id, nameOf(id))}
-        <OppStatus fight={fight} id={id} cast={cast} />
-        {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
+        <div className="hud-row">
+          <OppStatus fight={fight} id={id} cast={cast} />
+          {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} max={2} />}
+        </div>
         {fxOn && <StatusFx side={id} view={fight} />}
         {fxOn && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
         {out && <b className="out-tag">Out</b>}
@@ -1206,8 +1225,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {fighterHead(id, nameOf(id))}
           <div className="hud-row">
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
+            {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} max={3} />}
           </div>
-          {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
         </div>
         {fxOn && <StatusFx side={id} view={fight} />}
         {fxOn && <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />}
@@ -1251,6 +1270,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
   const askForfeit = useCallback(() => setMenu('forfeit'), [])
+  // The pause menu opens where you left it (also after a trip to the Spellbook).
+  const menuScroll = useRef(0)
+  const keepMenuScroll = useCallback((el: HTMLDivElement | null) => {
+    if (el) el.scrollTop = menuScroll.current
+  }, [])
   const showLobby = mode === 'online' && (!lobby || (lobby.phase === 'over' ? clock - overAt.current > RESULT_MS : lobby.phase !== 'countdown' && lobby.phase !== 'fighting'))
 
   return (
@@ -1302,10 +1326,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           </div>
           <div className="side-hud">
             {fighterHead('player')}
+            <div className="hud-row">
             <div className="status-strip">
-              <span className="charge" style={{ color: charge ? chargeInfo(charge).color : undefined }}>
-                {chargeLabel(charge, fight.mix.player)}
-              </span>
               <span className="sub-line">
                 {fight.running && fight.silenced.player > 0
                   ? '' // the Silenced timer says it
@@ -1313,10 +1335,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                     ? '' // "PUSH" shows on your hand
                     : drawing
                       ? 'drawing…'
-                      : `seeing: ${seeing}`}
+                      : seeing && `seeing: ${seeing}`}
               </span>
             </div>
-            {fxOn && fight.wear?.player && <WearChips wear={fight.wear.player} />}
+            {fxOn && fight.wear?.player && <WearChips wear={fight.wear.player} max={isTeam ? 4 : 6} />}
+            </div>
           </div>
           {!camOn && mode !== 'online' ? (
             <div className="cam-gate">
@@ -1356,6 +1379,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {isTeam && <div className="team-foes">{foes.map(foeCard)}</div>}
           {mode === 'dummy' && <div className="dummy-dock">{dummyBar}</div>}
           {!isTeam && <EnemyCanvas cast={fight.running && !(fight.shroud.enemy > 0) ? fight.enemyCast : null} />}
+          {!isTeam && fight.running && fight.enemyCast?.phase === 'ready' && !(fight.shroud.enemy > 0) && (
+            <b className="team-spell" style={{ color: fight.enemyCast.color }}>
+              {fight.enemyCast.name}
+            </b>
+          )}
           {!isTeam && <div className="side-hud">
             {fighterHead('enemy')}
             {mode === 'practice' && bubble && (
@@ -1365,8 +1393,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             )}
             <div className="hud-row">
               {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
+              {mode !== 'tutorial' && fxOn && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} max={6} />}
             </div>
-            {mode !== 'tutorial' && fxOn && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
           </div>}
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
           {/* Practice: picking an opponent, you're inside the tower (brick walls fill this half). It fades out as the fight starts. */}
@@ -1410,30 +1438,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       {menu === 'main' && (
         <div className="menu-overlay" onClick={() => setMenu(null)}>
           {/* The in-match menu (Nov 24): Resume up top, settings as rows with switches, the rest as small buttons. */}
-          <div className="menu-card pause-menu dm" onClick={(e) => e.stopPropagation()}>
+          <div className="menu-card pause-menu dm" onClick={(e) => e.stopPropagation()} ref={keepMenuScroll} onScroll={(e) => (menuScroll.current = e.currentTarget.scrollTop)}>
             <b className="leave-title pm-title">Paused</b>
-            <SlabSection title="Controls">
-              <SlabChoice label="Draw with" value={drawHand} options={[{ v: 'left', name: 'Left' }, { v: 'right', name: 'Right' }]} onChange={(h) => (h !== drawHand ? swapDrawHand() : undefined)} />
-              <PushSlab />
-              <SignDelaySlab />
-            </SlabSection>
-            <SlabSection title="Sound">
-              <VolumeSlab />
-              {mode === 'practice' && (
-                <SlabChoice
-                  label="Chatter"
-                  value={chatter ? 'on' : 'off'}
-                  options={[{ v: 'off', name: 'Off' }, { v: 'on', name: 'On' }]}
-                  onChange={(v) => {
-                    const on = v === 'on'
-                    saveChatter(on)
-                    setChatter(on)
-                    if (!on) setBubble(null)
-                  }}
-                />
-              )}
-            </SlabSection>
-            {/* Equal tiles, icon over a word (Nov 25): Resume first and green; leaving ones red. */}
+            {/* Equal tiles, icon over a word (Nov 25): Resume first and green; leaving ones red. Up top (Nov 26),
+                so a phone never has to scroll to reach them; the settings below scroll. */}
             <div className="pm-tiles">
               <button className="pm-tile go" onClick={() => setMenu(null)}>
                 <Icon d="M8 5v14l11-7z" />
@@ -1462,6 +1470,27 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                 Home
               </button>
             </div>
+            <SlabSection title="Controls">
+              <SlabChoice label="Draw with" value={drawHand} options={[{ v: 'left', name: 'Left' }, { v: 'right', name: 'Right' }]} onChange={(h) => (h !== drawHand ? swapDrawHand() : undefined)} />
+              <PushSlab />
+              <SignDelaySlab />
+            </SlabSection>
+            <SlabSection title="Sound">
+              <VolumeSlab />
+              {mode === 'practice' && (
+                <SlabChoice
+                  label="Chatter"
+                  value={chatter ? 'on' : 'off'}
+                  options={[{ v: 'off', name: 'Off' }, { v: 'on', name: 'On' }]}
+                  onChange={(v) => {
+                    const on = v === 'on'
+                    saveChatter(on)
+                    setChatter(on)
+                    if (!on) setBubble(null)
+                  }}
+                />
+              )}
+            </SlabSection>
           </div>
         </div>
       )}
@@ -1543,14 +1572,6 @@ function ArmorBar({ hp, max, armor }: { hp: number; max: number; armor: number }
   )
 }
 
-/** A charge as text: a combo lists what's mixed in so far. */
-function chargeLabel(el: string | null, mix: string[]) {
-  if (!el) return 'no charge'
-  const mixed = mix.map((e) => ELEMENTS[e].name).join(' + ')
-  if (el === COMBO) return mixed ? `Charging combo: ${mixed}` : 'Charging combo'
-  return mixed ? `${chargeInfo(el).name} charged (${mixed})` : `${chargeInfo(el).name} charged`
-}
-
 /** The stroke ends near where it started (within a quarter of its size): a closed loop. */
 function closedLoop(pts: Pt[]) {
   const xs = pts.map((p) => p.x)
@@ -1569,12 +1590,15 @@ const MENU_REDRAW_MS = 250 // while a menu is open, the page behind it redraws a
 const LOCK_NOTES = new Set(['Parry missed', 'Interrupted!', 'Whiffed!']) // with the parry timer on, a missed parry still shows "Too early" / "Too late"
 
 const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U', PARRY_WEAR]
-/** Wear: only the worn elements, as "I 62%" chips under the status (fresh ones aren't shown). Same on every side. */
-function WearChips({ wear }: { wear: Record<string, number> }) {
-  const worn = WEAR_ORDER.filter((e) => (wear[e] ?? 100) < 100)
-  if (!worn.length) return null
+/** Wear: only the worn elements, as small "I 62" chips on the status row (fresh ones aren't shown). Same on
+ *  every side. Never more than one row: past `max`, the most worn ones show and "+N" (Nov 26). */
+function WearChips({ wear, max }: { wear: Record<string, number>; max: number }) {
+  const all = WEAR_ORDER.filter((e) => (wear[e] ?? 100) < 100)
+  if (!all.length) return null
+  const cut = all.length > max ? max - 1 : max
+  const worn = all.length > max ? [...all].sort((a, b) => wear[a] - wear[b]).slice(0, cut) : all
   return (
-    <div className="wear-chips" aria-label="Worn elements">
+    <div className="wear-chips hud-wear" aria-label="Worn elements">
       {worn.map((e) => (
         <span key={e} style={{ '--el': e === PARRY_WEAR ? '#ffffff' : ELEMENTS[e].color } as React.CSSProperties}>
           {e === PARRY_WEAR ? (
@@ -1585,45 +1609,30 @@ function WearChips({ wear }: { wear: Record<string, number> }) {
           ) : (
             e
           )}{' '}
-          {wear[e]}%
+          {wear[e]}
         </span>
       ))}
+      {all.length > worn.length && <span className="wear-more">+{all.length - worn.length}</span>}
     </div>
   )
 }
 
-/** What the opponent is doing, as text (same style as your own charge line). */
+/** The counter hint under a fighter's bar (Training dummy aid, or a practice bot's intro hint), if any. Their
+ *  charge is the badge and the bar's glow; the spell they've readied shows big over their drawing. */
 function OppStatus({ fight, id = 'enemy', cast, hint: showHint }: { fight: Snapshot; id?: Fid; cast?: Snapshot['enemyCast']; hint?: boolean }) {
   const c = cast === undefined ? fight.enemyCast : cast
   const silenced = fight.running && fight.silenced[id] > 0
-  // The fight's view shows a combo's mix as it grows.
+  if (silenced || fight.shroud[id] > 0) return null
   const el = fight.charge[id] ?? (c && c.el !== '?' ? c.el : null)
-  // Training dummy aid: the element that counters what it's charging (attacks only).
-  // The dummy's hint (a setting), or an intro bot's (practice: after the bot's own delay).
   // An element: the one that beats it. A locked combo: C + the two that beat its mix.
   const dummyHint = !showHint ? null : el && el in COMBO_MIX ? mixCounter(COMBO_MIX[el].map(beaterOf)) : c && c.el in BEATS ? beaterOf(c.el) : null
   const hint = dummyHint ?? (id === 'enemy' ? fight.hint ?? null : null)
-  if (fight.shroud[id] > 0 && !silenced)
-    // Shroud: you can't see what they're charging or drawing.
-    return (
-      <div className="status-strip">
-        <span className="charge" style={{ color: ELEMENTS.U.color }}>
-          Shrouded
-        </span>
-        <span className="sub-line">can't see their spell</span>
-      </div>
-    )
+  if (!hint) return null
   return (
     <div className="status-strip">
-      <span className="charge" style={{ color: el ? chargeInfo(el).color : undefined }}>
-        {chargeLabel(el, fight.mix[id] ?? [])}
+      <span className="sub-line" style={{ color: chargeInfo(hint).color }}>
+        {isMixCounter(hint) ? `Counter with C, ${ELEMENTS[hint[1]].name}, ${ELEMENTS[hint[2]].name}` : `Counter with ${ELEMENTS[hint].name}`}
       </span>
-      <span className="sub-line">{silenced ? '' : c?.phase === 'ready' ? `${c.name} ready!` : c?.phase === 'draw' ? 'drawing…' : ''}</span>
-      {hint && !silenced && (
-        <span className="sub-line" style={{ color: chargeInfo(hint).color }}>
-          {isMixCounter(hint) ? `Counter with C, ${ELEMENTS[hint[1]].name}, ${ELEMENTS[hint[2]].name}` : `Counter with ${ELEMENTS[hint].name}`}
-        </span>
-      )}
     </div>
   )
 }
@@ -1806,8 +1815,12 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
       <div className={`room-team ${t === 'player' ? 'one' : 'two'}`}>
         <b className="room-team-name">{label}</b>
         {seats.map((s) => (
-          <div key={s.i} className={`room-seat ${s.here ? '' : 'away'}`}>
-            <span className="room-seat-name">{s.i === lobby.you ? 'You' : `Player ${s.i + 1}`}</span>
+          <div key={s.i} className={`room-seat ${s.here ? '' : 'away'} ${s.i === lobby.you ? 'mine' : ''}`}>
+            {/* Everyone by the name the others see (Nov 26); yours gets a "You" tag. */}
+            <span className="room-seat-name">
+              Player {s.i + 1}
+              {s.i === lobby.you && <i className="you-tag">You</i>}
+            </span>
             {host ? (
               <LobbyHp hp={s.hp} who={s.i === lobby.you ? 'you' : `player ${s.i + 1}`} onSet={(v) => arena?.setHp(s.i, v)} />
             ) : (

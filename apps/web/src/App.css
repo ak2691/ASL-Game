@@ -862,9 +862,9 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 .stage-center .tower .portrait { width: 44px; height: 44px; }
 .stage-center .tower .floor-name { font-size: 16px; }
 .stage-center:has(.tower-wrap) > .cta, .stage-center:has(.tower-wrap) > .countdown { flex: none; }
-/* Phone portrait: your camera half shrinks while you pick (you aren't signing yet). */
+/* Phone portrait: the halves stay the same size while you pick (Nov 26: the camera used to shrink to a
+   quarter, which jumped when the fight began). The floors scroll in their half. */
 @media (max-width: 800px) and (orientation: portrait) {
-  .duel:has(.tower-wrap) { grid-template-rows: minmax(0, 1fr) minmax(0, 3fr); }
   .duel:has(.tower-wrap) .privacy-note { display: none; }
   .duel-side.opp > .stage-center:has(.tower-wrap) { padding: 10px 10px 64px; gap: 8px; }
   .stage-center .tower-wrap > .sub-line { font-size: 13px; }
@@ -1394,3 +1394,100 @@ html[data-theme] .corner-bar .forfeit-btn:hover, .corner-bar .forfeit-btn:hover 
 .corner-bar .forfeit-btn svg { width: 22px; height: 22px; }
 .forfeit-count { position: absolute; top: -8px; right: -8px; padding: 1px 5px; border-radius: 8px; font-size: 11px; line-height: 1.3; background: #141226; color: #fffaf0; }
 html[data-theme] .pause-menu button.btn-forfeit, .pause-menu button.btn-forfeit { background: var(--foe); color: #fff; }
+
+/* The three fire spells, each its own look (Nov 26): Meteor craters (dust shockwave, rock chunks flung out),
+   Magma wells up as lava and spits molten globs, Sunfire is light from above (a turning sun, beams, motes). */
+.sig-shock { position: absolute; left: 50%; top: 58%; width: 40px; height: 16px; margin: -8px -20px; border-radius: 50%; border: 2px solid rgba(200, 150, 100, 0.8);
+  box-shadow: 0 0 6px rgba(255, 140, 60, 0.6); opacity: 0; animation: ripple 900ms ease-out; --end: 12; }
+.p.chunk { border-radius: 30% 45% 35% 50%; background: #5a3a24; box-shadow: inset -3px -3px 0 #2a180f, 0 0 6px #ff7a2a; animation-name: chunk; }
+@keyframes chunk { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 55% { opacity: 1; transform: translate(calc(var(--dx) * 0.8), var(--dy)) rotate(calc(var(--rot) * 0.6)); }
+  100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 160px)) rotate(var(--rot)); } }
+.fx-lava { background: linear-gradient(to top, #8a1d06, rgba(255, 90, 20, 0.9) 12%, rgba(255, 160, 40, 0.45) 32%, transparent 55%); animation-duration: 2000ms; }
+.p.glob { left: calc(50% + var(--x)); top: auto; bottom: 4%; border-radius: 50% 50% 45% 45%; background: radial-gradient(circle at 40% 35%, #ffe08a, #ff7a1f 45%, #8a1d06);
+  box-shadow: 0 0 10px #ff5a14; animation: glob var(--t) cubic-bezier(0.3, 0, 0.7, 1); }
+@keyframes glob { 0% { opacity: 1; transform: translateY(0) scale(0.6); } 50% { opacity: 1; transform: translateY(calc(var(--h) * -1)) scale(1); } 100% { opacity: 0; transform: translateY(0) scale(0.8); } }
+.fx-sunburst { position: absolute; left: 50%; top: 4%; width: 70%; aspect-ratio: 1; margin-left: -35%; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, #fffbe0 0 14%, #ffd23d 16%, transparent 30%), repeating-conic-gradient(rgba(255, 220, 90, 0.75) 0 8deg, transparent 8deg 24deg);
+  -webkit-mask: radial-gradient(circle, #000 25%, transparent 70%); mask: radial-gradient(circle, #000 25%, transparent 70%);
+  animation: sunburst 1800ms ease-out; }
+@keyframes sunburst { 0% { opacity: 0; transform: translateY(-30%) rotate(0deg) scale(0.6); } 25% { opacity: 1; transform: translateY(0) rotate(30deg) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: rotate(90deg) scale(1.1); } }
+.fx-beam { position: absolute; top: 0; bottom: 0; left: var(--x); width: 9%; opacity: 0; background: linear-gradient(to bottom, rgba(255, 246, 194, 0.85), rgba(255, 210, 61, 0.35) 70%, transparent);
+  filter: blur(3px); animation: beam 1200ms ease-out; }
+@keyframes beam { 0% { opacity: 0; transform: scaleY(0); transform-origin: top; } 30% { opacity: 1; transform: scaleY(1); } 100% { opacity: 0; } }
+.p.mote { left: calc(50% + var(--x)); top: 80%; border-radius: 50%; background: #fff6c2; box-shadow: 0 0 10px #ffd23d; animation: rise var(--t) ease-out; }
+
+/* Status row (Nov 26): charge on the left, wear chips on the right, one row. The opponent's drawing starts
+   below the HUD so it never runs into the text. */
+.hud-row > .hud-wear { flex: none; margin-left: auto; flex-wrap: nowrap; gap: 3px; align-self: center; }
+.hud-wear span { padding: 1px 5px; border-left-width: 3px; font-size: 12px; }
+.hud-wear .wear-more { --el: #9a9ab0; }
+.duel-side.you .side-hud > .hud-row > .status-strip { flex: 1 1 auto; }
+.duel .enemy-canvas { top: var(--hud-clear, 92px); height: auto; }
+@media (max-width: 600px) { .duel .enemy-canvas { --hud-clear: 86px; } }
+
+/* Paused menu (Nov 26): the tiles sit under the title; the settings follow. Shorter tiles on phones. */
+.pause-menu.dm > .pm-tiles { margin-top: 0; }
+@media (max-width: 600px) { html[data-theme] .pause-menu .pm-tiles .pm-tile { height: 64px; font-size: 15px; } .pm-tile svg { width: 22px; height: 22px; } }
+.chevron { width: 1.3em; height: 1.3em; display: block; margin: auto; }
+
+/* Tutorial on phones (Nov 26): the step bar is gone (too small to tap; the page count says where you are),
+   the card is one fixed size whatever the step, and it ends above the round Menu button so the arrows sit
+   centered instead of dodging it. */
+@media (max-width: 800px), (pointer: coarse) {
+  html[data-theme] .tutorial > .tut-bar { display: none; }
+  html[data-theme] .tut-body > .row, html[data-theme='cartoon'] .tut-body > .row { padding-right: 0; }
+}
+@container (max-height: 560px) {
+  html[data-theme] .tutorial { padding-bottom: 58px; }
+  html[data-theme] .tutorial .tut-card { flex: 1 1 0; height: auto; max-height: none; width: min(420px, 100%); }
+}
+
+/* Custom game lobby (Nov 26): the card centers when it fits and starts at the top when it doesn't (phones on
+   their side), so the title never scrolls out of reach. Your own seat says "You" next to your player name. */
+.lobby-screen { align-items: flex-start; }
+.lobby-card { margin: auto; }
+.room-seat-name { display: inline-flex; align-items: center; gap: 6px; }
+.you-tag { font-style: normal; font-size: 11px; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 6px; border-radius: 6px; background: #ffd24d; color: #1d1b2e; }
+html[data-theme] .lobby-card .room-seat.mine { box-shadow: inset 0 0 0 2px #ffd24d; }
+@media (max-width: 600px) { .room-seat-name { flex-direction: column; align-items: flex-start; gap: 1px; } .you-tag { font-size: 10px; padding: 0 5px; } }
+
+/* Fighter frames (Nov 26): name and status icons on one row, then the health bar. The charge is a word on
+   the left of the bar (white with an outline, so it reads whatever the colors) and the bar glows its color;
+   HP sits on the right. Bars stay at the top of each half. */
+.hp-charge { position: absolute; left: 8px; top: 0; bottom: 0; display: flex; align-items: center; z-index: 1; pointer-events: none; white-space: nowrap;
+  font-family: var(--title, inherit); font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: #fff;
+  text-shadow: -1.5px -1.5px 0 #1d1b2e, 1.5px -1.5px 0 #1d1b2e, -1.5px 1.5px 0 #1d1b2e, 1.5px 1.5px 0 #1d1b2e; }
+html[data-theme] .duel .hp-text { justify-content: flex-end; padding-right: 10px; }
+.fighter-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html[data-theme] .hp-bar.charged { box-shadow: 0 0 0 2px var(--charge), 0 0 14px 3px var(--charge); }
+.side-hud .status-strip { min-height: 0; }
+.side-hud .hud-row:empty { display: none; }
+@media (max-width: 800px) and (orientation: portrait) { .duel .enemy-canvas { --hud-clear: 80px; } }
+/* Phones on their side (Nov 26): a slim frame whose health bar never changes size. Line 1: name, bar.
+   Line 2 (always reserved): status icons on the left, wear chips on the right, so neither ever squeezes
+   the bar. A 2v2 foe card is narrower: name and icons; then the bar alone; then the chips. */
+@media (max-height: 500px) and (orientation: landscape) {
+  html[data-theme] .duel .side-hud { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); grid-template-rows: 24px 20px;
+    gap: 4px 10px; align-items: center; padding: 6px 10px 8px; }
+  .duel .side-hud > .fighter, .duel .side-hud .fighter-name { display: contents; }
+  .duel .side-hud .fighter-label { grid-row: 1; grid-column: 1; }
+  .duel .side-hud .hp-bar { grid-row: 1; grid-column: 2; min-width: 0; }
+  .duel .side-hud .status-row { grid-row: 2; grid-column: 1 / -1; justify-self: start; margin-left: 0; }
+  .duel .side-hud > .hud-row { grid-row: 2; grid-column: 1 / -1; justify-self: end; min-width: 0; }
+  .duel .side-hud > .hud-row:empty { display: none; }
+  .duel .side-hud > .hud-row .sub-line { white-space: nowrap; font-size: 13px; }
+  html[data-theme] .duel .fighter-label { font-size: 15px; }
+  html[data-theme] .team-card.foe .side-hud { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 22px 22px 18px; gap: 3px 6px; }
+  .team-card.foe .side-hud .status-row { grid-row: 1; grid-column: 2; }
+  .team-card.foe .side-hud .hp-bar { grid-row: 2; grid-column: 1 / -1; }
+  .team-card.foe .side-hud > .hud-row { grid-row: 3; }
+  .duel .enemy-canvas { --hud-clear: 66px; }
+  .team-card.foe .enemy-canvas { --hud-clear: 80px; }
+}
+/* Portrait result (Nov 26): banner and buttons sit in your camera half, buttons on one row, clear of both bars. */
+@media (max-width: 800px) and (orientation: portrait) {
+  .result-banner { top: 20%; }
+  .result-actions { top: 32%; flex-wrap: nowrap; gap: 8px; }
+  html[data-theme] .result-actions button { width: auto; min-width: 0; padding: 10px 12px; font-size: 15px; }
+}
+.team-card.foe .hp-charge { font-size: 11px; left: 6px; }

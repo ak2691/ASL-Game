@@ -1,4 +1,4 @@
-import { HomeButton } from './HomeCorner'
+import { Chevron, HomeButton } from './HomeCorner'
 // Tutorial: cast every spell once on the dummy. Each step shows the ASL letter, an animated
 // drawing of the shape, and one short tip. A step passes when that spell is thrown.
 import { useEffect, useRef, useState } from 'react'
@@ -197,13 +197,13 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
   const nav = (
     <div className="row book-nav tut-nav">
       <button className="small" {...press(() => go(-1))} disabled={i === -BASICS.length} aria-label="Previous step">
-        ◀
+        <Chevron dir="left" />
       </button>
       <span>
         {i + BASICS.length + 1} / {total}
       </span>
       <button className="small" {...press(() => go(1))} aria-label="Next step">
-        ▶
+        <Chevron dir="right" />
       </button>
     </div>
   )
@@ -312,8 +312,8 @@ export function Tutorial({ notes, onHome, drawHand, onTry }: { notes: Snapshot['
       <div className="tutorial">
         <b className="result">You're ready!</b>
         <div className="row">
-          <button className="small" {...press(() => go(-1))}>
-            ◀
+          <button className="small" {...press(() => go(-1))} aria-label="Previous step">
+            <Chevron dir="left" />
           </button>
           <HomeButton onClick={onHome} />
         </div>

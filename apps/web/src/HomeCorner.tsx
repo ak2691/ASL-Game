@@ -68,3 +68,12 @@ export function HomeButton({ onClick, back, className = '' }: { onClick: () => v
     </button>
   )
 }
+
+/** A drawn arrow for page buttons (text arrows like ◀ turn into emoji on phones). */
+export function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg className="chevron" viewBox="0 0 24 24" aria-hidden="true">
+      <path d={dir === 'left' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
