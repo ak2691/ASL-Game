@@ -11,6 +11,7 @@ export type ClientMsg =
   | { t: 'create' }
   | { t: 'join'; code: string }
   | { t: 'ready' }
+  | { t: 'unready' } // take back Ready (lobby only)
   | { t: 'leave' }
   | { t: 'forfeit' } // vote to forfeit (again = take it back); the whole team must vote
   | { t: 'team' } // switch to the other team (lobby only)

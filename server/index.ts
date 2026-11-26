@@ -288,6 +288,10 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       sendLobby(room)
       if (canStart(room)) startCountdown(room)
       return
+    case 'unready':
+      if (!lobby || !seat.ready) return
+      seat.ready = false
+      return sendLobby(room)
     case 'team': {
       const to: Side = seat.team === 'player' ? 'enemy' : 'player'
       if (!lobby || teamSize(room, to) >= TEAM_MAX) return

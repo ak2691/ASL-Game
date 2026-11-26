@@ -161,6 +161,9 @@ export class OnlineArena implements Arena {
   ready() {
     this.send({ t: 'ready' })
   }
+  unready() {
+    this.send({ t: 'unready' })
+  }
   forfeit() {
     this.send({ t: 'forfeit' })
   }

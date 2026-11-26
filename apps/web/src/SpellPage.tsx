@@ -1,5 +1,5 @@
 // Spellcasting prototype: sign an element letter to charge, then pinch (or point) and draw a shape.
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { allowCamera, camAllowed, openCamera, type CameraInfo } from './camera'
 import { classify, loadRecognizer, trueShape, type Hand } from './recognition'
@@ -43,6 +43,8 @@ interface StrokeRecord {
   turns: number
 }
 const strokeLog: StrokeRecord[] = []
+const NO_BOLTS: Snapshot['bolts'] = [] // stable empty list: no shakes once a fight stops
+
 function downloadStrokes() {
   const blob = new Blob([JSON.stringify(strokeLog)], { type: 'application/json' })
   const a = document.createElement('a')
@@ -216,7 +218,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [seeing, setSeeing] = useState('')
   const [drawing, setDrawing] = useState(false)
   const [log, setLog] = useState<Cast[]>([])
-  const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave' | 'dummy'>(null)
+  const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave' | 'dummy' | 'forfeit'>(null)
   const menuRef = useRef(menu)
   menuRef.current = menu
   const [camInfo, setCamInfo] = useState<CameraInfo | null>(null)
@@ -347,7 +349,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const oppRef = useRef<HTMLDivElement>(null)
   const sideRefs = useRef({ player: youRef, enemy: oppRef }).current
   setLocalBoltClock(mode !== 'online')
-  useShake(fight.bolts, sideRefs)
+  useShake(fight.running && !fight.over ? fight.bolts : NO_BOLTS, sideRefs)
   useFightSfx(fight, 'player', mode === 'practice' || mode === 'online')
   const [lobby, setLobby] = useState<LobbyInfo | null>(null)
   const [clock, setClock] = useState(0)
@@ -434,11 +436,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     turnOnCamera()
     setCountdownEnds(performance.now() + 3000)
   }
-  // Duel: the camera turns on once you're ready (or the countdown starts), never in the lobby.
-  const meReady = mode === 'online' && !!lobby && !!lobby.seats[lobby.you]?.ready
+  // Duel: the camera turns on only in the arena (countdown or fight), never in the lobby, Ready included.
   useEffect(() => {
-    if (mode === 'online' && !camOn && (meReady || lobby?.phase === 'countdown' || lobby?.phase === 'fighting')) turnOnCamera()
-  }, [meReady, lobby?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (mode === 'online' && !camOn && (lobby?.phase === 'countdown' || lobby?.phase === 'fighting')) turnOnCamera()
+  }, [lobby?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
   const lastTick = useRef(0)
   const secsLeft = (ends: number | null | undefined) => (ends ? Math.max(0, Math.ceil((ends - clock) / 1000)) : 0)
   const onlineEnds = mode === 'online' && lobby?.phase === 'countdown' ? lobby.countdownEnds : null
@@ -1112,23 +1113,26 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const latest = log[0]
   const oppName = mode === 'online' ? 'Opponent' : mode === 'dummy' || mode === 'tutorial' ? 'Training dummy' : LADDER.find((b) => b.id === difficulty)?.name ?? 'Enemy'
   const teamOf = (id: Fid) => fight.fighters.find((f) => f.id === id)?.team ?? id
+  // A stopped or finished fight shows no effects (statuses, armor, spells in flight): ending a match clears them at once.
+  const fxOn = fight.running && !fight.over
+  const armorOf = (side: Fid) => (fxOn ? fight.shield[side] : 0)
   const fighterHead = (side: Fid, name?: string) => (
     <div className="fighter">
       <div className="fighter-name">
         {name ?? (side === 'player' ? 'You' : oppName)}
         {/* Every status as icons, on the name row (a fixed height, so nothing below ever moves). Your own
             "can't act" ones are on your hand. Too many: the first few and "+N". */}
-        {!fight.over && <StatusRow view={fight} side={side} hand={side === 'player'} max={side.startsWith('ally') || (isTeam && side !== 'player') ? 3 : 5} />}
+        {fxOn && <StatusRow view={fight} side={side} hand={side === 'player'} max={side.startsWith('ally') || (isTeam && side !== 'player') ? 3 : 5} />}
       </div>
       <div className="hp-bar">
         <div
           className="hp-fill"
-          style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: fight.shield[side] > 0 ? 'var(--armor-hp)' : teamOf(side) === 'player' ? 'var(--you)' : 'var(--foe)' }}
+          style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: armorOf(side) > 0 ? 'var(--armor-hp)' : teamOf(side) === 'player' ? 'var(--you)' : 'var(--foe)' }}
         />
-        <ArmorBar hp={fight.hp[side]} max={fight.maxHp[side]} armor={fight.shield[side]} />
+        <ArmorBar hp={fight.hp[side]} max={fight.maxHp[side]} armor={armorOf(side)} />
         <span className="hp-text">
           {fight.maxHp[side] === Infinity ? '∞' : `${Math.ceil(fight.hp[side])} / ${fight.maxHp[side]}`}
-          {fight.shield[side] > 0 && <b className="armor-text">+{fight.shield[side]}</b>}
+          {armorOf(side) > 0 && <b className="armor-text">+{armorOf(side)}</b>}
         </span>
         {fight.floats
           .filter((f) => f.side === side)
@@ -1179,9 +1183,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       <div key={id} data-fid={id} className={`team-card ally ${myTarget === id ? 'targeted' : ''} ${out ? 'out' : ''}`} style={{ '--aim': myR ? chargeInfo(myR.el).color : undefined } as React.CSSProperties}>
         {fighterHead(id, nameOf(id))}
         <OppStatus fight={fight} id={id} cast={cast} />
-        {!fight.over && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
-        {!fight.over && <StatusFx side={id} view={fight} />}
-        {!fight.over && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
+        {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
+        {fxOn && <StatusFx side={id} view={fight} />}
+        {fxOn && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
         {out && <b className="out-tag">Out</b>}
       </div>
     )
@@ -1203,10 +1207,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           <div className="hud-row">
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
           </div>
-          {!fight.over && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
+          {fxOn && fight.wear?.[id] && <WearChips wear={fight.wear[id]} />}
         </div>
-        {!fight.over && <StatusFx side={id} view={fight} />}
-        {!fight.over && <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />}
+        {fxOn && <StatusFx side={id} view={fight} />}
+        {fxOn && <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />}
         {out && <b className="out-tag">Out</b>}
       </div>
     )
@@ -1246,12 +1250,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // Online: the lobby screen covers the arena except during the countdown and the fight (and the result,
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
+  const askForfeit = useCallback(() => setMenu('forfeit'), [])
   const showLobby = mode === 'online' && (!lobby || (lobby.phase === 'over' ? clock - overAt.current > RESULT_MS : lobby.phase !== 'countdown' && lobby.phase !== 'fighting'))
 
   return (
     <main className="page duel-page">
       <div className="corner-bar">
-        {mode === 'online' && lobby && !showLobby && <OnlineChip lobby={lobby} clock={clock} arena={online.current} />}
+        {mode === 'online' && lobby && !showLobby && <OnlineChip lobby={lobby} clock={clock} arena={online.current} onForfeit={askForfeit} />}
         {/* One small round button (Home is inside the menu): the corner stays clear of the fight. */}
         <button className="small icon-btn menu-btn" onClick={() => setMenu('main')} title="Menu (Esc)" aria-label="Menu">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1311,7 +1316,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                       : `seeing: ${seeing}`}
               </span>
             </div>
-            {!fight.over && fight.wear?.player && <WearChips wear={fight.wear.player} />}
+            {fxOn && fight.wear?.player && <WearChips wear={fight.wear.player} />}
           </div>
           {!camOn && mode !== 'online' ? (
             <div className="cam-gate">
@@ -1332,9 +1337,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               <span>{latest.detail}</span>
             </div>
           )}
-          {!fight.over && <StatusFx side="player" view={fight} />}
-          {!fight.over && <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />}
-          {!fight.over && parryTimer && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
+          {fxOn && <StatusFx side="player" view={fight} />}
+          {fxOn && <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />}
+          {fxOn && parryTimer && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
           {isTeam && myR && fight.running && zoneTarget('left', myR.el, myR.shape) !== null && (
             <div className="aim-zones" style={{ '--aim': chargeInfo(myR.el).color, gridTemplateColumns: signLeft ? '1fr 2fr' : '2fr 1fr' } as React.CSSProperties}>
@@ -1361,7 +1366,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <div className="hud-row">
               {mode !== 'tutorial' && <OppStatus fight={fight} hint={mode === 'dummy' && aids.hint} />}
             </div>
-            {mode !== 'tutorial' && !fight.over && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
+            {mode !== 'tutorial' && fxOn && fight.wear?.enemy && <WearChips wear={fight.wear.enemy} />}
           </div>}
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
           {/* Practice: picking an opponent, you're inside the tower (brick walls fill this half). It fades out as the fight starts. */}
@@ -1381,11 +1386,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               {lobby?.phase === 'countdown' && <b className="countdown">{Math.max(1, Math.ceil(((lobby.countdownEnds ?? clock) - clock) / 1000))}</b>}
             </div>
           )}
-          {!isTeam && !fight.over && <StatusFx side="enemy" view={fight} />}
-          {!isTeam && !fight.over && <Impacts side="enemy" bolts={fight.bolts} />}
+          {!isTeam && fxOn && <StatusFx side="enemy" view={fight} />}
+          {!isTeam && fxOn && <Impacts side="enemy" bolts={fight.bolts} />}
         </div>
 
-        {!fight.over && <BoltLayer bolts={fight.bolts} team={isTeam} />}
+        {fxOn && <BoltLayer bolts={fight.bolts} team={isTeam} />}
         {showResult && <div className={`result-banner ${fight.over === 'player' ? 'won' : 'lost'}`}>{result}</div>}
         {mode === 'practice' && review && !countdownEnds && (
           <div className="result-actions">
@@ -1480,6 +1485,20 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             </p>
             <button onClick={goHome}>Leave</button>
             <button onClick={() => setMenu('main')}>Stay</button>
+          </div>
+        </div>
+      )}
+      {menu === 'forfeit' && (
+        <div className="menu-overlay" onClick={() => setMenu(null)}>
+          <div className="menu-card pause-menu" onClick={(e) => e.stopPropagation()}>
+            <b className="leave-title">Forfeit the match?</b>
+            <p className="leave-text">
+              {lobby && lobby.seats.filter((s) => s.team === lobby.seats[lobby.you]?.team).length > 1
+                ? 'Your team forfeits once your teammate agrees too.'
+                : 'Your team loses this fight.'}
+            </p>
+            <button className="btn-forfeit" onClick={() => (online.current?.forfeit(), setMenu(null))}>Forfeit</button>
+            <button onClick={() => setMenu(null)}>Keep fighting</button>
           </div>
         </div>
       )}
@@ -1669,10 +1688,9 @@ function LobbyScreen(props: {
             <span className="sub-line">Share the code. Up to 4 players, 2 per team.</span>
           ) : (
             <span className="ready-wrap">
-              <button className="cta" onClick={() => arena?.ready()} disabled={me?.ready}>
-                {me?.ready ? 'Ready ✓' : lobby.phase === 'over' ? 'Rematch' : 'Ready'}
+              <button className={`cta ${me?.ready ? 'is-ready' : ''}`} onClick={() => (me?.ready ? arena?.unready() : arena?.ready())}>
+                {me?.ready ? 'Unready' : lobby.phase === 'over' ? 'Rematch' : 'Ready'}
               </button>
-              {!me?.ready && <small className="ready-note">Ready turns on your camera</small>}
             </span>
           )}
           <button className="small" onClick={() => arena?.leave()}>
@@ -1694,12 +1712,21 @@ function LobbyScreen(props: {
   )
 }
 
+function FlagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 21V4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M6 4.5h11l-2.5 4 2.5 4H6z" fill="currentColor" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 /** During a match: the room code and Forfeit in the corner by Esc, and notices as a small toast. */
-function OnlineChip({ lobby, clock, arena }: { lobby: LobbyInfo; clock: number; arena: OnlineArena | null }) {
+function OnlineChip({ lobby, clock, arena, onForfeit }: { lobby: LobbyInfo; clock: number; arena: OnlineArena | null; onForfeit: () => void }) {
   const f = lobby.forfeit
   const notice =
     f && !f.mine
-      ? `Your teammate wants to forfeit. Press Forfeit to agree.`
+      ? `Your teammate wants to forfeit. Press the flag to agree.`
       : lobby.awayUntil !== null
       ? `A player disconnected. Waiting ${Math.max(0, Math.ceil((lobby.awayUntil - clock) / 1000))} s`
       : lobby.paused
@@ -1713,12 +1740,13 @@ function OnlineChip({ lobby, clock, arena }: { lobby: LobbyInfo; clock: number; 
         </span>
         {lobby.phase === 'fighting' &&
           (f?.mine ? (
-            <button className="small" onClick={() => arena?.forfeit()} title="Take back your vote">
-              Forfeit {f.votes}/{f.needed}
+            <button className="small icon-btn forfeit-btn voted" onClick={() => arena?.forfeit()} title="Take back your forfeit vote" aria-label="Take back your forfeit vote">
+              <FlagIcon />
+              <span className="forfeit-count">{f.votes}/{f.needed}</span>
             </button>
           ) : (
-            <button className="small" onClick={() => (f || window.confirm('Forfeit this match?')) && arena?.forfeit()}>
-              Forfeit
+            <button className="small icon-btn forfeit-btn" onClick={() => (f ? arena?.forfeit() : onForfeit())} title="Forfeit" aria-label="Forfeit">
+              <FlagIcon />
             </button>
           ))}
       </div>
@@ -1726,8 +1754,6 @@ function OnlineChip({ lobby, clock, arena }: { lobby: LobbyInfo; clock: number; 
     </>
   )
 }
-
-const HP_STEP = 25 // the - and + buttons (Nov 25: was 50); typed values stay exact
 
 /** The host's HP box: type any whole number from HP_MIN to HP_MAX (kept in range); set on Enter or leaving the box. */
 function HpBox({ hp, onSet }: { hp: number; onSet: (v: number) => void }) {
@@ -1759,6 +1785,18 @@ function HpBox({ hp, onSet }: { hp: number; onSet: (v: number) => void }) {
   )
 }
 
+/** Host's HP for one seat: a black box to type in (kept to HP_MIN..HP_MAX), with a pencil so it reads as editable. */
+function LobbyHp({ hp, who, onSet }: { hp: number; who: string; onSet: (v: number) => void }) {
+  return (
+    <span className="room-hp room-hp-chip" role="group" aria-label={`HP for ${who}`}
+      onClick={(e) => e.currentTarget.querySelector('input')?.focus()}
+      onFocus={(e) => (e.target as HTMLInputElement).select?.()}>
+      <HpBox hp={hp} onSet={onSet} />
+      <span aria-hidden>✎</span>
+    </span>
+  )
+}
+
 /** The room's two teams: who's on each, ready or not, and their HP (the host sets HP). */
 function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | null }) {
   const host = lobby.you === lobby.host
@@ -1771,15 +1809,7 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
           <div key={s.i} className={`room-seat ${s.here ? '' : 'away'}`}>
             <span className="room-seat-name">{s.i === lobby.you ? 'You' : `Player ${s.i + 1}`}</span>
             {host ? (
-              <span className="room-hp hp-step" role="group" aria-label={`HP for ${s.i === lobby.you ? 'you' : `player ${s.i + 1}`}`}>
-                <button onClick={() => arena?.setHp(s.i, Math.max(HP_MIN, s.hp - HP_STEP))} disabled={s.hp <= HP_MIN} aria-label="Less HP">
-                  −
-                </button>
-                <HpBox hp={s.hp} onSet={(v) => arena?.setHp(s.i, v)} />
-                <button onClick={() => arena?.setHp(s.i, Math.min(HP_MAX, s.hp + HP_STEP))} disabled={s.hp >= HP_MAX} aria-label="More HP">
-                  +
-                </button>
-              </span>
+              <LobbyHp hp={s.hp} who={s.i === lobby.you ? 'you' : `player ${s.i + 1}`} onSet={(v) => arena?.setHp(s.i, v)} />
             ) : (
               <span className="room-hp">{s.hp} HP</span>
             )}
@@ -1796,10 +1826,13 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
     )
   }
   return (
-    <div className="room-teams">
-      {team('player', 'Team 1')}
-      {team('enemy', 'Team 2')}
-    </div>
+    <>
+      <div className="room-teams">
+        {team('player', 'Team 1')}
+        {team('enemy', 'Team 2')}
+      </div>
+      {host && <span className="room-hp-range">HP can be set from {HP_MIN} to {HP_MAX}</span>}
+    </>
   )
 }
 

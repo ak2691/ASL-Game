@@ -614,6 +614,8 @@ html[data-theme] .home .corner-icons .icon-btn, .home .corner-icons .icon-btn { 
 /* The one call to action on a screen (Start battle): green "go", apart from the blue menu buttons. */
 html[data-theme] button.cta, button.cta { background: var(--you); color: var(--ink, #111); font-size: 1.15em; padding-left: 30px; padding-right: 30px; }
 html[data-theme] button.cta:hover, button.cta:hover { background: color-mix(in srgb, var(--you) 80%, #fff); }
+html[data-theme] button.cta.is-ready, button.cta.is-ready { background: var(--foe); color: #fff; }
+html[data-theme] button.cta.is-ready:hover, button.cta.is-ready:hover { background: color-mix(in srgb, var(--foe) 80%, #fff); }
 
 /* ---- Training dummy with two enemies: foe panels, aim zones ---- */
 .team-foes { position: absolute; inset: 0; display: flex; gap: 3px; background: var(--sub-alt); }
@@ -1049,7 +1051,6 @@ html[data-theme] .dummy-bar button.btn-reset:hover, .dummy-bar button.btn-reset:
 .cam-gate p { max-width: 340px; margin: 0; color: var(--sub); font-size: 14px; line-height: 1.4; }
 .cam-gate button { margin-top: 6px; }
 .ready-wrap { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
-.ready-note { font-size: 12px; color: var(--sub); }
 
 /* Push setting: exact percent slider with a one-line hint. */
 .push-setting { display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -1368,3 +1369,29 @@ html[data-theme] .book-home { display: inline-flex; align-items: center; gap: 6p
 /* Dummy menu scroll (Nov 26): its own compositing layer, so scrolling it doesn't repaint the arena behind. */
 .dm-body { will-change: scroll-position; overscroll-behavior: contain; contain: paint; }
 @media (max-width: 899px) { .pool-editor { flex-wrap: wrap; } .pool-editor > b { flex: 1 1 100%; } }
+
+/* Lobby HP (Nov 26): one black "375 HP ✎" box by the name; click anywhere on it to type (selects the number). */
+html[data-theme] .lobby-card .room-hp, html .room-hp-chip { flex: none; }
+html[data-theme] .lobby-card .room-seat { flex-wrap: nowrap; }
+html .room-hp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 8px; cursor: pointer;
+  background: #141226; border: 2px solid #1d1b2e; color: #fffaf0; white-space: nowrap; transition: border-color 0.12s, background 0.12s; }
+html .room-hp-chip:hover { background: #1e1b36; border-color: rgba(255, 250, 240, 0.25); }
+html .room-hp-chip:focus-within { background: #1e1b36; border-color: rgba(255, 250, 240, 0.55); }
+html .room-hp-chip .hp-box { gap: 4px; align-items: baseline; cursor: inherit; }
+html .room-seat .room-hp-chip .hp-box input { flex: none; min-width: 0; width: 3.8ch; padding: 0 1px; font-size: 16px; line-height: 1.2; text-align: left; caret-color: var(--main);
+  background: transparent; border: 0; outline: none; box-shadow: none; cursor: inherit; }
+html .room-seat .room-hp-chip .hp-box input:focus, html .room-seat .room-hp-chip .hp-box input:focus-visible { outline: none; cursor: text; }
+html[data-theme] .room-hp-chip .hp-box b { min-width: 0; font-size: 13px; line-height: 1; }
+html .room-hp-chip > span { font-size: 12px; line-height: 1; opacity: 0.55; }
+html .room-hp-chip:hover > span { opacity: 0.9; }
+html .room-hp-chip:focus-within > span { opacity: 0; }
+html .room-hp-range { font-size: 13px; color: #fffaf0; opacity: 0.8; }
+
+/* In-match corner (Nov 26): the menu button sits in the bar, not fixed on its own (it overlapped Forfeit). Forfeit is a red flag. */
+.corner-bar .menu-btn { position: static; }
+.corner-bar .forfeit-btn { position: relative; width: 44px; height: 44px; min-width: 0; padding: 0 !important; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+html[data-theme] .corner-bar .forfeit-btn, .corner-bar .forfeit-btn { background: var(--foe); color: #fff; }
+html[data-theme] .corner-bar .forfeit-btn:hover, .corner-bar .forfeit-btn:hover { background: color-mix(in srgb, var(--foe) 80%, #fff); }
+.corner-bar .forfeit-btn svg { width: 22px; height: 22px; }
+.forfeit-count { position: absolute; top: -8px; right: -8px; padding: 1px 5px; border-radius: 8px; font-size: 11px; line-height: 1.3; background: #141226; color: #fffaf0; }
+html[data-theme] .pause-menu button.btn-forfeit, .pause-menu button.btn-forfeit { background: var(--foe); color: #fff; }
