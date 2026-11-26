@@ -64,15 +64,20 @@ export const READY_LIFE_MS = 3000 // a readied spell fades (and fizzles) if not 
 // lag switch from sending charge + drawing + push in one burst (a cast the opponent never saw).
 const MIN_DRAW_MS = 100
 // Parry (plans/parry.md, plans/balance.md): a two-hand push in the last part of a spell's flight (its parry
-// window: bigger spells are easier to parry) sends it back: 50%, then 35% of its power (REFLECT_POWER);
+// window: bigger spells are easier to parry) sends it back: 100%, then 50% of its power (REFLECT_POWER);
 // parrying it after that just ends it. A reflection flies 1.5x faster and has the light window.
 // Too early, too late or with nothing coming: a stagger (no throws and no parries for PARRY_MISS_MS).
 export const PARRY_WINDOW_MS = 100 // lights, and anything reflected
-export const PARRY_WINDOWS = { light: 100, heavy: 150, signature: 200, combo: 150 }
+export const PARRY_WINDOWS = { light: 100, heavy: 100, signature: 100, combo: 100 } // Nov 25: all 100 (was heavy 150, signature 200, combo 150): slower spells are easier to read
 const REFLECT_SPEED = 1.5
 export const PARRY_MISS_MS = 1000
-export const PARRY_HIT_MS = 500 // a landed parry: no throws for this long (getting your bearings back)
-const REFLECT_POWER = [0.5, 0.35]
+const REFLECT_POWER = [1, 0.5] // Nov 25: was [0.5, 0.35]
+/** Signature direct hits (land() uses these). */
+export const SIG_HIT: Record<string, number> = { flame: 32, cage: 24, zigzag7: 28, battlements: 38, spiral: 25 }
+/** Combo direct hits (land() uses the same constants); Twilight has none. */
+const COMBO_HIT: Record<string, number> = { magma: MAGMA[0], storm: STORM.hit, glacier: GLACIER_DMG, steam: STEAM_HIT, thermal: THERMAL.hit, plasma: PLASMA.hit, sunfire: SUNFIRE[0], grave: GRAVE.hit }
+export const PARRY_HINT_MS = 300 // a missed parry this close to a spell says Too early / Too late
+export const PARRY_WEAR = 'P' // the parry's own wear key (alongside the elements')
 // Wear (Nov 24 balance pass, plans/balance.md): each throw of an element wears it. A worn element's
 // spells do less (damage, burns, heals): -WEAR_STEP per stack, down to WEAR_FLOOR. A stack fades every
 // WEAR_DECAY_MS. Spamming one element sinks fast; rotating 3 elements stays at full power.
@@ -86,6 +91,7 @@ const WEAR_MAX_STACKS = (1 - WEAR_FLOOR) / WEAR_STEP // stacks that reach the fl
 // effects (Twilight, fog, no-heal, Shroud), Doom and Storm damage. Lightning is the exception: below
 // STATIC_CUTOFF power its hits still land but add no static. Earthquake's knockdown and Doom's timer don't change.
 export const STATIC_CUTOFF = 0.7
+export const COUNTER_CUTOFF = 0.7 // counterspells and interrupts need this power (before the cast) to work (Nov 26)
 export const STUN_MIN_MS = 500
 
 // Attack damage per element: [light, heavy]. Numbers are a first guess, to tune in playtests.
@@ -207,7 +213,7 @@ export interface CombatView {
   fizzled: Record<Fid, number> // ms of fizzle lockout left (no throws)
   staggered: Record<Fid, number> // ms left of a missed parry's stagger (no parrying)
   locked: Record<Fid, number> // ms left of an interrupt or whiff lockout (no signing, drawing or throwing)
-  recover: Record<Fid, number> // ms left of a parry's recovery (no throws), a landed or a missed one
+  recover: Record<Fid, number> // ms left of a missed parry's recovery (no throws); a landed parry has none
   shield: Record<Fid, number> // Aegis armor left (0 = none)
   mirror: Record<Fid, number> // ms of Mirror left
   doom: Record<Fid, number> // ms until Doom hits (0 = none)
@@ -261,8 +267,10 @@ export class Combat {
   private aimAt: Record<Fid, Fid | null> = {} // who each fighter aims at (null = default target)
   private lastHitBy: Record<Fid, Fid | null> = {} // the last enemy that hit them (default target)
   private ticking: Ticking[] = []
-  private flying: { caster: Fid; target: Fid; el: string; shape: string; landAt: number; bolt: Bolt; power?: number; wear?: number; reflects?: number; miss?: boolean }[] = []
+  private flying: { caster: Fid; target: Fid; el: string; shape: string; landAt: number; bolt: Bolt; power?: number; wear?: number; reflects?: number; miss?: boolean; weak?: boolean }[] = []
   private staggeredUntil: Record<Fid, number> = {} // a missed parry: no parrying again until then
+  private lastParryable: Record<Fid, { at: number }> = {} // the last parryable spell that landed on each side (a late parry)
+  private pendingWeak = false // the counterspell / interrupt landing right now was cast under COUNTER_CUTOFF power
   private pendingMiss = false // the spell landing right now was thrown from Steam's fog: it misses
   private landScale = 1 // the power of the spell landing right now (a reflected one hits softer)
   private landWear = 1 // just the wear part of landScale (Lightning's static cutoff)
@@ -660,13 +668,21 @@ export class Combat {
       for (const e of els) this.wear[caster][e] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(caster, e, now) + step), at: now }
       if (wear < 1) bolt.power = wear
     }
+    // Counterspells and interrupts (Nov 26) wear their element too (an interrupt like a light, a counterspell like
+    // a heavy; a combo counterspell both of its elements), but their stun and lock times never shrink. Instead
+    // they need COUNTER_CUTOFF power, judged before this cast: below it they land and do nothing. Watch their
+    // wear chips: drain the element that beats yours and they can't stop you for a few seconds.
+    let counterPower = 1
+    if (kind === 'counter') {
+      const els = isMixCounter(el) ? [el[1], el[2]] : el in ELEMENTS ? [el] : []
+      if (els.length) counterPower = els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length
+      const step = shape === QUICK ? 0.5 : 1
+      for (const e of els) this.wear[caster][e] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(caster, e, now) + step), at: now }
+    }
+    const weak = kind === 'counter' && counterPower < COUNTER_CUTOFF
     // Doom (Nov 25): only a spell at DOOM_LIFT power or more lifts it (a combo: its average power). Spamming one
-    // worn element can't save you. A counterspell adds no wear, but it's judged by its element's power too
-    // (a combo counterspell: the average of its two), so a worn counter isn't a way out.
-    const liftPower =
-      kind === 'counter'
-        ? ((els) => (els.length ? els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length : 1))(isMixCounter(el) ? [el[1], el[2]] : el in ELEMENTS ? [el] : [])
-        : wear
+    // worn element can't save you. A counterspell is judged by its element's power before the cast, like any spell.
+    const liftPower = kind === 'counter' ? counterPower : wear
     if (this.doomAt[caster]) {
       if (liftPower >= DOOM_LIFT) {
         this.doomAt[caster] = 0
@@ -674,9 +690,20 @@ export class Combat {
       } else this.float(caster, 'Too worn to lift Doom', ELEMENTS.U.color, now)
     }
     if (bolt.parryable) bolt.parryMs = parryMs(bolt)
-    this.flying.push({ caster, target, el, shape, landAt, bolt, miss, wear })
+    this.flying.push({ caster, target, el, shape, landAt, bolt, miss, wear, weak })
     this.update(now)
     return 'ok'
+  }
+
+  /** A missed parry within PARRY_HINT_MS of a spell: "Too early, " or "Too late, " ('' if not close). */
+  private parryOff(side: Fid, now: number): string {
+    const next = this.flying.filter((x) => x.target === side && x.caster !== side && x.bolt.parryable).sort((a, b) => a.landAt - b.landAt)[0]
+    const early = next ? next.landAt - now - parryMs(next.bolt) : Infinity
+    const last = this.lastParryable[side]
+    const late = last ? now - last.at : Infinity
+    if (early <= late && early <= PARRY_HINT_MS) return 'Too early, '
+    if (late <= PARRY_HINT_MS) return 'Too late, '
+    return ''
   }
 
   /** A two-hand push: parry the spell about to hit `side`. Returns what happened (null = match over). */
@@ -699,14 +726,22 @@ export class Combat {
     if (!f) {
       this.parryLockUntil[side] = Math.max(this.parryLockUntil[side], now + PARRY_MISS_MS)
       this.staggeredUntil[side] = now + PARRY_MISS_MS
+      // A miss wears your parry too (Nov 25): every push counts, so spamming it costs you.
+      this.wear[side][PARRY_WEAR] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(side, PARRY_WEAR, now) + 1), at: now }
       this.float(side, 'Parry missed', '#999', now)
-      this.note(side, 'Parry missed', `staggered ${PARRY_MISS_MS / 1000} s`, '#999', false, now)
+      this.note(side, 'Parry missed', `${this.parryOff(side, now)}staggered ${PARRY_MISS_MS / 1000} s`, '#999', false, now)
       return 'missed'
     }
     this.flying = this.flying.filter((x) => x !== f)
-    this.parryLockUntil[side] = Math.max(this.parryLockUntil[side], now + PARRY_HIT_MS)
     f.bolt.kind = 'missed'
     f.bolt.parried = true
+    // Parry wear (Nov 25): each landed parry wears your parry like casting wears an element, so the next
+    // reflect goes back weaker (same step, floor and recovery as element wear).
+    const parryPower = this.powerOf(side, PARRY_WEAR, now)
+    this.wear[side][PARRY_WEAR] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(side, PARRY_WEAR, now) + 1), at: now }
+    // A worn parry lets the rest through: at 70% parry power, 30% of the spell still hits you.
+    if (parryPower < 1) this.leak(f, side, 1 - parryPower, now)
+    if (this.winner) return null // what got through ended it
     const reflects = f.reflects ?? 0
     if (reflects >= REFLECT_POWER.length) {
       // The last parry of a chain: the spell is destroyed (nothing goes back).
@@ -714,7 +749,7 @@ export class Combat {
       this.note(side, 'Destroyed!', `${f.bolt.name} broke apart`, '#ffffff', true, now)
       return 'ended'
     }
-    const power = REFLECT_POWER[reflects]
+    const power = REFLECT_POWER[reflects] * parryPower
     const back = this.bolt(side, f.caster, f.bolt.name, f.bolt.color, 'hit', now, f.el, f.shape)
     back.parryable = true
     back.reflected = true
@@ -723,8 +758,33 @@ export class Combat {
     back.parryMs = PARRY_WINDOW_MS
     this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, wear: f.wear, reflects: reflects + 1 })
     this.float(side, 'Reflected!', '#ffffff', now)
-    this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%`, '#ffffff', true, now)
+    this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%${parryPower < 1 ? `, ${Math.round((1 - parryPower) * 100)}% got through` : ''}`, '#ffffff', true, now)
     return 'reflected'
+  }
+
+  /** Part of a parried spell gets through a worn parry: only its direct damage, at `share` of its power, lands
+   *  on `side` now. No effects (burn, chill, silence, knock-off, curses...): the parry still won the exchange. */
+  private leak(f: { caster: Fid; el: string; shape: string; bolt: Bolt; power?: number; wear?: number }, side: Fid, share: number, now: number) {
+    const dmg = this.directDamage(f.el, f.shape, side, now)
+    if (dmg <= 0) return
+    const b = this.bolt(f.caster, side, f.bolt.name, f.bolt.color, 'hit', now, f.el, f.shape)
+    b.fly = 0
+    b.power = share
+    b.landed = true
+    this.landScale = (f.power ?? 1) * (f.wear ?? 1) * share
+    this.by = f.caster
+    this.hit(side, dmg, chargeInfo(f.el).color, now)
+    this.by = null
+    this.landScale = 1
+  }
+
+  /** A spell's direct hit on `target` (before scaling), without its effects. Kept in step with land(). */
+  private directDamage(el: string, shape: string, target: Fid, now: number): number {
+    if (el === 'U') return shape === 'blade' ? this.executeDmg(target, now) : 0
+    if (el in COMBO_CHARGES) return COMBO_HIT[el] ?? 0
+    const p = PUNCHES.indexOf(shape)
+    if (p === 0 || p === 1) return PUNCH[el]?.[p] ?? 0
+    return SIG_HIT[shape] ?? 0
   }
 
   /** A thrown spell arrives: damage and effects happen now, in time with its impact animation. */
@@ -749,11 +809,12 @@ export class Combat {
       // A combo (mixing or locked) needs a combo counterspell whose two elements beat both of its own.
       const c = this.charge[target]
       const mixed = isMixCounter(el)
-      const healing = shape === COUNTER && !mixed && (c?.el === 'A' || this.ticking.some((t) => t.side === target && t.amount > 0))
-      const caught = mixed ? !!c?.mix && mixBeats(el, c.mix) : !!c && !c.mix && beats(el, c.el)
+      const weak = this.pendingWeak // too worn (under COUNTER_CUTOFF): it lands and does nothing
+      const healing = !weak && shape === COUNTER && !mixed && (c?.el === 'A' || this.ticking.some((t) => t.side === target && t.amount > 0))
+      const caught = !weak && (mixed ? !!c?.mix && mixBeats(el, c.mix) : !!c && !c.mix && beats(el, c.el))
       // Fire + Ice also shatters any Advancing Glacier the target has on its way.
       let shattered = false
-      if (mixed && mixBeats(el, COMBO_MIX.glacier)) {
+      if (!weak && mixed && mixBeats(el, COMBO_MIX.glacier)) {
         const gs = this.flying.filter((f) => f.caster === target && f.el === 'glacier')
         for (const g of gs) {
           g.bolt.kind = 'missed'
@@ -788,8 +849,8 @@ export class Combat {
         if (shape === QUICK) {
           // A missed interrupt leaves you open.
           this.lock(caster, WHIFF_MS, now)
-          this.note(caster, 'Whiffed!', `interrupt missed, locked ${WHIFF_MS / 1000} s`, '#999', false, now)
-        } else this.float(caster, 'Counter missed', '#999', now)
+          this.note(caster, 'Whiffed!', weak ? `too worn to interrupt, locked ${WHIFF_MS / 1000} s` : `interrupt missed, locked ${WHIFF_MS / 1000} s`, '#999', false, now)
+        } else this.float(caster, weak ? 'Too worn to counter' : 'Counter missed', '#999', now)
       }
       return
     }
@@ -897,21 +958,21 @@ export class Combat {
     // Signatures.
     switch (shape) {
       case 'flame': // Meteor: the biggest total damage
-        this.hit(target, 32, color, now)
+        this.hit(target, SIG_HIT.flame, color, now)
         this.burn(target, 18, 5, color, now)
         break
       case 'cage': // Frozen Prison: a short silence on any element
-        this.hit(target, 24, color, now)
+        this.hit(target, SIG_HIT.cage, color, now)
         this.silence(target, this.dur(PRISON_SILENCE_MS, STUN_MIN_MS), now, caster)
         this.chillOn(target, PRISON_CHILL, now, CHILL_HEAVY_MS) // and chilled
         this.float(target, 'Frozen!', color, now)
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
-        this.hit(target, 28, color, now)
+        this.hit(target, SIG_HIT.zigzag7, color, now)
         if (this.landWear >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
         break
       case 'battlements': // Earthquake: huge hit; knocks their charge off only at full Earth power (Nov 25)
-        this.hit(target, 38, color, now)
+        this.hit(target, SIG_HIT.battlements, color, now)
         if (this.landWear < 1) break
         this.charge[target] = null
         this.ready[target] = null
@@ -920,7 +981,7 @@ export class Combat {
         this.float(target, 'Knocked down!', color, now)
         break
       case 'spiral': // Tidal Wave: big hit, big heal
-        this.hit(target, 25, color, now)
+        this.hit(target, SIG_HIT.spiral, color, now)
         this.changeHp(caster, Math.round(TIDAL_HEAL * this.landScale), color, now)
         break
     }
@@ -967,8 +1028,8 @@ export class Combat {
         this.ready[target] = null
         this.knocked[target]++
         const n = (1 - PLASMA.cap) / WEAR_STEP
-        for (const e of Object.keys(ELEMENTS)) if (this.wearOf(target, e, now) < n) this.wear[target][e] = { n, at: now }
-        this.note(target, 'Overloaded!', `Plasma: your elements above ${PLASMA.cap * 100}% wear down to ${PLASMA.cap * 100}%`, color, false, now)
+        for (const e of [...Object.keys(ELEMENTS), PARRY_WEAR]) if (this.wearOf(target, e, now) < n) this.wear[target][e] = { n, at: now }
+        this.note(target, 'Overloaded!', `Plasma: your elements and parry above ${PLASMA.cap * 100}% wear down to ${PLASMA.cap * 100}%`, color, false, now)
         this.float(target, 'Overloaded!', color, now)
         break
       }
@@ -1075,12 +1136,15 @@ export class Combat {
     this.flying.sort((x, y) => x.landAt - y.landAt)
     while (this.flying.length && this.flying[0].landAt <= now && !this.winner) {
       const f = this.flying.shift()!
+      if (f.bolt.parryable) this.lastParryable[f.target] = { at: f.landAt }
       this.landScale = (f.power ?? 1) * (f.wear ?? 1)
       this.landWear = f.wear ?? 1
       this.by = f.caster
       this.pendingMiss = !!f.miss
+      this.pendingWeak = !!f.weak
       this.land(f.caster, f.target, f.el, f.shape, f.landAt, f.bolt)
       this.pendingMiss = false
+      this.pendingWeak = false
       this.by = null
       this.landScale = 1
       this.landWear = 1

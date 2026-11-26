@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
-import { COUNTER_SILENCE_MS, DOOM_LIFT, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_HIT_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_SHOTS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
+import { COUNTER_CUTOFF, AEGIS_DRAIN, AEGIS_HP, DOOM_DMG, MAGMA, REGEN, SHROUD_MS, SUNFIRE, THERMAL, COUNTER_SILENCE_MS, DOOM_LIFT, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_SHOTS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 import { IconLegend } from './effects'
 import { LEGEND_HAND, type RowIcon } from './statusIcons'
@@ -21,36 +21,33 @@ const pct = (f: number) => `${Math.round(f * 100)}%`
 
 // Numbers come from combat.ts so the tips never go stale.
 const TIPS: Record<string, string> = {
-  'F line': 'Hold F until it charges, keep holding it while you trace a line, then open all five fingers and push toward the camera.',
-  'I w': 'Keep holding I for the whole W. Opening your hand early ends the drawing.',
-  'F w': 'Any size works. Just keep the shape.',
-  'F h': 'Draw it clearly. Messy is fine, but the parts that count must be there: both posts of the H run the full height. That is how the game tells your spells apart.',
-  'F flame': 'Signatures are harder to draw but hit much harder. Every part counts: exactly 4 spikes.',
-  'I line': 'Wrong shape or no charge means a fizzle. Wait it out and try again.',
+  'F line': 'Hold F until it charges. Keep holding while you trace a line, then open to a 5 and push at the camera.',
+  'F h': 'Both posts of the H must run the full height. Messy is fine otherwise.',
+  'F flame': 'Signatures hit harder but are stricter to draw. Exactly 4 spikes.',
+  'I line': "Wrong shape or no charge: it fizzles and you can't throw for 0.5 s.",
   'W spiral': 'Start in the middle and spiral out.',
-  'E battlements': 'At full Earth power, Earthquake knocks your opponent down and their charge is lost.',
-  'L line': 'Lightning static makes their throws fizzle.',
-  'H star': 'Heal yourself. At full Angelic power (100%) it also clears every debuff on you.',
-  'H hourglass': 'Regen heals a little at a time.',
-  'H aegis': 'Aegis soaks the next hits for a few seconds.',
-  'H mirror': 'Mirror sends their next hit back at them.',
-  'U scythe': `Doom: they must throw a fresh spell (${pct(DOOM_LIFT)} power or more) within ${secs(DOOM_MS)} or take a big hit.`,
-  'U veil': 'Shroud hides your charge and drawing from them.',
-  'U blade': 'Execute does double damage if they have a curse on them, like a burn or a chill.',
-  'magma volcano': 'Combo: sign C, then F and E, then draw. The second element locks the mix.',
-  'storm cloud': `${STORM.count} storm pulses, ${STORM.pulse} damage each. Throwing during one fizzles and costs you ${STORM.zap}.`,
-  'glacier iceberg': `Takes ${secs(GLACIER_MS)} to arrive. Only C, F, I and a circle stops it.`,
-  'twilight yinyang': `You take ${pct(TWILIGHT_GUARD)} less damage and they take ${pct(TWILIGHT_EXPOSE)} more for ${secs(TWILIGHT_MS)}.`,
-  'steam puff': `Their next ${STEAM_SHOTS} attacks within ${secs(STEAM_MS)} miss.`,
-  'thermal thermo': 'Hits, burns and chills them at once.',
-  'plasma plasma': `Burns, knocks their charge off, and wears every element of theirs above ${pct(PLASMA.cap)} down to ${pct(PLASMA.cap)}.`,
-  'sunfire sun': 'A long burn that heals you.',
-  'grave tomb': `For ${secs(GRAVE.ms)} nothing heals them or gives them armor. Their Heal clears it, but heals nothing that time.`,
-  'W circle': `Counterspell: stuns them until your next hit lands (${secs(COUNTER_SILENCE_MS)} at most). Use the element that beats theirs. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.`,
-  'W jab': `Interrupt: sign and push, no drawing. It only stops a plain element charge, not a heal or a combo. A hit locks them out for ${secs(INTERRUPT_LOCK_MS)}; a miss locks you out for ${secs(WHIFF_MS)}.`,
-  'A circle': 'Angelic beats Unholy. A counterspell of any element also stops a heal charge or a regen still ticking.',
-  'U circle': 'Unholy beats Angelic. Angelic and Unholy can only be countered with the circle, never an interrupt.',
-  'CIW circle': 'To counter a combo, sign C and the two elements that beat it, then circle. Ice and Water beat Magma. Fire and Ice also smash an Advancing Glacier on its way.',
+  'E battlements': 'At 100% Earth power, knocks off their charge and readied spell.',
+  'L line': "Static on them: on 0.5 s, off 1 s. Their throws fizzle while it's on.",
+  'A star': 'Heals you at once. At 100% Angelic power, it also clears your curses.',
+  'A hourglass': `Heals ${REGEN.amount} every 0.5 s for 2.5 s. A counterspell ends it.`,
+  'A aegis': `${AEGIS_HP} armor that soaks direct hits, draining ${AEGIS_DRAIN} a second.`,
+  'U scythe': `They take ${DOOM_DMG} unless they throw a spell at ${pct(DOOM_LIFT)}+ power within ${secs(DOOM_MS)}.`,
+  'U veil': `Hides your charge and drawing from them for ${secs(SHROUD_MS)}.`,
+  'U blade': 'Double damage if they have a curse: burning, chilled, static, Doomed and more.',
+  'magma volcano': `Sign C, F, E, then draw. The second element locks the mix. Burns them for ${MAGMA[1]} over 5 s.`,
+  'storm cloud': `${STORM.count} pulses of ${STORM.pulse}, on 0.35 s, off 0.6 s. A throw while it's on fizzles and costs them ${STORM.zap}.`,
+  'glacier iceberg': `Arrives after ${secs(GLACIER_MS)} and can't be parried. Only a Fire + Ice combo counterspell stops it.`,
+  'twilight yinyang': `For ${secs(TWILIGHT_MS)}, you take ${pct(TWILIGHT_GUARD)} less damage and they take +${pct(TWILIGHT_EXPOSE)}.`,
+  'steam puff': `Their next ${STEAM_SHOTS} attacks miss, for up to ${secs(STEAM_MS)}.`,
+  'thermal thermo': `Burns them for ${THERMAL.burn} and chills them: their next hit taken does +${pct(THERMAL.chill)}.`,
+  'plasma plasma': `Burns them, knocks off their charge, and drops their elements and parry to ${pct(PLASMA.cap)} power.`,
+  'sunfire sun': `Burns them for ${SUNFIRE[1]} over 6 s and heals you the same.`,
+  'grave tomb': `No healing or armor for them, for ${secs(GRAVE.ms)}. A Heal clears it but heals nothing.`,
+  'W circle': `If they still hold the element yours beats, they're stunned until your next hit, up to ${secs(COUNTER_SILENCE_MS)}. Needs ${pct(COUNTER_CUTOFF)}+ power in that element. Water beats Fire, Fire beats Ice, Ice beats Earth, Earth beats Lightning, Lightning beats Water.`,
+  'W jab': `Sign and push, no drawing. Stops a plain element charge only. Hit: they can't act for ${secs(INTERRUPT_LOCK_MS)}. Miss, or under ${pct(COUNTER_CUTOFF)} power: you can't act for ${secs(WHIFF_MS)}.`,
+  'A circle': "Angelic beats Unholy. Any element's circle also stops a heal charge or a regen.",
+  'U circle': 'Unholy beats Angelic. Angelic and Unholy can only be countered with the circle.',
+  'CIW circle': 'Sign C and the two elements that beat the combo, then draw the circle. Ice and Water beat Magma. Fire and Ice also break a Glacier on its way.',
 }
 
 /** How to draw each shape: count and orientation. */
@@ -100,28 +97,28 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two'; icons?: Row
   {
     title: 'Status',
     points: [
-      "Can't act? Your hand shows this, a ring that runs down, and a word saying why:",
-      'Other effects show as icons under the health bar. Red: bad. Green: good. The full list is on the Info page.',
+      "Can't act: your hand shows this ring, draining as the timer, with a word saying why.",
+      'Other statuses are icons under each health bar. Red edge hurts you, green helps. The Spellbook lists them all.',
     ],
     icons: LEGEND_HAND,
   },
   {
     title: 'Wear',
     points: [
-      `Every throw wears its element: ${pct(WEAR_STEP)} less power (a light, half that), down to ${pct(WEAR_FLOOR)}.`,
-      `Worn spells are weaker all round: smaller chills, shorter stuns and effects. Lightning worn below ${pct(STATIC_CUTOFF)} adds no static.`,
-      `A worn element recovers ${pct(WEAR_STEP)} every ${secs(WEAR_DECAY_MS)}. Rotate elements to stay at full power.`,
-      "A worn element shows under your health with its power (like I 62%). Your opponent's show under theirs: their fresh elements are what they'll want to throw.",
+      `Each cast lowers that element's power ${pct(WEAR_STEP)}, ${pct(WEAR_STEP / 2)} for lights, Angelic and interrupts. Lowest ${pct(WEAR_FLOOR)}.`,
+      `It comes back ${pct(WEAR_STEP)} every ${secs(WEAR_DECAY_MS)}.`,
+      `Worn spells hit softer, with weaker, shorter effects. Under ${pct(STATIC_CUTOFF)}, Lightning adds no static and counters and interrupts don't work.`,
+      'Worn elements show under each health bar, like I 70%.',
     ],
   },
   {
     title: 'Parry',
     try: 'parry',
     points: [
-      `Push both hands at the camera as a spell hits: within ${PARRY_WINDOWS.light / 1000} s (light) to ${PARRY_WINDOWS.signature / 1000} s (signature).`,
-      'It flies back at 50%, then 35%. A third parry ends it.',
-      `Mistimed: staggered ${secs(PARRY_MISS_MS)}. A good parry: no throws for ${secs(PARRY_HIT_MS)}.`,
-      "It drops your own charge. Counterspells and the Glacier can't be parried.",
+      `Push both hands at the camera in the last ${PARRY_WINDOWS.light} ms before a spell hits you. The ring around your hands shows that moment.`,
+      'It goes back at your parry power. Parried back again, 50%. A third parry destroys it.',
+      `Each parry, hit or miss, wears your parry ${pct(WEAR_STEP)}: at 70%, 70% goes back and 30% hits you.`,
+      `Miss: can't throw or parry for ${secs(PARRY_MISS_MS)}. Parrying drops your charge. Counterspells and Glacier can't be parried.`,
     ],
   },
   {
@@ -130,7 +127,7 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two'; icons?: Row
     points: [
       "With a spell ready, your signing hand aims: the side of the screen it's on picks the enemy.",
       'Heals with a teammate: your hand on its own side heals you, across heals them.',
-      'Not aiming? It goes to whoever last hit you, else the weakest enemy.',
+      'Not aiming: it goes to whoever last hit you, or else the weakest enemy.',
       '"Aiming at you" marks a spell coming your way.',
     ],
   },

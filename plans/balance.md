@@ -431,3 +431,110 @@ User: four bumps and a 3-line bolt is a simple drawing, about Magma's difficulty
 (= Magma, Glacier): 8.0 s on floor 1, 3.3 s at the Archwizard (was 8.6 / 3.6). Magma unchanged. No damage
 change; Storm (25 + 5 pulses of 10, throws in a pulse fizzle and cost 15) lands a little sooner, so its
 pulses catch more throws. Watch Tide (Storm is its only combo).
+
+### Parry reflects at full power, no lock on a landed parry (Nov 25)
+User: 50% didn't pay for the risk (drop your cast, a miss takes the full hit and staggers, it can be sent back).
+REFLECT_POWER [0.5, 0.35] -> [1, 0.5]; a third parry still destroys it. A landed parry no longer stops your
+throws (PARRY_HIT_MS 500 removed, along with its "Parried" icon); a miss is unchanged (staggered). Vs all: big
+hits (Meteor, Doom, Execute, combos) are now a real gamble for the caster against high-parry bots (Archmage,
+Lich), but their windows are already light on reflects (1.5x speed, 100 ms window). Glacier stays unparryable.
+Watch: the Lich's reparry (0.12) now returns 50% where it used to return 35%.
+
+### Parry window 100 ms for every spell (Nov 25)
+User: with full-power reflects, and heavies/signatures now flying slower (easy to read), the bigger windows
+(heavy 150, signature 200, combo 150) made parrying them too easy. All now 100 ms, same as lights. Offsets the
+reflect buff above; the user will playtest that it isn't too hard. Bots' parry rates unchanged (watch them).
+
+### Parry wear, bots punish turtling (Nov 25)
+User: pure parrying (no casting) did better vs the Archwizard than casting. No cooldowns (only stagger/stun).
+Parry now has its own wear ('P', a "Parry" chip): each landed parry is one full stack (-30%, floor 30%, a stack
+back every 10 s), multiplying the reflect: 100 -> 70 -> 40 -> 30%. Misses add none (stagger already punishes).
+Bots with read > 0 (Warden up): if your parry is worn and you haven't attacked for 4 s, they bait with lights
+(each parry wears you more) and throw signatures once your parry is at 70% or less; capitalize bots also throw
+a signature while you're staggered; smart bots pick Glacier (unparryable) 3x as often. Vs all: casting is
+unchanged, and a player who mixes parries in at most one per 10 s stays at full reflect.
+
+### Worn parry lets damage through (Nov 25)
+User idea. A parry at power p (parry wear) sends back p and the other (1 - p) of the spell lands on you at
+once (effects scaled the same way, like a worn spell). Fresh parry: blocks everything. At the 30% floor: 70%
+gets through, so turtling no longer means taking no damage. Bot bait (lights, then a signature at <= 70%) now
+also deals real damage through the worn parry.
+
+### Plasma caps parry wear too (Nov 25)
+Plasma's overload (every element above 50% down to 50%) now includes parry: the target's next parry
+reflects at most 50% and lets 50% through. Plasma (hardest combo) gains a real answer to a parry-heavy player.
+
+### Worn parry leaks damage only (Nov 25)
+What gets through a worn parry is now only the spell's direct hit (scaled); no burn, chill, static, silence,
+charge knock-off, Plasma cap, Doom or curses. A landed parry wins the exchange. Twilight and Doom leak nothing.
+Signature/combo hit numbers moved to SIG_HIT / COMBO_HIT tables (same values) so leak and land() agree.
+
+### Missed parries wear too (Nov 25)
+User: every push should cost, so spam-parrying is never free. A miss now adds a parry wear stack (same as a
+landed parry) on top of the stagger. Bots' turtle check (parry worn + no attack for 4 s) now also catches misses.
+
+### Thermal and Steam draw faster for bots (Nov 26)
+User: both easier to draw than their times said; Thermal easier than Steam. DRAW_MS thermo 6000 -> 5300, puff
+6200 -> 5600 (COMBO_AVG still ~5900). Bots: Thermal 8.6 -> 8.1 s on floor 1, 3.5 -> 3.3 s at the top; Steam 8.7 ->
+8.3 s, 3.6 -> 3.4 s. Dummy at 100%: 5.3 s and 5.6 s. Both land a little sooner; no damage change.
+
+### Counterspells and interrupts wear, and need 70% power (Nov 26)
+User: nothing should be spammable, and wear should be strategy: drain the element that beats yours, then they can't
+stop you. Was: counters/interrupts added no wear. Now an interrupt adds half a stack, a counterspell a full stack
+(combo counterspell: both its elements). Their stun/lock times never shrink (Silence 3 s, lock 0.75 s unchanged);
+instead they need COUNTER_CUTOFF 70% power, judged before the cast (same cutoff as Static and Doom). Under it they
+land and do nothing: an interrupt whiffs (you're locked 1 s), a counterspell misses. From fresh: 2 interrupts in a
+row fine, the 3rd (at 55%) fails; one heavy (70%) still counters, two heavies (40%) can't. Smart/reading bots
+skip counters too worn to work (and won't try to break a Glacier with worn Fire/Ice); intro bots still try and fail.
+Watch: Lightning players can be drained of their Earth-counter, etc.; bots' counter rate drops after heavy attacking.
+
+### Tower after the counter nerf: bots play the wear game (Nov 26)
+User: counters/interrupts got a big nerf (testers found constant counters frustrating), so counter-heavy bots lost
+strength. Not restored by countering more. Readers (read > 0: Warden up) now:
+- exploit: if your element that beats one of theirs is under COUNTER_CUTOFF, they throw that element (chance
+  lerp(0.5, 1, read)) and go big (signature, lerp(0.5, 0.9, read));
+- reserve: they don't attack with the element that counters yours (your charge, else your last throw) if that
+  would drop it under the cutoff (chance lerp(0.4, 0.9, smart)), picking their freshest other element.
+No stat changes. Not measured (no bot-vs-player sim). Watch: Tide (counter habit, read 0: gets neither) and
+Warden (interrupter: forced interrupts now whiff after 2 in a row) likely got easier; if so, give Tide read 0.1
+or compensate with speed / comboRate rather than more counters.
+
+### Tide and Warden buffed after the counter nerf (Nov 26)
+Tide: read 0 -> 0.1 (now plays the wear game: exploits your worn counters, keeps its own), comboRate 0.17 -> 0.2.
+Warden: every 1010 -> 960 ms (still slower than Adept 850), comboRate 0.12 -> 0.16. No counter changes. Unmeasured.
+
+### Ladder sim tuning (Nov 26; plans/ladder-sim.md)
+Old Bram every 1600 -> 2600, miss 0.3 -> 0.33, signatures 20% -> 5% (and the wall habit 15% -> 5%): he out-healed
+Pip with Tidal Waves. Pip every 1460 -> 1300; his spam habit picks Lightning 35% of the time, not always (softest
+lights). Brother Alden heals below 45% (was 60%: endless stalls). Morwen every 1230 -> 1060, comboRate 0.14 -> 0.18.
+Master Ito back to read 0 and comboRate 0.17, every 1110 -> 1150. Nyx every 1090 -> 980, comboRate 0.17 -> 0.24,
+heals below 25% (was 35%), Shroud at most every 10 s (was spending half its turns on it). Proctor Vell every
+960 -> 1080 (earlier buff undone and then some), comboRate back to 0.12, read 0.25 -> 0.15. Archwizard every 570 -> 520, comboRate 0.26 -> 0.3.
+
+### Smoothing the ladder jumps (Nov 26; plans/ladder-sim.md)
+Proctor Vell every 1080 -> 1120, miss 0.15 -> 0.17, read 0.15 -> 0.1. Nyx comboCounter 0 -> 0.3 (she could never break
+Vell's Glacier). Rook every 850 -> 800, comboCounter 0.1 -> 0.25, read 0.3 -> 0.35. Gideon every 730 -> 760.
+Archwizard every 520 -> 500.
+
+### Plasma and Sunfire draw faster for bots (Nov 26)
+User: a bit faster. DRAW_MS plasma 7500 -> 6800, sun 8000 -> 7200 (COMBO_AVG left at 5900 so other combos keep
+their times). Bots: Plasma 9.6 -> 9.1 s on floor 1, 3.9 -> 3.8 s at the top; Sunfire 9.9 -> 9.4 s, 4.1 -> 3.9 s.
+Dummy at 100%: 6.8 s and 7.2 s. Both stay the slowest combos.
+
+### Bot counters: less often, human pace (Nov 26)
+User/testers: top floors countered almost every charge, near-instantly. All bots now:
+- chance to counter a charge (not a heal or combo) capped at COUNTER_CHANCE_MAX 0.7; reading you raises it to at
+  most lerp(react, 0.7, read) (was 0.9) or lerp(react, 0.65, read) for an expected element (was 0.8); counter
+  habits lean to 0.8 (was 0.95); a reroll on the same long charge counts half (was a full new chance).
+- reaction: never under COUNTER_REACT_MIN_MS 450 ms (was 250, only on the predicted path); predicted speedups
+  softened (light guess x0.7, heavy x0.75, expected x0.75; were 0.45, 0.5, 0.6).
+- counter circle: at least COUNTER_DRAW_MIN_MS 500 ms to draw (top bots drew it in ~0.2-0.4 s); the heavy-streak
+  speedup bottoms at 0.8 (was 0.55).
+Heals and combo counters unchanged. Ladder sim (30 games): order kept; Master Ito (counter habit) dropped under
+Morwen, so every 1150 -> 1080 (now beats her 70%).
+
+### Faster top-floor combos (Nov 26)
+AI_DRAW.combo top 3500 -> 2700 ms: at the top, Grave (fastest) 3.2 -> 2.5 s to draw, Sunfire (slowest) 4.0 -> 3.0 s,
+all in proportion (late in a fight ~10% faster still). Floor 1 unchanged; mid floors ~0.3 s quicker. Quick sim
+(10 games, about +-16%): order within noise of earlier runs; no other changes.
+Then top 2700 -> 3000 (user: signatures already fast): Grave 2.76 s, Sunfire 3.3 s at the top.

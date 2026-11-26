@@ -77,6 +77,41 @@ export class JumpFilter {
   }
 }
 
+// ---- Bad frame guard --------------------------------------------------------------------
+// A fast hand blurs, and the tracker still returns a skeleton for it: a wrong guess (fingers fold or
+// shrink, the tip snaps away). Compared with the last good frame, reject one where in a single frame
+// the palm changes size a lot, the index bones change length (bones can't stretch; curling doesn't
+// change them), or the index tip jumps relative to the wrist. A real move persists, so after
+// MAX_REJECT_MS of rejects the new pose is accepted.
+
+// Nov 25: tightened (were 0.35 / 0.4 / 0.7): stray marks still got through on fast strokes.
+const PALM_JUMP = 0.25 // palm length changing by over 25% in one frame
+const BONE_JUMP = 0.3 // index bones (summed, in palms) changing by over 30%
+const TIP_JUMP = 0.5 // index tip moving this many palms relative to the wrist
+const MAX_REJECT_MS = 150
+
+const d2 = (a: NormalizedLandmark, b: NormalizedLandmark) => Math.hypot(a.x - b.x, a.y - b.y)
+
+export class BadFrameGuard {
+  private prev: { palm: number; bones: number; tip: { x: number; y: number } } | null = null
+  private lastOk = 0
+
+  ok(lm: NormalizedLandmark[], t: number): boolean {
+    const palm = d2(lm[0], lm[9]) || 1e-6
+    const bones = (d2(lm[5], lm[6]) + d2(lm[6], lm[7]) + d2(lm[7], lm[8])) / palm
+    const tip = { x: (lm[8].x - lm[0].x) / palm, y: (lm[8].y - lm[0].y) / palm }
+    const p = this.prev
+    const bad =
+      !!p &&
+      t - this.lastOk < MAX_REJECT_MS &&
+      (Math.abs(palm / p.palm - 1) > PALM_JUMP || Math.abs(bones / p.bones - 1) > BONE_JUMP || Math.hypot(tip.x - p.tip.x, tip.y - p.tip.y) > TIP_JUMP)
+    if (bad) return false
+    this.prev = { palm, bones, tip }
+    this.lastOk = t
+    return true
+  }
+}
+
 // ---- Smoothing ------------------------------------------------------------------------------
 
 export class LandmarkSmoother {

@@ -47,7 +47,7 @@ export const iconPath = (k: RowIcon): string => (k in HAND_ICONS ? HAND_ICONS[k 
 
 /** The one "can't act" symbol, for the legends (every cause shares it). */
 export const CANT_ACT_NAME = "Can't act: the word under it says why (fizzled, staggered, interrupted, whiffed, silenced)"
-export const LEGEND_HAND: RowIcon[] = ['fizzled', 'recover']
+export const LEGEND_HAND: RowIcon[] = ['fizzled']
 
 /** What each one means, for the Info page legend and the tutorial's Status card. */
 export const ICON_NAMES: Record<RowIcon, string> = {

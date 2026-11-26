@@ -23,6 +23,7 @@ export class TeamArena implements Arena {
   private combat = new Combat({ fighters: SPECS })
   attacking = false
   castPct = 100 // cast time, as a share of the default (same setting as the single dummy)
+  spellPct: Record<string, number> = {} // per-spell cast time % (same setting as the single dummy)
   gapMs = DUMMY_EVERY_MS // time between casts
   pools: Record<Fid, string[]> = { enemy: [], enemy2: [] } // spells each may throw, as "element:shape"
   parryPct = 0 // chance a dummy parries a spell thrown at it (always on time)
@@ -87,7 +88,7 @@ export class TeamArena implements Arena {
     const pool = this.pools[id] ?? []
     if (!this.casts[id] && pool.length && now >= (this.nextAt[id] ?? 0) && !this.combat.isSilenced(id, now)) {
       const [el, shape] = dummyPick(pool, this.combat.view(now).shroud[id] > 0)
-      const sp = dummySpell(el, shape, this.castPct / 100)
+      const sp = dummySpell(el, shape, ((this.spellPct[`${el}:${shape}`] ?? 100) * this.castPct) / 10000)
       const signs = signsFor(el) // a combo: C, then its two letters right after, then it draws
       this.casts[id] = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, signs: signTimes(sp, signs, now) }
       // Aimed as it starts, so you can see it's coming at you.

@@ -1,24 +1,24 @@
 // Spellcasting prototype: sign an element letter to charge, then pinch (or point) and draw a shape.
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { allowCamera, camAllowed, openCamera, type CameraInfo } from './camera'
 import { classify, loadRecognizer, trueShape, type Hand } from './recognition'
 import { directionLetter, passesGate } from './rules'
 import { getTracker, type Handed } from './trackers'
-import { LandmarkSmoother } from './smoothing'
+import { BadFrameGuard, LandmarkSmoother } from './smoothing'
 import { Spellbook } from './Spellbook'
-import { PushSlab, SlabChoice, SlabSection, SlabSlider, VolumeSlab } from './SettingRows'
+import { PushSlab, SignDelaySlab, SlabChoice, SlabSection, SlabSlider, VolumeSlab } from './SettingRows'
 import { loadShapeModel, matchAmong, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
 import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
 import { Tower, chatLine } from './Ladder'
-import { DummyArena, LADDER, PracticeArena, beaterOf, dummyTimes, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
+import { DummyArena, LADDER, PracticeArena, beaterOf, dummyTimes, wizardCastMs, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
 import { HAND_ICONS, HAND_WORDS } from './statusIcons'
 import { BoltLayer, Impacts, ParryRings, StatusFx, StatusRow, canActState, setLocalBoltClock, useShake } from './effects'
-import { INTERRUPT_LOCK_MS, PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
+import { INTERRUPT_LOCK_MS, PARRY_WEAR, PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
-import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getPushGrowth, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids, loadChatter, saveChatter } from './settings'
+import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getPushGrowth, getSignDelay, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, SPELL_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids, loadChatter, saveChatter } from './settings'
 import { DummySpells } from './DummySpells'
 import { BOOK, GEAR, HomeButton, Icon } from './HomeCorner'
 
@@ -53,8 +53,6 @@ function downloadStrokes() {
 }
 
 const CHARGE_PROB = 0.75 // letter model confidence needed to charge an element...
-const CHARGE_MS = 50 // ...held this long (two fight ticks)
-const UNCHARGE_MS = 150 // an open hand held this long while charged (nothing drawn) drops the charge: kept longer so a passing open hand doesn't
 // A hand lost on a fast move never ends the drawing; when it's back, the line joins up from
 // where it was last seen. Only a hand gone this long (out of frame, put down) ends it.
 const TWO_LOST_MS = 3000
@@ -93,7 +91,6 @@ const PARRY_COOLDOWN_MS = 500
 const parryPendingGrowth = () => 1 + (getPushGrowth() - 1) / 2
 const MIN_STROKE_PALMS = 0.8 // shorter strokes fizzle (too short to be a shape). Was 1.2: lines (one segment) had to be far bigger than a W
 const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignored (no fizzle)
-const PRACTICE_RESULT_MS = 2500 // the win / lose banner after a practice fight, then the tower
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const PARRY_FLASH_MS = 800 // "Reflected" / "Destroyed" stays on your hand this long
@@ -101,7 +98,6 @@ const MESSAGE_MS = 1500 // a failed-cast message (fizzle, missed parry) shows th
 const CIRCLE_SCORE = 0.5 // the counterspell circle is the most forgiving: it's drawn under pressure
 const CIRCLE_FALLBACK = 0.3 // a closed loop that would otherwise fizzle counts as a circle at this much
 const DROPOUT_MS = 150
-const RELEASE_MS = 100 // after a throw, letting go of the letter this long frees it to charge again
 const REHOLD_MS = 100 // ...or keep holding it this long after the throw (charges again without letting go). Was 400; a whiffed interrupt now carries the spam cost
 const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
 
@@ -125,7 +121,6 @@ function isOpen(lm: NormalizedLandmark[], easy: boolean) {
 // Two hands: the drawing hand's index tip is the pen, always. The signing hand works the pen: while
 // you're charged, holding an element letter (or C) is pen down, an open hand (all five up) is pen up and
 // finishes the drawing. Anything in between keeps the pen as it was. Then push to throw.
-const PEN_SWITCH_MS = 50 // the signing hand must hold a change (letter / open) this long to flip the pen
 type Wrist = { x: number; y: number } | null
 const HANDED_SURE = 0.75 // MediaPipe's left/right label is trusted from this score up
 const HANDED_LEARN = 30 // clear frames used to learn MediaPipe's label convention (then it's fixed)
@@ -144,6 +139,17 @@ const playerHandOf = (label: 'Left' | 'Right'): Hand => {
 function splitHands(hands: NormalizedLandmark[][], handed: Handed[], signHand: Hand, prev: { sign: Wrist; draw: Wrist }) {
   const signLeftInFrame = signHand === 'right'
   const sure = (i: number) => (handed[i]?.label && handed[i].score >= HANDED_SURE ? handed[i].label : null)
+  // Two "hands" on top of each other are one hand found twice (a ghost after a blur): keep the surer one.
+  if (hands.length >= 2) {
+    const c = (h: NormalizedLandmark[]) => ({ x: (h[0].x + h[9].x) / 2, y: (h[0].y + h[9].y) / 2 })
+    const [p, q] = [c(hands[0]), c(hands[1])]
+    const palm = Math.hypot(hands[0][0].x - hands[0][9].x, hands[0][0].y - hands[0][9].y)
+    if (Math.hypot(p.x - q.x, p.y - q.y) < 0.6 * palm) {
+      const keep = (handed[1]?.score ?? 0) > (handed[0]?.score ?? 0) ? 1 : 0
+      hands = [hands[keep]]
+      handed = [handed[keep]]
+    }
+  }
   if (hands.length >= 2) {
     const [ia, ib] = [0, 1].sort((p, q) => hands[p][0].x - hands[q][0].x) // ia: left of the frame
     const [a, b] = [hands[ia], hands[ib]]
@@ -211,6 +217,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [drawing, setDrawing] = useState(false)
   const [log, setLog] = useState<Cast[]>([])
   const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave' | 'dummy'>(null)
+  const menuRef = useRef(menu)
+  menuRef.current = menu
   const [camInfo, setCamInfo] = useState<CameraInfo | null>(null)
   // Two hands: which hand draws (the other one signs). Defaults to the hand you didn't pick to sign with.
   const [drawHand, setDrawHand] = useState<Hand>(() => loadDrawHand())
@@ -246,10 +254,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const [dummyPool2, setDummyPool2State] = useState(() => (tut ? ALL_DUMMY_SPELLS : loadDummyPool(DUMMY_POOL2_KEY)))
   team.pools = { enemy: dummyPool, enemy2: dummyPool2 }
   // Dummy pace (both dummies): cast time as a % of the default, and the time between casts.
-  const [pace, setPaceState] = useState(() => (tut ? { castPct: 100, gapMs: GAP_MS.def, parryPct: 0 } : loadDummyPace()))
+  const [pace, setPaceState] = useState(() => (tut ? { castPct: 100, gapMs: GAP_MS.def, parryPct: 0, spellPct: {}, template: null } : loadDummyPace()))
   dummy.current.castPct = team.castPct = pace.castPct
   dummy.current.gapMs = team.gapMs = pace.gapMs
   dummy.current.parryPct = team.parryPct = pace.parryPct
+  dummy.current.spellPct = team.spellPct = pace.spellPct
   const setPace = (p: Pace) => {
     if (!tut) saveDummyPace(p)
     setPaceState(p)
@@ -287,6 +296,21 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     a.setAttacking(dummyAttacks)
     arena.current = a
   }
+  // The Training dummy menu (Nov 26): the page re-renders every frame (the fight clock), so the menu is memoized
+  // and gets stable callbacks that call the latest setters; otherwise scrolling it lagged.
+  const menuLatest = useRef({ setTwoFoes, setPool: setDummyPool, setPace, setAids })
+  menuLatest.current = { setTwoFoes, setPool: setDummyPool, setPace, setAids }
+  const menuApi = useMemo(
+    () => ({
+      setTwoFoes: (on: boolean) => menuLatest.current.setTwoFoes(on),
+      setPool: (pool: string[], second: boolean) => menuLatest.current.setPool(pool, second),
+      setPace: (p: Pace) => menuLatest.current.setPace(p),
+      setAids: (a: DummyAids) => menuLatest.current.setAids(a),
+      onDone: () => setMenu(null),
+    }),
+    [],
+  )
+  const dummyPools = useMemo((): [string[], string[]] => [dummyPool, dummyPool2], [dummyPool, dummyPool2])
   // Tutorial "Try it": the dummy throws heavy Earth for you to parry, or two dummies to aim at.
   // Nothing here is saved: leaving the try puts the dummy back the way it was.
   const tutorialTry = (kind: 'parry' | 'two' | null) => {
@@ -334,11 +358,16 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     // The enemy's drawing is heard too (quieter, on their side): while its points keep growing.
     let enemyPts = 0
     let enemyDrewAt = -1e9
+    let drawnAt = -1e9
     const id = setInterval(() => {
       const t = performance.now()
       const snap = arena.current.update(t)
       fightRef.current = snap
-      setFight(snap)
+      // A menu covers the arena (Nov 26): the fight goes on, but the page redraws only MENU_REDRAW_MS apart, so
+      // scrolling the menu isn't interrupted by a whole-page re-render every tick.
+      const redraw = !menuRef.current || t - drawnAt >= MENU_REDRAW_MS
+      if (redraw) drawnAt = t
+      if (redraw) setFight(snap)
       const ec = snap.running && !(snap.shroud.enemy > 0) ? snap.enemyCast : null
       const n = ec?.phase === 'draw' || ec?.phase === 'ready' ? ec.points.length : 0
       if (n > enemyPts) enemyDrewAt = t
@@ -351,10 +380,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       knockedRef.current = snap.knocked.player
       // Your cast log: what the fight says your casting did.
       const fresh = snap.notes.filter((n) => n.side === 'player' && !seenNotes.current.has(n.id))
-      seenNotes.current = new Set(snap.notes.map((n) => n.id))
+      if (redraw) seenNotes.current = new Set(snap.notes.map((n) => n.id)) // between menu redraws, notes wait
       const pr = fresh.find((n) => n.name === 'Reflected!' || n.name === 'Destroyed!')
-      if (pr) parryFlash.current = { text: pr.name.slice(0, -1), t }
-      if (fresh.length) setLog((l) => [...fresh.reverse().map((n) => ({ name: n.name, detail: n.detail, color: n.color, ok: n.ok, t: t })), ...l].slice(0, 8))
+      if (pr && redraw) parryFlash.current = { text: pr.name.slice(0, -1), t }
+      if (fresh.length && redraw) setLog((l) => [...fresh.reverse().map((n) => ({ name: n.name, detail: n.detail, color: n.color, ok: n.ok, t: t })), ...l].slice(0, 8))
+      if (!redraw) return
       setLobby(online.current ? { ...online.current.info } : null)
       setClock(t)
     }, UI_TICK_MS)
@@ -398,6 +428,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const saidN = useRef(0)
   // Practice starts after a short 3-2-1 (the gong plays when the fight begins).
   const [countdownEnds, setCountdownEnds] = useState<number | null>(null)
+  // Practice (Nov 26): a finished fight stays on screen with its result until you pick what's next.
+  const [review, setReview] = useState(false)
   const startPractice = () => {
     turnOnCamera()
     setCountdownEnds(performance.now() + 3000)
@@ -416,6 +448,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     lastTick.current = left
     if (countdownEnds && clock >= countdownEnds) {
       setCountdownEnds(null)
+      setReview(false)
       fought.current = difficulty
       practice.current.start(performance.now(), difficulty)
       setFight(practice.current.update(performance.now())) // running at once: no frame where the tower comes back
@@ -506,6 +539,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         // Two hands: the drawing hand, tracked on its own.
         const drawSmoother = new LandmarkSmoother()
         let drawLast: { lm: NormalizedLandmark[]; t: number } | null = null
+        const drawGuard = new BadFrameGuard()
         const roles: { sign: Wrist; draw: Wrist } = { sign: null, draw: null }
         let penDown = false // two hands: the pen, as the signing hand set it
         let penFlipSince: number | null = null // the signing hand has wanted the other pen state since then
@@ -596,7 +630,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           if (drawFound) roles.draw = { x: drawFound[0].x, y: drawFound[0].y }
           if (stopped) return
           let dLm: NormalizedLandmark[] | null = null
-          if (drawFound) {
+          // A wrecked frame (motion blur) is treated like a brief dropout: the pen holds, and the next good
+          // frame joins the stroke with a straight line.
+          const drawOk = !!drawFound && drawGuard.ok(drawFound, now)
+          if (drawFound && drawOk) {
             dLm = drawSmoother.smooth(drawFound, now)
             drawLast = { lm: dLm, t: now }
           } else if (drawLast && now - drawLast.t < DROPOUT_MS) dLm = drawLast.lm
@@ -686,7 +723,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               penFlipSince = null
             } else if (!lm) penFlipSince = null // signing hand lost (fast move): the pen stays as it was
             else if (want === penDown) penFlipSince = null
-            else if ((penFlipSince ??= now) && now - penFlipSince >= PEN_SWITCH_MS) {
+            else if ((penFlipSince ??= now) && now - penFlipSince >= getSignDelay()) {
               penDown = want
               penFlipSince = null
             }
@@ -800,7 +837,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             if (!openHand) penUpOpen = false
             if (openHand && myCharge && !myReady && !penUpOpen && !silenced && view.running) {
               openHoldSince ??= now
-              if (now - openHoldSince >= UNCHARGE_MS && now - sentUncharge > 300) {
+              if (now - openHoldSince >= getSignDelay() && now - sentUncharge > 300) {
                 dropDot()
                 arena.current.uncharge()
                 sentUncharge = now
@@ -818,7 +855,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               let el = elementOfSign(letter)
               if (release) {
                 if (el === release.el) release.since = null
-                else if ((release.since ??= now) && now - release.since >= RELEASE_MS) release = null
+                else if ((release.since ??= now) && now - release.since >= getSignDelay()) release = null
                 // Still holding the thrown letter: blocked for a moment (so the throw itself doesn't
                 // recharge you), then holding it on charges it again.
                 if (release && el === release.el && now - release.thrown >= REHOLD_MS) release = null
@@ -827,7 +864,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               if (el !== holdLetter) {
                 holdLetter = el
                 holdSince = now
-              } else if (el && view.running && el !== myCharge && !(myCharge && COMBO_MIX[myCharge]?.includes(el)) && !view.mix.player.includes(el) && !(el === COMBO && view.mix.player.length === 2) && now - holdSince >= CHARGE_MS && (sentSign?.el !== el || now - sentSign.t > 300)) {
+              } else if (el && view.running && el !== myCharge && !(myCharge && COMBO_MIX[myCharge]?.includes(el)) && !view.mix.player.includes(el) && !(el === COMBO && view.mix.player.length === 2) && now - holdSince >= getSignDelay() && (sentSign?.el !== el || now - sentSign.t > 300)) {
                 // Only in a fight (a running match, or the dummy): between matches and in lobbies
                 // nothing can be cast, so nothing charges and no guessed charge flashes up.
                 dropDot() // switching element: the dot drawn so far goes
@@ -903,7 +940,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             if (pushed(pSign, found && lm)) {
               if (now - signPushAt > PUSH_WINDOW_MS) signPushAt = now
             } else if (!found) pSign = []
-            if (pushed(pDraw, drawFound && dLm)) {
+            if (pushed(pDraw, drawOk ? dLm : null)) {
               if (now - drawPushAt > PUSH_WINDOW_MS) drawPushAt = now
             } else if (!drawFound) pDraw = []
             // Signing hand pushed first, drawing hand already growing: hold the throw until it catches up
@@ -1107,6 +1144,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const tf = fight as TeamSnapshot
   const online2 = mode === 'online' && fight.fighters.length > 2 // an online team match (1v2, 2v1, 2v2)
   const isTeam = ((mode === 'dummy' || mode === 'tutorial') && twoFoes) || online2
+  const parryTimer = mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam // the parry rings (and Too early / Too late on a miss)
   const foes = isTeam ? fight.fighters.filter((f) => f.team === 'enemy').map((f) => f.id) : []
   const allies = isTeam ? fight.fighters.filter((f) => f.team === 'player' && f.id !== 'player').map((f) => f.id) : []
   sidesRef.current = { foes, allies }
@@ -1199,9 +1237,12 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   // Practice: the result shows for a moment, then you're back in the tower (it doesn't linger over the floors).
   if ((fight.over ?? null) !== lastOver.current) {
     if (fight.over) practiceOverAt.current = clock
+    if (fight.over && mode === 'practice') queueMicrotask(() => setReview(true))
     lastOver.current = fight.over ?? null
   }
-  const showResult = !!result && (mode === 'practice' ? !countdownEnds && clock - practiceOverAt.current < PRACTICE_RESULT_MS : mode === 'online' && lobby?.phase === 'over')
+  const floorIdx = LADDER.findIndex((b) => b.id === difficulty)
+  const nextFloor = fight.over === 'player' && floorIdx >= 0 && floorIdx < LADDER.length - 1 ? LADDER[floorIdx + 1].id : null
+  const showResult = !!result && (mode === 'practice' ? review && !countdownEnds : mode === 'online' && lobby?.phase === 'over')
   // Online: the lobby screen covers the arena except during the countdown and the fight (and the result,
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
@@ -1285,7 +1326,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           ) : (
             status && <p className="status side-status">{status}</p>
           )}
-          {latest && !latest.ok && !LOCK_NOTES.has(latest.name) && clock - latest.t < MESSAGE_MS && (
+          {latest && !latest.ok && (!LOCK_NOTES.has(latest.name) || (parryTimer && latest.detail.startsWith('Too '))) && clock - latest.t < MESSAGE_MS && (
             <div className="cast stage-overlay" key={latest.t} style={{ color: latest.color }}>
               {latest.name}
               <span>{latest.detail}</span>
@@ -1293,7 +1334,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           )}
           {!fight.over && <StatusFx side="player" view={fight} />}
           {!fight.over && <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />}
-          {!fight.over && (mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam) && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
+          {!fight.over && parryTimer && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
           {isTeam && myR && fight.running && zoneTarget('left', myR.el, myR.shape) !== null && (
             <div className="aim-zones" style={{ '--aim': chargeInfo(myR.el).color, gridTemplateColumns: signLeft ? '1fr 2fr' : '2fr 1fr' } as React.CSSProperties}>
@@ -1324,14 +1365,14 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           </div>}
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
           {/* Practice: picking an opponent, you're inside the tower (brick walls fill this half). It fades out as the fight starts. */}
-          {mode === 'practice' && <div className={`tower-room ${fight.running ? '' : 'on'}`} aria-hidden="true" />}
-          {mode === 'practice' && !fight.running && (
+          {mode === 'practice' && <div className={`tower-room ${fight.running || review ? '' : 'on'}`} aria-hidden="true" />}
+          {mode === 'practice' && !fight.running && !review && (
             <div className={`stage-center ${countdownEnds ? 'leaving' : ''}`}>
               <Tower value={difficulty} onPick={setDifficulty} />
               {countdownEnds ? (
                 <b className="countdown">{secsLeft(countdownEnds) || 1}</b>
               ) : (
-                <button className="cta" onClick={startPractice}>{result ? 'Fight again' : 'Start battle'}</button>
+                <button className="cta" onClick={startPractice}>Start battle</button>
               )}
             </div>
           )}
@@ -1346,6 +1387,20 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
 
         {!fight.over && <BoltLayer bolts={fight.bolts} team={isTeam} />}
         {showResult && <div className={`result-banner ${fight.over === 'player' ? 'won' : 'lost'}`}>{result}</div>}
+        {mode === 'practice' && review && !countdownEnds && (
+          <div className="result-actions">
+            {nextFloor && (
+              <button className="cta" onClick={() => { setDifficulty(nextFloor); startPractice() }}>
+                Next floor
+              </button>
+            )}
+            <button className={nextFloor ? '' : 'cta'} onClick={startPractice}>
+              Fight again
+            </button>
+            <button onClick={() => setReview(false)}>Tower</button>
+          </div>
+        )}
+        {mode === 'practice' && review && countdownEnds && <b className="countdown result-countdown">{secsLeft(countdownEnds) || 1}</b>}
       </section>
       {menu === 'main' && (
         <div className="menu-overlay" onClick={() => setMenu(null)}>
@@ -1355,6 +1410,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             <SlabSection title="Controls">
               <SlabChoice label="Draw with" value={drawHand} options={[{ v: 'left', name: 'Left' }, { v: 'right', name: 'Right' }]} onChange={(h) => (h !== drawHand ? swapDrawHand() : undefined)} />
               <PushSlab />
+              <SignDelaySlab />
             </SlabSection>
             <SlabSection title="Sound">
               <VolumeSlab />
@@ -1407,17 +1463,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       {menu === 'dummy' && (
         <div className="menu-overlay" onClick={() => setMenu(null)}>
           <div className="menu-card dm-card" onClick={(e) => e.stopPropagation()}>
-            <DummyMenu
-              twoFoes={twoFoes}
-              setTwoFoes={setTwoFoes}
-              pools={[dummyPool, dummyPool2]}
-              setPool={setDummyPool}
-              pace={pace}
-              setPace={setPace}
-              aids={aids}
-              setAids={setAids}
-              onDone={() => setMenu(null)}
-            />
+            <DummyMenu twoFoes={twoFoes} pools={dummyPools} pace={pace} aids={aids} {...menuApi} />
           </div>
         </div>
       )}
@@ -1500,9 +1546,10 @@ function closedLoop(pts: Pt[]) {
 
 /** Notes for "can't act" moments: the symbol on your hand says it, not the message line. (A fizzle keeps its
  *  line: it says why the drawing failed.) */
-const LOCK_NOTES = new Set(['Parry missed', 'Interrupted!', 'Whiffed!'])
+const MENU_REDRAW_MS = 250 // while a menu is open, the page behind it redraws at most this often
+const LOCK_NOTES = new Set(['Parry missed', 'Interrupted!', 'Whiffed!']) // with the parry timer on, a missed parry still shows "Too early" / "Too late"
 
-const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
+const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U', PARRY_WEAR]
 /** Wear: only the worn elements, as "I 62%" chips under the status (fresh ones aren't shown). Same on every side. */
 function WearChips({ wear }: { wear: Record<string, number> }) {
   const worn = WEAR_ORDER.filter((e) => (wear[e] ?? 100) < 100)
@@ -1510,8 +1557,16 @@ function WearChips({ wear }: { wear: Record<string, number> }) {
   return (
     <div className="wear-chips" aria-label="Worn elements">
       {worn.map((e) => (
-        <span key={e} style={{ '--el': ELEMENTS[e].color } as React.CSSProperties}>
-          {e} {wear[e]}%
+        <span key={e} style={{ '--el': e === PARRY_WEAR ? '#ffffff' : ELEMENTS[e].color } as React.CSSProperties}>
+          {e === PARRY_WEAR ? (
+            // Parry: a small shield (as narrow as an element letter, so the chips stay one row on a phone).
+            <svg className="wear-shield" viewBox="0 0 24 24" aria-label="Parry">
+              <path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z" />
+            </svg>
+          ) : (
+            e
+          )}{' '}
+          {wear[e]}%
         </span>
       ))}
     </div>
@@ -1750,19 +1805,40 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
 
 /** Training dummy settings: a second enemy on or off, and the spells each enemy casts. */
 type Pace = DummyPace
-function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void; pools: [string[], string[]]; setPool: (pool: string[], second: boolean) => void; pace: Pace; setPace: (p: Pace) => void; aids: DummyAids; setAids: (a: DummyAids) => void; onDone: () => void }) {
+const DummyMenu = memo(function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void; pools: [string[], string[]]; setPool: (pool: string[], second: boolean) => void; pace: Pace; setPace: (p: Pace) => void; aids: DummyAids; setAids: (a: DummyAids) => void; onDone: () => void }) {
   const { twoFoes, setTwoFoes, pools, setPool, pace, setPace, aids, setAids, onDone } = props
   // What the cast time % means: the default times (charge + draw + ready) for a light, heavy and signature spell.
-  const total = (el: string, shape: string) => {
-    const sp = dummyTimes(el, shape, pace.castPct / 100)
+  const total = (el: string, shape: string, pct = pace.castPct) => {
+    const sp = dummyTimes(el, shape, pct / 100)
     return (sp.chargeMs + sp.drawMs + sp.readyMs) / 1000
   }
   const secs = (shape: string) => total('F', shape).toFixed(1)
   const comboSecs = Object.entries(COMBO_SHAPE).map(([c, sh]) => total(c, sh))
+  // Match a wizard: every spell set to that wizard's cast time (an estimate for spells it never uses); '' = default.
+  const applyWizard = (id: string) => {
+    if (!id) return setPace({ ...pace, spellPct: {}, template: null, castPct: 100 })
+    const spellPct = Object.fromEntries(
+      ALL_DUMMY_SPELLS.map((k) => {
+        const [el, sh] = k.split(':')
+        const pct = (wizardCastMs(id as Difficulty, el, sh) / (total(el, sh, 100) * 1000)) * 100
+        return [k, Math.min(SPELL_PCT.max, Math.max(SPELL_PCT.min, Math.round(pct)))]
+      }),
+    )
+    setPace({ ...pace, spellPct, template: id, castPct: 100 })
+  }
+  // One spell's own speed (from the edit button on its card); null = back to default.
+  const setSpellPct = (k: string, pct: number | null) => {
+    const spellPct = { ...pace.spellPct }
+    if (pct === null) delete spellPct[k]
+    else spellPct[k] = Math.min(SPELL_PCT.max, Math.max(SPELL_PCT.min, Math.round(pct)))
+    setPace({ ...pace, spellPct, template: null })
+  }
   const [which, setWhich] = useState(0)
   const second = twoFoes && which === 1
   const pool = pools[second ? 1 : 0]
   const gap = (ms: number) => `${(ms / 1000).toFixed(ms % 1000 ? 2 : 0).replace(/0$/, '')} s`
+  // Cast speed as a multiplier (0.5× to 2× in 0.25 steps); castPct stays the share of the default cast time.
+  const speedPct = Math.round(10000 / pace.castPct / 25) * 25
   const combo = `${Math.min(...comboSecs).toFixed(1)} to ${Math.max(...comboSecs).toFixed(1)} s`
   return (
     <div className="dm">
@@ -1772,13 +1848,28 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
       <div className="dm-body">
         <h3 className="dm-section">Behavior</h3>
         <div className="dm-rows slab-section">
-          <StepRow label="Cast time" value={pace.castPct} min={CAST_PCT.min} max={CAST_PCT.max} step={10} show={`${pace.castPct}%`} lo="Quick" hi="Slow" onChange={(v) => setPace({ ...pace, castPct: v })}>
+          <label className="dm-row dm-add">
+            <span className="dm-label">Match a wizard</span>
+            <select value={pace.template ?? ''} onChange={(e) => applyWizard(e.target.value)}>
+              <option value="">{Object.keys(pace.spellPct).length ? 'Custom' : 'Default speeds'}</option>
+              {LADDER.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <StepRow label="Cast time" value={speedPct} min={CAST_PCT.min} max={CAST_PCT.max} step={25} show={`${speedPct / 100}×`} lo="Slow" hi="Fast" onChange={(v) => setPace({ ...pace, castPct: 10000 / v })}>
+            {Object.keys(pace.spellPct).length ? (
+              <p className="slab-hint">Each spell's time is on its card below.</p>
+            ) : (
             <div className="dm-times">
               <span>Light <b>{secs('line')} s</b></span>
               <span>Heavy <b>{secs('h')} s</b></span>
               <span>Signature <b>{secs('flame')} s</b></span>
               <span>Combo <b>{combo}</b></span>
             </div>
+            )}
           </StepRow>
           <StepRow label="Rest" value={pace.gapMs} min={GAP_MS.min} max={GAP_MS.max} step={250} show={gap(pace.gapMs)} lo="Relentless" hi="Relaxed" onChange={(v) => setPace({ ...pace, gapMs: v })} />
           <StepRow label="Parry chance" value={pace.parryPct} min={0} max={100} step={5} show={`${pace.parryPct}%`} lo="Never" hi="Always" onChange={(v) => setPace({ ...pace, parryPct: v })} />
@@ -1796,7 +1887,7 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
         <h3 className="dm-section">
           Spells{twoFoes ? ` (${which ? 'right' : 'left'} dummy)` : ''}
         </h3>
-        <DummySpells key={second ? 2 : 1} pool={pool} onChange={(p) => setPool(p, second)} />
+        <DummySpells key={second ? 2 : 1} pool={pool} onChange={(p) => setPool(p, second)} spellPct={pace.spellPct} allPct={pace.castPct} onSpellPct={setSpellPct} />
       </div>
       <footer className="dm-foot">
         <span className="dm-count">
@@ -1812,7 +1903,7 @@ function DummyMenu(props: { twoFoes: boolean; setTwoFoes: (on: boolean) => void;
       </footer>
     </div>
   )
-}
+})
 
 /** A dummy setting as a slab: name, a slider with end words, the value in a box. */
 function StepRow(props: { label: string; value: number; min: number; max: number; step: number; show: string; lo: string; hi: string; onChange: (v: number) => void; children?: React.ReactNode }) {

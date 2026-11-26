@@ -395,7 +395,8 @@ function solve3(m: number[][], r: number[]): [number, number, number] | null {
   return [det(col(0)) / d, det(col(1)) / d, det(col(2)) / d]
 }
 
-export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { top: { name: string; prob: number }[] } {
+/** `near` + `why`: the network read this shape but a rule rejected it (wrong count, half-drawn H...). */
+export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { top: { name: string; prob: number }[]; near?: string; why?: string } {
   if (isLine(points)) return { name: 'line', score: 1, top: [{ name: 'line', prob: 1 }] }
   let x = shapeFeatures(points)
   for (const l of model.layers) x = runLayer(l, x)
@@ -404,21 +405,24 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
   // at least leans Meteor) is a Meteor even if the drawing is wobbly; any other count never is.
   const flame = top.find((t) => t.name === 'flame')!.prob
   if (top[0].name === 'flame' || flame >= 0.3) {
-    if (spikeCount(points) === 4) return { name: 'flame', score: flame, top }
-    if (top[0].name === 'flame') return { name: 'none', score: top[0].prob, top }
+    const n = spikeCount(points)
+    if (n === 4) return { name: 'flame', score: flame, top }
+    if (top[0].name === 'flame') return { name: 'none', score: top[0].prob, top, near: 'flame', why: `needs 4 spikes, drew ${n}` }
   }
   // Sunfire: exactly 8 points, counted by a rule (the network can't count 7 vs 8 vs 9 reliably).
   const sun = top.find((t) => t.name === 'sun')?.prob ?? 0
   if (top[0].name === 'sun' || sun >= 0.3) {
-    if (sunTips(points) === 8) return { name: 'sun', score: Math.max(0.7, sun), top }
-    if (top[0].name === 'sun') return { name: 'none', score: top[0].prob, top }
+    const n = sunTips(points)
+    if (n === 8) return { name: 'sun', score: Math.max(0.7, sun), top }
+    if (top[0].name === 'sun') return { name: 'none', score: top[0].prob, top, near: 'sun', why: `needs 8 points, drew ${n}` }
   }
   // Plasma: exactly 3 petals, also counted by a rule. Hard to draw, so (like Sunfire) a network that only
   // leans Plasma is enough when the petals count right.
   const plasma = top.find((t) => t.name === 'plasma')?.prob ?? 0
   if (top[0].name === 'plasma' || plasma >= 0.3) {
-    if (plasmaPetals(points) === 3) return { name: 'plasma', score: Math.max(0.7, plasma), top }
-    if (top[0].name === 'plasma') return { name: 'none', score: top[0].prob, top }
+    const n = plasmaPetals(points)
+    if (n === 3) return { name: 'plasma', score: Math.max(0.7, plasma), top }
+    if (top[0].name === 'plasma') return { name: 'none', score: top[0].prob, top, near: 'plasma', why: `needs 3 petals, drew ${n}` }
   }
   // Storm (Nov 25): the network was trained hard on lopsided combos and grew picky about the bolt's line
   // lengths, often calling a fine Storm a scribble. So it only says which shape this is closest to; the rule
@@ -431,12 +435,16 @@ export function recognizeShape(model: ShapeModel, points: Pt[]): ShapeMatch & { 
       const boosted = top.map((t) => (t.name === 'cloud' ? { ...t, prob: p } : t)).sort((a, b) => b.prob - a.prob)
       return { name: 'cloud', score: p, top: boosted }
     }
-    if (top[0].name === 'cloud') return { name: 'none', score: top[0].prob, top }
+    if (top[0].name === 'cloud') {
+      const bumps = cloudBumps(points)
+      const why = bumps !== 4 ? `needs 4 bumps, drew ${bumps}` : `needs a 3-line bolt, drew ${boltCorners(points) + 1}`
+      return { name: 'none', score: top[0].prob, top, near: 'cloud', why }
+    }
   }
   // Heavy (H): both posts must run the full height, with the crossbar between them (no half-drawn H).
-  if (top[0].name === 'h' && !fullH(points)) return { name: 'none', score: top[0].prob, top }
+  if (top[0].name === 'h' && !fullH(points)) return { name: 'none', score: top[0].prob, top, near: 'h', why: 'both posts need to run full height' }
   // Doom: the blade has to curve. Straight lines with corners are never a scythe.
-  if (top[0].name === 'scythe' && bladeCurve(points) < DOOM_CURVE) return { name: 'none', score: top[0].prob, top }
+  if (top[0].name === 'scythe' && bladeCurve(points) < DOOM_CURVE) return { name: 'none', score: top[0].prob, top, near: 'scythe', why: 'the blade needs to curve' }
   return { name: top[0].name, score: top[0].prob, top }
 }
 

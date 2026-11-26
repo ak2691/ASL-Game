@@ -13,6 +13,28 @@ export function loadDrawHand(): Hand {
   return 'right' // most players are right-handed: the right hand draws, the left signs
 }
 
+// Sign delay: how long a letter (or open hand) must be held before it counts. 0 = instant; players who
+// get misreads while moving between letters can add up to 100 ms. Read live every frame.
+export const SIGN_DELAY_KEY = 'spells-sign-delay'
+export const SIGN_DELAY_MAX = 100
+const clampDelay = (v: number) => Math.min(SIGN_DELAY_MAX, Math.max(0, Math.round(v / 10) * 10))
+let signDelay = (() => {
+  try {
+    return clampDelay(Number(localStorage.getItem(SIGN_DELAY_KEY)) || 0)
+  } catch {
+    return 0
+  }
+})()
+export const getSignDelay = () => signDelay
+export function setSignDelay(v: number) {
+  signDelay = clampDelay(v)
+  try {
+    localStorage.setItem(SIGN_DELAY_KEY, String(signDelay))
+  } catch {
+    /* not saved */
+  }
+}
+
 // Push sensitivity: how much the hand must grow on screen (move toward the camera) to throw or parry.
 // Lower = a smaller push counts (less effort, but leaning in can set it off). Read live every frame.
 export const PUSH_KEY = 'spells-push'
@@ -88,16 +110,21 @@ export function saveDummyTwo(on: boolean) {
 const DUMMY_PACE_KEY = 'spells-dummy-pace'
 export const CAST_PCT = { min: 50, max: 200 }
 export const GAP_MS = { min: 500, max: 8000, def: 2600 }
-export type DummyPace = { castPct: number; gapMs: number; parryPct: number }
+// spellPct (Nov 26): each spell's own speed, % of its default cast ("el:shape" keys; missing = 100). castPct then
+// scales every spell on top. template: the tower wizard whose speeds were applied (cleared by a manual edit).
+export const SPELL_PCT = { min: 25, max: 300 }
+export type DummyPace = { castPct: number; gapMs: number; parryPct: number; spellPct: Record<string, number>; template: string | null }
+const cleanSpellPct = (v: unknown): Record<string, number> =>
+  v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === 'number').map(([k, x]) => [k, Math.min(SPELL_PCT.max, Math.max(SPELL_PCT.min, x as number))])) : {}
 export function loadDummyPace(): DummyPace {
   try {
     const v = JSON.parse(localStorage.getItem(DUMMY_PACE_KEY) ?? 'null')
     if (v && typeof v.castPct === 'number' && typeof v.gapMs === 'number')
-      return { castPct: Math.min(CAST_PCT.max, Math.max(CAST_PCT.min, v.castPct)), gapMs: Math.min(GAP_MS.max, Math.max(GAP_MS.min, v.gapMs)), parryPct: typeof v.parryPct === 'number' ? Math.min(100, Math.max(0, v.parryPct)) : 0 }
+      return { castPct: Math.min(CAST_PCT.max, Math.max(CAST_PCT.min, v.castPct)), gapMs: Math.min(GAP_MS.max, Math.max(GAP_MS.min, v.gapMs)), parryPct: typeof v.parryPct === 'number' ? Math.min(100, Math.max(0, v.parryPct)) : 0, spellPct: cleanSpellPct(v.spellPct), template: typeof v.template === 'string' ? v.template : null }
   } catch {
     /* fall through */
   }
-  return { castPct: 100, gapMs: GAP_MS.def, parryPct: 0 }
+  return { castPct: 100, gapMs: GAP_MS.def, parryPct: 0, spellPct: {}, template: null }
 }
 export function saveDummyPace(p: DummyPace) {
   try {
@@ -141,3 +168,4 @@ export function saveChatter(on: boolean) {
     /* not saved */
   }
 }
+

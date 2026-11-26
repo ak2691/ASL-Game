@@ -29,8 +29,11 @@ async function createNewTracker(numHands: number): Promise<HandTracker> {
     // Detection stays moderate (avoids "hands" in the background), but the "still a hand?"
     // thresholds are low so tracking holds on through fast moves and rotations.
     minHandDetectionConfidence: 0.3,
-    minHandPresenceConfidence: 0.15,
-    minTrackingConfidence: 0.15,
+    // Nov 25: were 0.15. That low, after a fast blurred move tracking could latch onto a ghost (a copy of
+    // the other hand, a smudge) and never look for the real hand again until it moved. A lost hand is
+    // found again within a frame or two anyway.
+    minHandPresenceConfidence: 0.3,
+    minTrackingConfidence: 0.3,
   })
   return {
     detect: async (frame, now) => landmarker.detectForVideo(frame, now).landmarks[0] ?? null,

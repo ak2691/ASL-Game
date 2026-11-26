@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { DrawingUtils, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { MotionTracker, isMotionLetter } from './motion'
 import { checkForm, directionAdjusted, directionLetter } from './rules'
@@ -15,14 +16,13 @@ import { Spellbook } from './Spellbook'
 import { PrivacyPage } from './PrivacyPage'
 import { HomeCorner } from './HomeCorner'
 import { HomeBackdrop } from './HomeBackdrop'
-import { loadDrawHand } from './settings'
 import { Portrait } from './Ladder'
+import { getSignDelay } from './settings'
 import './App.css'
 
 // Target-letter scoring: we know which letter the player should sign next,
 // so we accept it as soon as the model is fairly sure it sees that letter.
 const ACCEPT_PROB = 0.8 // target letter probability needed to accept (it must also be the top guess)
-const ACCEPT_MS = 100 // ...held for this long (a short guard against passing shapes)
 const RELEASE_PROB = 0.5 // double letters: a dip below this (a brief relax) lets the repeat count...
 const RELEASE_MOVE = 0.3 // ...or the whole hand bouncing/sliding this far (palm units)
 
@@ -63,23 +63,40 @@ const SLIDE_OUT_MS = 180 // matches page-slide-out in App.css
 export default function App() {
   // A refresh goes back home, except mid online room (the server puts you back in your seat).
   const [mode, setMode] = useState<Mode | 'info' | 'guide' | 'privacy' | null>(() => (getOnlineFlag() ? 'online' : null))
-  const [drawHand, setDrawHand] = useState<Hand>(() => loadDrawHand()) // the home backdrop's casters draw with it
-  // Home <-> How to cast / Spell Info: the old screen slides out first, then the new one slides in (TETR.IO-style).
-  const slideTo = (m: 'info' | 'guide' | 'privacy' | null) => {
+  // Every page change: the old screen slides out first, then the new one slides in (TETR.IO-style); the
+  // background stays put.
+  const slideTo = (m: Mode | 'info' | 'guide' | 'privacy' | null) => {
     if (document.body.classList.contains('page-leaving')) return
     document.body.classList.add('page-leaving')
     setTimeout(() => {
+      // Swap the page first, then drop the class: the other order shows the old page again for a frame (its
+      // slide-out ends and nothing covers it yet).
+      flushSync(() => setMode(m))
       document.body.classList.remove('page-leaving')
-      setMode(m)
     }, SLIDE_OUT_MS)
   }
-  if (mode === 'guide' || mode === 'info') return <Spellbook onHome={() => slideTo(null)} />
-  if (mode === 'privacy') return <PrivacyPage onHome={() => slideTo(null)} />
-  if (mode) return <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => setMode(null)} />
+  // One backdrop behind every page, kept mounted across page changes so a transition never shows the bare page
+  // background. Game screens hide it (CSS), except while one is sliding out.
+  return (
+    <>
+      <HomeBackdrop />
+      {mode === 'guide' || mode === 'info' ? (
+        <Spellbook onHome={() => slideTo(null)} />
+      ) : mode === 'privacy' ? (
+        <PrivacyPage onHome={() => slideTo(null)} />
+      ) : mode ? (
+        <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => slideTo(null)} />
+      ) : (
+        <Home slideTo={slideTo} />
+      )}
+    </>
+  )
+}
+
+function Home({ slideTo }: { slideTo: (m: Mode | 'guide' | 'privacy') => void }) {
   return (
     <main className="home">
-      <HomeBackdrop hand={drawHand} />
-      <HomeCorner onGuide={() => slideTo('guide')} onDrawHand={setDrawHand} />
+      <HomeCorner onGuide={() => slideTo('guide')} />
       <div className="home-brand">
         <img className="hero-logo" src="/logo.svg" alt="" />
         <h1 className="logo">ASL Wizard</h1>
@@ -88,7 +105,7 @@ export default function App() {
           stays visible. Fighting first, learning last. */}
       <nav className="home-menu" aria-label="Game modes">
         {MODES.map((m) => (
-          <button key={m.mode} className={`mode-bar mode-${m.mode}`} onClick={() => setMode(m.mode)}>
+          <button key={m.mode} className={`mode-bar mode-${m.mode}`} onClick={() => slideTo(m.mode)}>
             <span className="mode-icon" aria-hidden="true">
               {m.icon}
             </span>
@@ -434,7 +451,7 @@ export function TypingPage({ hand, onSpells }: { hand: Hand; onSpells: () => voi
         const topIsTarget = pred !== null && directionLetter(pred.letter, shapeLm) === target
         if (!g.needRelease && p >= ACCEPT_PROB && topIsTarget) g.aboveSince ??= now
         else g.aboveSince = null
-        ready = g.aboveSince !== null && now - g.aboveSince >= ACCEPT_MS
+        ready = g.aboveSince !== null && now - g.aboveSince >= getSignDelay()
       }
 
       if (ready) {

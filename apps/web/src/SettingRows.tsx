@@ -2,7 +2,7 @@
 // the left in the title font, a full-width control in the middle (end words under a slider), and the exact
 // value in a box on the right. Used by the in-match menu and home Settings.
 import { useState, type ReactNode } from 'react'
-import { PUSH_MAX, PUSH_MIN, getPushGrowth, setPushGrowth } from './settings'
+import { PUSH_MAX, PUSH_MIN, SIGN_DELAY_MAX, getPushGrowth, getSignDelay, setPushGrowth, setSignDelay } from './settings'
 import { getVolume, play, setVolume } from './sfx'
 
 export function SlabSlider(p: { label: string; min: number; max: number; value: number; lo: string; hi: string; unit?: string; step?: number; show?: string; onChange: (v: number) => void; onRelease?: () => void; hint?: string; children?: ReactNode }) {
@@ -75,6 +75,27 @@ export function PushSlab() {
   )
 }
 
+export function SignDelaySlab() {
+  const [ms, setMs] = useState(getSignDelay)
+  return (
+    <SlabSlider
+      label="Sign delay"
+      min={0}
+      max={SIGN_DELAY_MAX}
+      step={10}
+      value={ms}
+      unit="ms"
+      lo="Instant"
+      hi="Steady"
+      hint="How long you hold a letter before it counts. Add some if letters go off while you move between them."
+      onChange={(v) => {
+        setMs(v)
+        setSignDelay(v)
+      }}
+    />
+  )
+}
+
 export function VolumeSlab() {
   const [vol, setVol] = useState(() => Math.round(getVolume() * 100))
   return (
@@ -100,3 +121,4 @@ export const SlabSection = ({ title, children }: { title: string; children: Reac
     {children}
   </section>
 )
+

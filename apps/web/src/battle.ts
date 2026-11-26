@@ -1,6 +1,6 @@
 // Arenas: what the Spells page fights in. Practice = an AI enemy in the browser; online = a real
 // opponent through the server (online.ts). Both give the page the same Snapshot to draw.
-import { CHILL_HEAVY_MS, CHILL_MS, Combat, FIZZLE_LOCK_MS, FLY_MS, TWILIGHT_MS, MAX_HP, PARRY_WINDOW_MS, STATIC_CUTOFF, type CombatView, type Fid } from './combat'
+import { CHILL_HEAVY_MS, CHILL_MS, Combat, COUNTER_CUTOFF, WEAR_STEP, FIZZLE_LOCK_MS, FLY_MS, TWILIGHT_MS, MAX_HP, PARRY_WEAR, PARRY_WINDOW_MS, STATIC_CUTOFF, type CombatView, type Fid } from './combat'
 import { BEATS, canQuick, chargeInfo, COMBOS_ON, COMBO_MIX, COMBO_SHAPE, COUNTER, QUICK, SIGNATURE, mixCounter, signsFor, spellName } from './spells'
 import { samplePath } from './shapePaths'
 import { spiralPoints } from './shapes'
@@ -108,6 +108,7 @@ interface AiStyle {
  *  mirror: learns your favourite element and counters it. */
 export type Habit = 'wall' | 'spammer' | 'setup' | 'curser' | 'counter' | 'shadow' | 'interrupter' | 'combo' | 'punisher' | 'mirror'
 const SHIFT_MS = 20000
+const SHROUD_GAP_MS = 10000 // shadow: at least this long between its Shrouds (6 s on, then ~4 s in the open)
 const SHIFT_HABITS: Habit[] = ['spammer', 'setup', 'curser', 'counter', 'shadow', 'interrupter', 'combo', 'punisher']
 const ALL_COMBOS = Object.keys(COMBO_SHAPE)
 const ALL_MAGIC = ['aegis', 'scythe', 'veil', 'blade']
@@ -122,20 +123,20 @@ export const AI: Record<Difficulty, AiStyle> = {
   // already near human limits; halving made it inhuman), drawing slower (DRAW_MS): time goes into drawing you can see.
   // Nov 24 balance pass (plans/balance.md): every rung faster, signatures from the start, parrying from Cleric,
   // spam punished everywhere. Single-element bots got a second element, and (10 s wear recovery) Frost, Cleric, Hexer and Zealot a third: two sink to the floor.
-  pebble: { ...BOT, miss: 0.3, every: 1600, speed: 1.0, els: ['E', 'W', 'F'], moves: { line: 10, h: 70, signature: 20 }, order: 'alternate', react: 0.05, spamCounter: 0.25, hintMs: 0, habit: 'wall', habitStrength: 0.8 },
-  ember: { ...BOT, miss: 0.28, every: 1460, speed: 0.95, els: ['F', 'L', 'I'], moves: LHS, order: 'fresh', react: 0.1, spamCounter: 0.35, hintMs: 0, habit: 'spammer', habitStrength: 0.8 },
+  pebble: { ...BOT, miss: 0.33, every: 2600, speed: 1.0, els: ['E', 'W', 'F'], moves: { line: 15, h: 80, signature: 5 }, order: 'alternate', react: 0.05, spamCounter: 0.25, hintMs: 0, habit: 'wall', habitStrength: 0.8 },
+  ember: { ...BOT, miss: 0.28, every: 1300, speed: 0.95, els: ['F', 'L', 'I'], moves: LHS, order: 'fresh', react: 0.1, spamCounter: 0.35, hintMs: 0, habit: 'spammer', habitStrength: 0.8 },
   frost: { ...BOT, miss: 0.26, order: 'fresh', every: 1400, speed: 0.9, els: ['I', 'E', 'F'], moves: LHS, react: 0.2, spamCounter: 0.5, combos: ['thermal'], comboRate: 0.15, hintMs: 0, habit: 'setup', habitStrength: 0.8 },
-  cleric: { ...BOT, miss: 0.24, order: 'fresh', every: 1330, speed: 0.9, els: ['W', 'I', 'E'], moves: LHS, healBelow: 0.6, magic: ['aegis'], utility: 0.15, smart: 0.3, react: 0.2, spamCounter: 0.5, parry: 0.1, parrySig: 0.15, parryAim: 0.32, hintMs: 0, combos: ['glacier'], comboRate: 0.1, habit: 'exam', examOf: ['wall', 'spammer', 'setup'], habitStrength: 0.5 },
-  hexer: { setupDelay: 600, ...BOT, miss: 0.22, order: 'fresh', every: 1230, speed: 0.85, els: ['E', 'L', 'I'], moves: LHS, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.25, reactMs: [1100, 1500], spamCounter: 0.55, combos: ['grave'], comboRate: 0.14, parry: 0.12, parrySig: 0.15, parryAim: 0.34, hintMs: 300, habit: 'curser', habitStrength: 0.6 },
-  tide: { setupDelay: 550, ...BOT, miss: 0.2, order: 'fresh', every: 1110, speed: 0.8, els: ['W', 'I', 'L'], moves: LHS, healBelow: 0.3, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['storm'], comboRate: 0.17, parry: 0.15, parrySig: 0.2, parryAim: 0.36, hintMs: 900, smart: 0.32, magic: ['aegis'], utility: 0.2, habit: 'counter', habitStrength: 0.6 },
-  zealot: { setupDelay: 500, ...BOT, miss: 0.18, order: 'fresh', every: 1090, speed: 0.78, els: ['F', 'E', 'W'], moves: LHS, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.35, react: 0.42, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.65, combos: ['sunfire', 'twilight'], comboRate: 0.17, parry: 0.18, parrySig: 0.2, parryAim: 0.38, hintMs: 900, habit: 'shadow', habitStrength: 0.6 },
-  warden: { setupDelay: 450, ...BOT, miss: 0.15, every: 1010, speed: 0.75, healBelow: 0.25, react: 0.38, reactMs: [1000, 1300], spamCounter: 0.75, stun: 0.2, read: 0.25, magic: ALL_MAGIC, utility: 0.03, smart: 0.42, combos: ['magma', 'glacier'], comboRate: 0.12, parry: 0.2, parrySig: 0.25, parryAim: 0.4, comboHintMs: 1500 , circle: 0.32, habit: 'interrupter', habitStrength: 0.6 },
-  adept: { setupDelay: 400, parry: 0.22, parrySig: 0.28, parryAim: 0.42, reparry: 0.02, spamAt: 3, every: 850, speed: 0.68, ramp: false, healBelow: 0.3, react: 0.5, reactMs: [900, 1200], circle: 0.35, miss: 0.12, capitalize: false, reroll: 0, spamCounter: 0.8, stun: 0.3, read: 0.3, heal: 0.25, dodge: 0, healPunish: false, drop: 0.05, utility: 0.08, smart: 0.45, combos: ['magma', 'steam'], comboRate: 0.15, comboCounter: 0.1, habit: 'exam', examOf: ['curser', 'counter', 'shadow', 'interrupter', 'combo'], habitStrength: 0.45 },
-  magus: { setupDelay: 300, parry: 0.3, parrySig: 0.35, parryAim: 0.45, reparry: 0.04, spamAt: 3, every: 730, speed: 0.62, ramp: false, healBelow: 0.33, react: 0.48, reactMs: [800, 1050], circle: 0.35, miss: 0.1, capitalize: true, reroll: 2400, spamCounter: 0.85, stun: 0.35, read: 0.45, heal: 0.5, dodge: 0.05, healPunish: false, drop: 0.15, utility: 0.12, smart: 0.5, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.17, comboCounter: 0.25, habit: 'punisher', habitStrength: 0.35 },
+  cleric: { ...BOT, miss: 0.24, order: 'fresh', every: 1330, speed: 0.9, els: ['W', 'I', 'E'], moves: LHS, healBelow: 0.45, magic: ['aegis'], utility: 0.15, smart: 0.3, react: 0.2, spamCounter: 0.5, parry: 0.1, parrySig: 0.15, parryAim: 0.32, hintMs: 0, combos: ['glacier'], comboRate: 0.1, habit: 'exam', examOf: ['wall', 'spammer', 'setup'], habitStrength: 0.5 },
+  hexer: { setupDelay: 600, ...BOT, miss: 0.22, order: 'fresh', every: 1060, speed: 0.85, els: ['E', 'L', 'I'], moves: LHS, magic: UNHOLY_MAGIC, utility: 0.35, smart: 0.3, react: 0.25, reactMs: [1100, 1500], spamCounter: 0.55, combos: ['grave'], comboRate: 0.18, parry: 0.12, parrySig: 0.15, parryAim: 0.34, hintMs: 300, habit: 'curser', habitStrength: 0.6 },
+  tide: { setupDelay: 550, ...BOT, miss: 0.2, order: 'fresh', every: 1080, speed: 0.8, els: ['W', 'I', 'L'], moves: LHS, healBelow: 0.3, react: 0.35, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.6, combos: ['storm'], comboRate: 0.17, parry: 0.15, parrySig: 0.2, parryAim: 0.36, hintMs: 900, smart: 0.32, magic: ['aegis'], utility: 0.2, habit: 'counter', habitStrength: 0.6 },
+  zealot: { setupDelay: 500, ...BOT, miss: 0.18, order: 'fresh', every: 980, speed: 0.78, els: ['F', 'E', 'W'], moves: LHS, magic: ALL_MAGIC, utility: 0.4, smart: 0.4, healBelow: 0.25, react: 0.42, reactMs: [1000, 1400], circle: 0.3, spamCounter: 0.65, combos: ['sunfire', 'twilight'], comboRate: 0.24, comboCounter: 0.3, parry: 0.18, parrySig: 0.2, parryAim: 0.38, hintMs: 900, habit: 'shadow', habitStrength: 0.6 },
+  warden: { setupDelay: 450, ...BOT, miss: 0.17, every: 1120, speed: 0.75, healBelow: 0.25, react: 0.38, reactMs: [1000, 1300], spamCounter: 0.75, stun: 0.2, read: 0.1, magic: ALL_MAGIC, utility: 0.03, smart: 0.42, combos: ['magma', 'glacier'], comboRate: 0.12, parry: 0.2, parrySig: 0.25, parryAim: 0.4, comboHintMs: 1500 , circle: 0.32, habit: 'interrupter', habitStrength: 0.6 },
+  adept: { setupDelay: 400, parry: 0.22, parrySig: 0.28, parryAim: 0.42, reparry: 0.02, spamAt: 3, every: 800, speed: 0.68, ramp: false, healBelow: 0.3, react: 0.5, reactMs: [900, 1200], circle: 0.35, miss: 0.12, capitalize: false, reroll: 0, spamCounter: 0.8, stun: 0.3, read: 0.35, heal: 0.25, dodge: 0, healPunish: false, drop: 0.05, utility: 0.08, smart: 0.45, combos: ['magma', 'steam'], comboRate: 0.15, comboCounter: 0.25, habit: 'exam', examOf: ['curser', 'counter', 'shadow', 'interrupter', 'combo'], habitStrength: 0.45 },
+  magus: { setupDelay: 300, parry: 0.3, parrySig: 0.35, parryAim: 0.45, reparry: 0.04, spamAt: 3, every: 760, speed: 0.62, ramp: false, healBelow: 0.33, react: 0.48, reactMs: [800, 1050], circle: 0.35, miss: 0.1, capitalize: true, reroll: 2400, spamCounter: 0.85, stun: 0.35, read: 0.45, heal: 0.5, dodge: 0.05, healPunish: false, drop: 0.15, utility: 0.12, smart: 0.5, combos: ['magma', 'steam', 'storm', 'sunfire'], comboRate: 0.17, comboCounter: 0.25, habit: 'punisher', habitStrength: 0.35 },
   archmage: { setupDelay: 250, parry: 0.42, parrySig: 0.46, parryAim: 0.48, reparry: 0.08, spamAt: 3, every: 650, speed: 0.57, ramp: true, healBelow: 0.36, react: 0.56, reactMs: [700, 950], circle: 0.45, miss: 0.07, capitalize: true, reroll: 1800, spamCounter: 0.9, stun: 0.45, read: 0.65, heal: 0.65, dodge: 0.15, healPunish: false, drop: 0.28, utility: 0.2, smart: 0.75, combos: ALL_COMBOS.filter((c) => c !== 'glacier'), comboRate: 0.19, comboCounter: 0.5, habit: 'shapeshift', habitStrength: 0.35 },
   lich: { setupDelay: 200, parry: 0.45, parrySig: 0.5, parryAim: 0.5, reparry: 0.12, spamAt: 3, every: 610, speed: 0.55, ramp: true, healBelow: 0.4, react: 0.6, reactMs: [650, 880], circle: 0.5, miss: 0.04, capitalize: true, reroll: 1400, spamCounter: 0.92, stun: 0.55, read: 0.9, heal: 0.8, dodge: 0.32, healPunish: true, drop: 0.33, utility: 0.26, smart: 1, combos: ALL_COMBOS, comboRate: 0.22, comboCounter: 0.75, habit: 'mirror', habitStrength: 0.35 },
   // The finale: the whole kit, used on purpose, no mistakes. A step above Lich in every number.
-  ascendant: { setupDelay: 150, parry: 0.5, parrySig: 0.55, parryAim: 0.53, reparry: 0.15, spamAt: 3, every: 570, speed: 0.53, ramp: true, healBelow: 0.4, react: 0.66, reactMs: [580, 780], circle: 0.6, miss: 0, capitalize: true, reroll: 1200, spamCounter: 0.95, stun: 0.6, read: 1, heal: 0.88, dodge: 0.38, healPunish: true, drop: 0.38, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.26, comboCounter: 1, habit: 'exam', examOf: ['setup', 'counter', 'interrupter', 'punisher', 'mirror', 'mirror'], habitStrength: 0.3 },
+  ascendant: { setupDelay: 150, parry: 0.5, parrySig: 0.55, parryAim: 0.53, reparry: 0.15, spamAt: 3, every: 500, speed: 0.53, ramp: true, healBelow: 0.4, react: 0.66, reactMs: [580, 780], circle: 0.6, miss: 0, capitalize: true, reroll: 1200, spamCounter: 0.95, stun: 0.6, read: 1, heal: 0.88, dodge: 0.38, healPunish: true, drop: 0.38, utility: 0.3, smart: 1, combos: ALL_COMBOS, comboRate: 0.3, comboCounter: 1, habit: 'exam', examOf: ['setup', 'counter', 'interrupter', 'punisher', 'mirror', 'mirror'], habitStrength: 0.3 },
 }
 /** The practice ladder, in order. */
 export const LADDER: { id: Difficulty; name: string }[] = [
@@ -156,6 +157,10 @@ export const LADDER: { id: Difficulty; name: string }[] = [
 const ENEMY_JITTER = 0.2 // +/- share of the gap between casts
 const CHARGE_MS = 700
 const READY_MS = 500
+// Counter pace and rate caps (Nov 26: testers were countered almost every time, near-instantly, at the top).
+const COUNTER_CHANCE_MAX = 0.7 // its chance to counter a charge (not a heal or combo) never goes above this
+const COUNTER_REACT_MIN_MS = 450 // never starts a counter sooner than this after your charge (was 250)
+const COUNTER_DRAW_MIN_MS = 500 // a counter circle takes at least this long to draw (about a person's quickest)
 const COUNTER_READY_MS = 80 // a counter is thrown the moment it's drawn (no waiting around)
 const COUNTER_HOLD_MS = 350 // a counter's charge before it throws, at speed 1 (never under the letter hold)
 // Punishing a silence: its spell must be out before you can react once the silence ends
@@ -187,11 +192,11 @@ const DRAW_MS: Record<string, number> = {
   iceberg: 5200, // 10 straight lines
   volcano: 5200, // 9 lines and a small arc
   cloud: 5200, // four arcs, then the bolt: a simple drawing, as quick as Magma (Nov 25: 5600 with three bumps, briefly 6100)
-  thermo: 6000, // tube, bulb, then a 4-line crack
-  puff: 6200, // 8 humps, each a careful arc
+  thermo: 5300, // tube, bulb, then a 4-line crack (Nov 26: was 6000; easier than it looked, just above Magma)
+  puff: 5600, // 8 humps, each a careful arc (Nov 26: was 6200; a bit harder than Thermal, easier than Twilight)
   yinyang: 6200, // circle, the S, both dots
-  plasma: 7500, // 3 curved petals, then the ball around them
-  sun: 8000, // 16 lines, exactly 8 points
+  plasma: 6800, // 3 curved petals, then the ball around them (Nov 26: was 7500)
+  sun: 7200, // 16 lines, exactly 8 points (Nov 26: was 8000)
 }
 const ENEMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L']
 // What it attacks with (weights). Same rules as the player, so reading the shape tells you what's coming.
@@ -287,8 +292,8 @@ const COMBO_LETTER_MS = 400 // each of a combo's letters (C, then two elements),
  *  (p = 1) 1.2 s, ~2.0 s and ~4 s (Nov 25: were 1.5, 2.5 and 6). In between it eases down
  *  geometrically (each floor ~8% quicker for heavies), so beginners stay slow. Counter circles and quick
  *  interrupts keep their speed-based time. `ramp` (< 1) is a top bot speeding up through the fight. */
-// Combos (Nov 25): 8.5 s at the bottom to 3.5 s at the top, half geometric and half linear (per floor: plans/balance.md).
-const AI_DRAW = { heavy: [4000, 1200], signature: [5500, 2000], combo: [8500, 3500] } as const // signature top: Nov 25 was 2500
+// Combos: 8.5 s at the bottom to 3.0 s at the top (Nov 26: was 3.5; the fastest, Grave, now ~2.75 s at the top), half geometric and half linear (per floor: plans/balance.md).
+const AI_DRAW = { heavy: [4000, 1200], signature: [5500, 2000], combo: [8500, 3000] } as const // signature top: Nov 25 was 2500
 const SIG_AVG = 2200 // DRAW_MS average of the signatures and Angelic/Unholy shapes
 const COMBO_AVG = 5900 // ...and of the combos
 function aiDrawMs(shape: string, p: number, ramp: number) {
@@ -326,6 +331,14 @@ export function dummyTimes(el: string, shape: string, pct: number) {
   const chargeMs = letters > 1 ? signGap * (letters - 1) : CHARGE_MS * pct
   return { chargeMs, drawMs: DRAW_MS[shape] * pct, readyMs: shape === 'jab' ? 0 : READY_MS * pct }
 }
+/** A tower wizard's whole cast (sign + draw + ready, ms) for any spell, as it casts at the start of a fight:
+ *  for the Training dummy's "Match a wizard" (Nov 26). Spells it never uses get what they'd take at its pace. */
+export function wizardCastMs(difficulty: Difficulty, el: string, shape: string) {
+  const style = AI[difficulty]
+  const p = LADDER.findIndex((b) => b.id === difficulty) / (LADDER.length - 1)
+  const sp = spellOf(el, shape, style.speed, CHARGE_MS * style.speed, { p, ramp: 1 })
+  return sp.chargeMs + sp.drawMs + sp.readyMs
+}
 export function dummySpell(el: string, shape: string, pct: number) {
   const sp = spellOf(el, shape, pct)
   const drawMs = DRAW_MS[shape] * pct
@@ -362,7 +375,7 @@ export class PracticeArena implements Arena {
   private lastEl = ''
   private knockedSeen = 0
   private lastHeal = -Infinity
-  private playerCharge: { el: string; since: number; rollAt: number; aegisRolled?: boolean; blindRolled?: boolean; drawRolled?: boolean; countered?: boolean } | null = null
+  private playerCharge: { el: string; since: number; rollAt: number; rolls?: number; aegisRolled?: boolean; blindRolled?: boolean; drawRolled?: boolean; countered?: boolean } | null = null
   private followBig = false // its Shroud just landed: the next spell leans big (you can't see it coming)
   private waitedArmor = 0 // when it last held back to let your armor drain (insane)
   private reactAt: number | null = null // when it will start a counter against your charge
@@ -375,6 +388,7 @@ export class PracticeArena implements Arena {
   private baitCheck: number | null = null // after a dodge: if no counter from you by then, that was a bait
   private castTimes: number[] = [] // your last 3 charge-to-throw times (ms)
   private unanswered = 0 // your throws in a row since it last silenced you
+  private playerThrewAt = 0 // your last attack (turtling: parrying only, never throwing)
   private lastPlayerHeal = -Infinity // when you last threw a heal
   private moves: string[] = [] // your recent throws as light/heavy, newest last
   private history: string[] = [] // your recent charges, newest last
@@ -393,6 +407,7 @@ export class PracticeArena implements Arena {
   private payoff: { until: number } | null = null // its setup is on them until then: the next cast cashes it in
   private followUp = false // setup: its chill is on the way; the next cast is the big hit, started at once
   private said: { key: Bark; n: number } | null = null
+  private lastShroud = -Infinity // shadow: when it last cast Shroud
   private lastBark = -Infinity
   private lowSaid = false
 
@@ -402,9 +417,10 @@ export class PracticeArena implements Arena {
     return spellOf(el, shape, speed, chargeMs, { p: this.p, ramp: speed / this.style.speed })
   }
 
-  start(now: number, difficulty: Difficulty = 'pebble') {
+  /** `combat`: the ladder sim (scripts/ladder-sim.ts) passes a shared fight, so two bots can play each other. */
+  start(now: number, difficulty: Difficulty = 'pebble', combat?: Combat) {
     this.p = LADDER.findIndex((b) => b.id === difficulty) / (LADDER.length - 1)
-    this.combat = new Combat()
+    this.combat = combat ?? new Combat()
     this.style = AI[difficulty]
     this.els = this.style.els ?? ENEMY_ELEMENTS
     this.magic = this.style.magic ?? ALL_MAGIC
@@ -429,6 +445,7 @@ export class PracticeArena implements Arena {
     this.baits = 0
     this.baitCheck = null
     this.unanswered = 0
+    this.playerThrewAt = 0
     this.castTimes = []
     this.followBig = false
     this.waitedArmor = 0
@@ -447,6 +464,7 @@ export class PracticeArena implements Arena {
     this.cur = h === 'exam' ? null : h === 'shapeshift' ? SHIFT_HABITS[Math.floor(Math.random() * SHIFT_HABITS.length)] : h ?? null
     this.shiftAt = now + SHIFT_MS
     this.said = null
+    this.lastShroud = -Infinity
     this.lastBark = -Infinity
     this.lowSaid = false
     this.bark('start', now)
@@ -485,12 +503,13 @@ export class PracticeArena implements Arena {
     switch (h) {
       case 'wall': {
         const el = this.nextEl()
-        return this.cast(el, Math.random() < 0.15 ? SIGNATURE[el] : 'h', sp)
+        return this.cast(el, Math.random() < 0.05 ? SIGNATURE[el] : 'h', sp) // Nov 26: was 15% (ladder sim: Old Bram out-healed Pip)
       }
       case 'spammer': {
         // A smart spammer: Lightning while it still has static, else whichever element is least worn.
         const pw = (e: string) => this.combat.powerOf('enemy', e, now)
-        const el = this.els.includes('L') && pw('L') >= STATIC_CUTOFF ? 'L' : this.els.reduce((a, b) => (pw(b) > pw(a) ? b : a))
+        // Nov 26 (ladder sim): Lightning only some of the time; its lights hit softest, so all-Lightning spam was weak.
+        const el = this.els.includes('L') && pw('L') >= STATIC_CUTOFF && Math.random() < 0.35 ? 'L' : this.els.reduce((a, b) => (pw(b) > pw(a) ? b : a))
         // Bursts: two quick lights, then a heavy from its freshest element (lights alone do too little).
         this.spamN = (this.spamN + 1) % 3
         if (this.spamN === 0) return this.cast(this.els.reduce((a, b) => (pw(b) > pw(a) ? b : a)), 'h', sp)
@@ -535,7 +554,11 @@ export class PracticeArena implements Arena {
       }
       case 'shadow': {
         // Nov 25: Shroud, then quick hidden heavies while it lasts (a slow signature gave you time to react).
-        if (has('veil') && !(v.shroud.enemy > 0)) return (({ drawMs, ...c }) => ({ ...c, drawMs: drawMs * 0.7 }))(this.cast('U', 'veil', sp))
+        // Nov 26 (ladder sim): not again the moment one ends; it was spending half its turns on Shroud.
+        if (has('veil') && !(v.shroud.enemy > 0) && now - this.lastShroud > SHROUD_GAP_MS) {
+          this.lastShroud = now
+          return (({ drawMs, ...c }) => ({ ...c, drawMs: drawMs * 0.7 }))(this.cast('U', 'veil', sp))
+        }
         if (v.shroud.enemy > 1500) {
           const h = this.cast(this.nextEl(), 'h', sp)
           return { ...h, drawMs: h.drawMs * 0.65 }
@@ -628,6 +651,7 @@ export class PracticeArena implements Arena {
     // How long you take from charge to throw (it learns your pace to time its counters).
     if (this.playerCharge && shape && shape !== QUICK) this.castTimes = [...this.castTimes.slice(-2), now - this.playerCharge.since]
     if (shape && shape !== COUNTER && r?.el !== 'A') this.unanswered++
+    if (shape && shape !== COUNTER && r?.el !== 'A') this.playerThrewAt = now
     if (shape && shape !== COUNTER && r?.el !== 'A') this.moves = [...this.moves.slice(-5), kindOf(shape)]
     this.playerCharge = null
     // A regen keeps ticking after the throw, so a counter already planned against it still goes.
@@ -706,9 +730,30 @@ export class PracticeArena implements Arena {
       }
     }
     let shape = pick(moves)
-    if (s.capitalize && v.silenced.player > 1200) shape = 'signature' // you can't counter it now
+    if (this.exploiting && Math.random() < lerp(0.5, 0.9, s.read)) shape = 'signature' // you can't counter it: go big
+    // Turtling (Nov 25): you only parry. Readers bait with cheap lights (each parry you land wears your parry)
+    // and throw the big one once your parry is worn (its reflect would come back weak) or you're staggered.
+    const parryPower = (v.wear?.player?.[PARRY_WEAR] ?? 100) / 100
+    if (s.read > 0 && this.turtling(now, v) && Math.random() < lerp(0.4, 1, s.read)) shape = parryPower <= 0.7 ? 'signature' : 'line'
+    if (s.capitalize && (v.silenced.player > 1200 || (v.staggered?.player ?? 0) > 600)) shape = 'signature' // you can't counter (or parry) it now
     else if (s.capitalize && v.hp.player / v.maxHp.player < 0.2) shape = 'line' // finish fast
     return this.cast(el, shape === 'signature' ? SIGNATURE[el] : shape, sp)
+  }
+
+  /** You're turtling: parrying (your parry is worn) and you haven't attacked for 4 s. */
+  private turtling(now: number, v: CombatView) {
+    return (v.wear?.player?.[PARRY_WEAR] ?? 100) < 100 && now - Math.max(this.playerThrewAt, this.started) > 4000
+  }
+
+  /** A counterspell's power before it's cast: its element's, or a combo counterspell's two averaged. */
+  private counterPower(el: string, now: number) {
+    const els = el.length === 3 && el[0] === 'C' ? [el[1], el[2]] : [el]
+    return els.reduce((t, e) => t + this.combat.powerOf('enemy', e, now), 0) / els.length
+  }
+  /** Its least worn attack element (a heal's counterspell can be any element). */
+  private freshestEl() {
+    const now = performance.now()
+    return this.els.reduce((a, b) => (this.combat.powerOf('enemy', b, now) > this.combat.powerOf('enemy', a, now) ? b : a))
   }
 
   /** Any of its attack elements. */
@@ -728,7 +773,33 @@ export class PracticeArena implements Arena {
       const now = performance.now()
       el = pick(this.els.map((x) => ({ w: this.combat.powerOf('enemy', x, now) ** 3, v: x })))
     } else el = this.anyEl()
+    el = this.wearPlay(el)
     this.lastEl = el
+    return el
+  }
+
+  /** Wear play (Nov 26, counters need COUNTER_CUTOFF power). Readers (Warden up) use it both ways:
+   *  - exploit: an element you can't counter right now (yours that beats it is under the cutoff) is thrown,
+   *    and nextSpell makes it a big one;
+   *  - reserve: they don't spend the element that counters yours if that would drop it under the cutoff. */
+  private exploiting = false
+  private wearPlay(el: string) {
+    const s = this.style
+    this.exploiting = false
+    if (!(s.read > 0) || this.els.length < 2) return el
+    const now = performance.now()
+    const open = this.els.filter((x) => BEATS[beaterOf(x)] && this.combat.powerOf('player', beaterOf(x), now) < COUNTER_CUTOFF)
+    if (open.length && Math.random() < lerp(0.5, 1, s.read)) {
+      this.exploiting = true
+      return open.includes(el) ? el : open[Math.floor(Math.random() * open.length)]
+    }
+    // Your element: your charge, or else what you threw last.
+    const yours = this.combat.chargeOf('player') ?? this.thrown[this.thrown.length - 1]?.split(':')[0] ?? null
+    const keep = yours && yours in BEATS ? beaterOf(yours) : null
+    if (keep === el && this.combat.powerOf('enemy', el, now) - WEAR_STEP < COUNTER_CUTOFF && Math.random() < lerp(0.4, 0.9, s.smart)) {
+      const rest = this.els.filter((x) => x !== el)
+      return rest.reduce((a, b) => (this.combat.powerOf('enemy', b, now) > this.combat.powerOf('enemy', a, now) ? b : a))
+    }
     return el
   }
 
@@ -759,7 +830,7 @@ export class PracticeArena implements Arena {
     const fit: Record<string, number> = {
       magma: v.silenced.player > 1200 ? 4 : 1,
       storm: lights >= 3 ? 4 : 1,
-      glacier: v.silenced.player > 1000 || drawing ? 3 : 0.6,
+      glacier: v.silenced.player > 1000 || drawing || this.turtling(now, v) ? 3 : 0.6, // no parry stops it
       twilight: mine < 0.4 ? 3 : 1,
       steam: this.unanswered >= 3 ? 4 : 1,
       thermal: v.burning.player || v.chill.player > 0 ? 4 : 0.6,
@@ -850,28 +921,30 @@ export class PracticeArena implements Arena {
         ? s.comboCounter ?? 0
         : healing
         ? Math.min(1, again ? 0.95 : s.heal + (low ? 0.05 : 0))
-        : Math.max(s.react, spam ? s.spamCounter : 0, guess ? lerp(s.react, 0.9, s.read) : 0, expected ? lerp(s.react, 0.8, s.read) : 0)
+        : Math.min(COUNTER_CHANCE_MAX, Math.max(s.react, spam ? s.spamCounter : 0, guess ? lerp(s.react, 0.7, s.read) : 0, expected ? lerp(s.react, 0.65, s.read) : 0))
       // Habits that live on countering: they try far more often (still within their skill's timing).
       const st = s.habitStrength ?? 0
       let lean = 0
       if (this.cur === 'counter') lean = st
       else if (this.cur === 'interrupter' && drawingNow) lean = st
       else if (this.cur === 'mirror' && pc.el === this.favorite()) lean = st
-      const tried = lean && !healing ? Math.max(chance, lerp(chance, 0.95, lean)) : chance
+      // Nov 26: a later roll on the same long charge counts half (it used to get a full new chance every reroll).
+      const tried = (lean && !healing ? Math.max(chance, lerp(chance, 0.8, lean)) : chance) * (pc.rolls ? 0.5 : 1)
+      pc.rolls = (pc.rolls ?? 0) + 1
       this.forceJab = this.cur === 'interrupter' && drawingNow && Math.random() < lean
       if (counterable && Math.random() < tried) {
         // A combo takes a moment longer to recognize (which two elements, which counter pair).
         const ms = (s.reactMs[0] + Math.random() * (s.reactMs[1] - s.reactMs[0]) + (combo ? 400 : 0)) * (this.forceJab ? 0.6 : 1)
-        const quick = guess === 'L' ? lerp(1, 0.45, s.read) : guess === 'H' ? lerp(1, 0.5, s.read) : 1
-        const ready = expected ? lerp(1, 0.6, s.read) : again ? 0.5 : healing && low && s.read ? 0.7 : 1
-        this.reactAt = now + ms * Math.min(quick, ready, spam ? lerp(0.8, 0.5, Math.min(1, s.read * 2)) : 1)
+        const quick = guess === 'L' ? lerp(1, 0.7, s.read) : guess === 'H' ? lerp(1, 0.75, s.read) : 1
+        const ready = expected ? lerp(1, 0.75, s.read) : again ? 0.6 : healing && low && s.read ? 0.75 : 1
+        this.reactAt = now + Math.max(COUNTER_REACT_MIN_MS, ms * Math.min(quick, ready, spam ? lerp(0.85, 0.65, Math.min(1, s.read * 2)) : 1))
         // Expecting it (spam or a pattern) and it knows your pace: react in time to land an interrupt
         // before you throw, but never quicker than 250 ms (no mind-reading).
         // Spam is timed this way on every rung (mashing is the one thing even Adept reads).
         if ((spam || (s.read > 0 && (guess || expected))) && this.castTimes.length) {
           const hold = Math.max(SIGN_HOLD_MS, COUNTER_HOLD_MS * this.speed(now))
           const latest = pc.since + Math.min(...this.castTimes) - hold - 160 - 60
-          this.reactAt = Math.max(now + 250, Math.min(this.reactAt, latest))
+          this.reactAt = Math.max(now + COUNTER_REACT_MIN_MS, Math.min(this.reactAt, latest))
         }
         this.spam = spam
         this.guess = guess
@@ -898,7 +971,10 @@ export class PracticeArena implements Arena {
     const circle = this.guess === 'H' ? lerp(s.circle, 0.95, s.read) : this.guess === 'L' ? 0.1 : this.spam && s.read ? 0.85 : s.circle
     let shape = healing || Math.random() < circle ? 'circle' : 'jab'
     const vsCombo = this.reactTo in COMBO_MIX
-    let el = healing ? this.anyEl() : vsCombo ? mixCounter(COMBO_MIX[this.reactTo].map(beaterOf)) : beaterOf(this.reactTo)
+    let el = healing ? this.freshestEl() : vsCombo ? mixCounter(COMBO_MIX[this.reactTo].map(beaterOf)) : beaterOf(this.reactTo)
+    // Counters need COUNTER_CUTOFF power (Nov 26). Bots that watch wear (smart or reading) don't try a worn one;
+    // the intro bots still do, and it fails like yours.
+    if ((s.smart >= 0.3 || s.read > 0) && this.counterPower(el, now) < COUNTER_CUTOFF) return
     if (vsCombo) shape = 'circle' // a combo counterspell is always a circle
     if (mistake && healing) shape = 'jab' // a quick interrupt doesn't stop a heal
     else if (mistake && vsCombo) el = mixCounter(['W', 'L']) === el ? mixCounter(['F', 'I']) : mixCounter(['W', 'L']) // wrong pair: it misses
@@ -912,7 +988,7 @@ export class PracticeArena implements Arena {
     // throw in a row makes it draw the circle faster: 12% per heavy, down to 55% of normal.
     let streak = 0
     for (let i = this.moves.length - 1; i >= 0 && this.moves[i] === 'H'; i--) streak++
-    const circleSpeed = s.read > 0 ? Math.max(0.55, 1 - 0.12 * streak) : 1
+    const circleSpeed = s.read > 0 ? Math.max(0.8, 1 - 0.07 * streak) : 1 // Nov 26: was down to 0.55
     if (this.guess === 'H' && !healing && !mistake && Math.random() < 0.85) shape = 'circle'
     if (shape === 'circle' && !healing && pc && this.castTimes.length) {
       const pace = Math.min(...this.castTimes)
@@ -923,7 +999,7 @@ export class PracticeArena implements Arena {
     this.forceJab = false
     if (!canQuick(el)) shape = 'circle' // Angelic and Unholy have no quick interrupt
     const base = this.cast(el, shape, this.speed(now), hold)
-    const sp = { ...base, drawMs: shape === 'circle' && !healing ? base.drawMs * circleSpeed : base.drawMs, readyMs: shape === 'jab' ? 0 : COUNTER_READY_MS }
+    const sp = { ...base, drawMs: shape === 'circle' ? Math.max(COUNTER_DRAW_MIN_MS, healing ? base.drawMs : base.drawMs * circleSpeed) : base.drawMs, readyMs: shape === 'jab' ? 0 : COUNTER_READY_MS }
     if (abandoned) this.combat.drew('enemy', null, now)
     const ends = Math.max(now + sp.chargeMs + sp.drawMs + sp.readyMs, abandoned ? now + FIZZLE_LOCK_MS + 30 : 0)
     this.startCounter(sp, now, ends)
@@ -946,6 +1022,7 @@ export class PracticeArena implements Arena {
     if (this.glacierRolled || (e && (e.counter || now - e.start >= e.chargeMs))) return
     this.glacierRolled = true
     if (Math.random() >= (this.style.comboCounter ?? 0)) return
+    if (this.counterPower(mixCounter(['F', 'I']), now) < COUNTER_CUTOFF) return // too worn to break it
     const hold = Math.max(SIGN_HOLD_MS, COUNTER_HOLD_MS * this.speed(now))
     const base = this.cast(mixCounter(['F', 'I']), 'circle', this.speed(now), hold * 2)
     const sp = { ...base, readyMs: COUNTER_READY_MS }
@@ -1271,6 +1348,7 @@ export class DummyArena implements Arena {
   private combat = new Combat({ dummy: true, trainee: true })
   attacking = false
   castPct = 100 // cast time, as a share of the default (charge + draw + ready); 50 = twice as fast
+  spellPct: Record<string, number> = {} // each spell's own speed % ("el:shape", missing = 100); castPct scales on top
   gapMs = DUMMY_EVERY_MS // time between casts
   pool: string[] = [] // spells it may throw, as "element:shape" (set by the page)
   parryPct = 0 // chance it parries a spell thrown at it (always on time)
@@ -1320,7 +1398,7 @@ export class DummyArena implements Arena {
       }
       if (!this.enemy && this.pool.length && now >= this.nextEnemyAt && !this.combat.isSilenced('enemy', now)) {
         const [el, shape] = dummyPick(this.pool, this.combat.view(now).shroud.enemy > 0)
-        const sp = dummySpell(el, shape, this.castPct / 100)
+        const sp = dummySpell(el, shape, ((this.spellPct[`${el}:${shape}`] ?? 100) * this.castPct) / 10000)
         const signs = signsFor(el) // a combo: C, then its two letters right after, then it draws
         this.enemy = { ...sp, start: now, ends: now + sp.chargeMs + sp.drawMs + sp.readyMs, signs: signTimes(sp, signs, now) }
         this.combat.sign('enemy', signs[0], now)

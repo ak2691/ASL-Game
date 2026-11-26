@@ -5,7 +5,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STEAM_SHOTS, STORM, SUNFIRE, THERMAL,
   TWILIGHT_MS, DOOM_DMG, DOOM_MS, DOOM_LIFT, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, CHILL_HEAVY_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, PRISON_CHILL,
-  PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, PARRY_MISS_MS, PARRY_HIT_MS, TWILIGHT_GUARD, TWILIGHT_EXPOSE, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS,
+  PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, STATIC_CUTOFF, COUNTER_CUTOFF, PARRY_MISS_MS, TWILIGHT_GUARD, TWILIGHT_EXPOSE, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS,
+  SIG_HIT,
 } from './combat'
 import { COMBO, COMBO_CHARGES, COMBO_MIX, COMBO_SHAPE, COMBOS_ON, COUNTER, ELEMENTS, SIGNATURE } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
@@ -24,6 +25,7 @@ type Page = {
   how: string // how to cast / use it
   does: string // what it does
   chips?: string[]
+  spread?: (ch: { name: string; color: string }) => ReactNode // a page that draws both leaves itself (Statuses)
 }
 
 const Sign = ({ l, size = 64 }: { l: string; size?: number }) => <img className="book-sign" src={`/asl/${l}.svg`} alt={`ASL ${l}`} style={{ width: size, height: size }} />
@@ -48,40 +50,40 @@ const SignShape = ({ signs, shape, color }: { signs: string[]; shape: string; co
 )
 
 const ATTACK_DOES: Record<string, (p: 0 | 1) => string> = {
-  F: (p) => `Burns for +${BURN[p]} over 1.5 s.`,
-  I: (p) => `Chills: their next hit within ${s(p ? CHILL_HEAVY_MS : CHILL_MS)} does +${CHILL[p] * 100}%.`,
-  W: () => 'You heal half of what it deals.',
-  E: () => 'No effect. Just the hardest hits.',
-  L: (p) => `Static: ${STATIC_PULSES[p]} pulse${STATIC_PULSES[p] > 1 ? 's' : ''} where their throws fizzle.`,
+  F: (p) => `Burns them for ${BURN[p]} over 1.5 s.`,
+  I: (p) => `Chills them: the next hit they take does +${CHILL[p] * 100}%, for ${s(p ? CHILL_HEAVY_MS : CHILL_MS)}.`,
+  W: () => 'Heals you half the damage it deals.',
+  E: () => 'No effect, but it hits the hardest.',
+  L: (p) => `Static on them: ${STATIC_PULSES[p]} pulse${STATIC_PULSES[p] > 1 ? 's' : ''}, on 0.5 s, off 1 s. Their throws fizzle while it's on.`,
 }
 
 const SIGS: Record<string, { name: string; dmg: number; does: string }> = {
-  F: { name: 'Meteor', dmg: 32, does: '+18 burn over 2.5 s. The most total damage.' },
-  I: { name: 'Frozen Prison', dmg: 24, does: `Stuns up to ${s(PRISON_SILENCE_MS)} and chills: their next hit within ${s(CHILL_HEAVY_MS)} does +${PRISON_CHILL * 100}%.` },
-  W: { name: 'Tidal Wave', dmg: 25, does: `You heal ${TIDAL_HEAL}.` },
-  E: { name: 'Earthquake', dmg: 38, does: 'At full Earth power (100%), it also knocks off their charge and readied spell.' },
-  L: { name: 'Thunderbolt', dmg: 28, does: 'Three fast static pulses where their throws fizzle.' },
+  F: { name: 'Meteor', dmg: SIG_HIT.flame, does: 'Burns them for 18 over 2.5 s. The most total damage of any signature.' },
+  I: { name: 'Frozen Prison', dmg: SIG_HIT.cage, does: `Stuns them for ${s(PRISON_SILENCE_MS)}, whatever their element, then chills: their next hit taken does +${PRISON_CHILL * 100}%, for ${s(CHILL_HEAVY_MS)}.` },
+  W: { name: 'Tidal Wave', dmg: SIG_HIT.spiral, does: `Heals you ${TIDAL_HEAL}.` },
+  E: { name: 'Earthquake', dmg: SIG_HIT.battlements, does: 'At 100% Earth power, knocks off their charge and readied spell.' },
+  L: { name: 'Thunderbolt', dmg: SIG_HIT.zigzag7, does: "Static on them: 3 pulses, on 0.5 s, off 0.8 s. Their throws fizzle while it's on." },
 }
 
 const COMBO_DOES: Record<string, { dmg: number; does: string }> = {
-  magma: { dmg: MAGMA[0], does: `+${MAGMA[1]} burn over 5 s.` },
-  storm: { dmg: STORM.hit, does: `${STORM.count} static pulses, ${STORM.pulse} each. A throw in a pulse fizzles and takes ${STORM.zap}.` },
-  glacier: { dmg: GLACIER_DMG, does: `Takes ${s(GLACIER_MS)} to arrive. Only a Fire + Ice combo counterspell stops it.` },
-  twilight: { dmg: 0, does: `For ${s(TWILIGHT_MS)} you take half damage and they take double.` },
-  steam: { dmg: STEAM_HIT, does: `Their next ${STEAM_SHOTS} attacks within ${s(STEAM_MS)} miss.` },
-  thermal: { dmg: THERMAL.hit, does: `+${THERMAL.burn} burn and a chill: their next hit does +${THERMAL.chill * 100}%.` },
-  plasma: { dmg: PLASMA.hit, does: `+${PLASMA.burn} burn, knocks off their charge, and caps their elements at ${PLASMA.cap * 100}%.` },
-  sunfire: { dmg: SUNFIRE[0], does: `+${SUNFIRE[1]} burn over 6 s that heals you.` },
-  grave: { dmg: GRAVE.hit, does: `For ${s(GRAVE.ms)} nothing heals them or gives them armor. A Heal clears it, but heals nothing that time.` },
+  magma: { dmg: MAGMA[0], does: `Burns them for ${MAGMA[1]} over 5 s.` },
+  storm: { dmg: STORM.hit, does: `Storm on them: ${STORM.count} pulses of ${STORM.pulse}, on 0.35 s, off 0.6 s. A throw while it's on fizzles and costs them ${STORM.zap}.` },
+  glacier: { dmg: GLACIER_DMG, does: `Arrives after ${s(GLACIER_MS)} and can't be parried. Only a Fire + Ice combo counterspell stops it.` },
+  twilight: { dmg: 0, does: `For ${s(TWILIGHT_MS)}, you take ${TWILIGHT_GUARD * 100}% less damage and they take +${TWILIGHT_EXPOSE * 100}%.` },
+  steam: { dmg: STEAM_HIT, does: `Their next ${STEAM_SHOTS} attacks miss, for up to ${s(STEAM_MS)}.` },
+  thermal: { dmg: THERMAL.hit, does: `Burns them for ${THERMAL.burn} and chills them: their next hit taken does +${THERMAL.chill * 100}%.` },
+  plasma: { dmg: PLASMA.hit, does: `Burns them for ${PLASMA.burn}, knocks off their charge, and drops their elements and parry to ${PLASMA.cap * 100}% power.` },
+  sunfire: { dmg: SUNFIRE[0], does: `Burns them for ${SUNFIRE[1]} over 6 s and heals you the same.` },
+  grave: { dmg: GRAVE.hit, does: `No healing or armor for them, for ${s(GRAVE.ms)}. A Heal clears it but heals nothing.` },
 }
 
 const MAGIC: { el: 'A' | 'U'; shape: string; name: string; does: string; chips: string[] }[] = [
-  { el: 'A', shape: 'star', name: 'Heal', does: 'Heals right away. At full Angelic power (100%) it also clears every debuff on you. Under a Grave it clears the Grave but heals nothing.', chips: [`+${HEAL} HP`] },
-  { el: 'A', shape: 'hourglass', name: 'Regen', does: 'The bigger heal, over 2.5 s. A counterspell cuts off what is left.', chips: [`+${REGEN.amount * REGEN.ticks} HP`] },
-  { el: 'A', shape: 'aegis', name: 'Aegis', does: `Armor that soaks direct hits and drains ${AEGIS_DRAIN} a second. No recast until it's gone.`, chips: [`${AEGIS_HP} armor`] },
-  { el: 'U', shape: 'scythe', name: 'Doom', does: `Within ${s(DOOM_MS)} they must throw a spell whose element is at ${DOOM_LIFT * 100}% power or higher (not worn down), or take ${DOOM_DMG}.`, chips: [`${DOOM_DMG} dmg`, s(DOOM_MS)] },
-  { el: 'U', shape: 'veil', name: 'Shroud', does: "They can't see your charge or your drawing.", chips: [s(SHROUD_MS)] },
-  { el: 'U', shape: 'blade', name: 'Execute', does: 'Double damage if they are cursed when it lands: burning, chilled, static, Doomed and more.', chips: [`${EXECUTE.base} dmg`, `${EXECUTE.cursed} cursed`] },
+  { el: 'A', shape: 'star', name: 'Heal', does: 'Heals you at once. At 100% Angelic power, it also clears your curses. Under a Grave, it clears the Grave and heals nothing.', chips: [`+${HEAL} HP`] },
+  { el: 'A', shape: 'hourglass', name: 'Regen', does: 'Heals you over 2.5 s, more than Heal. A counterspell ends it.', chips: [`+${REGEN.amount * REGEN.ticks} HP`, '2.5 s'] },
+  { el: 'A', shape: 'aegis', name: 'Aegis', does: `Armor that soaks direct hits, draining ${AEGIS_DRAIN} a second. Can't recast while it lasts.`, chips: [`${AEGIS_HP} armor`] },
+  { el: 'U', shape: 'scythe', name: 'Doom', does: `They take ${DOOM_DMG} unless they throw a spell at ${DOOM_LIFT * 100}%+ power within ${s(DOOM_MS)}.`, chips: [`${DOOM_DMG} dmg`, s(DOOM_MS)] },
+  { el: 'U', shape: 'veil', name: 'Shroud', does: "Hides your charge and drawing from them.", chips: [s(SHROUD_MS)] },
+  { el: 'U', shape: 'blade', name: 'Execute', does: 'Double damage if they have a curse when it lands: burning, chilled, static, Doomed and more.', chips: [`${EXECUTE.base} dmg`, `${EXECUTE.cursed} cursed`] },
 ]
 
 /** ASL "5" (open hand) and "1" (pointing), cut from the public-domain Gallaudet sheet on Wikimedia (public/hands). */
@@ -192,62 +194,129 @@ const cycle = (
   </div>
 )
 
-/** A status as the fight shows it: its icon (red edge bad, green good), how long it lasts, what it does. */
-type StatusInfo = { icon: RowIcon; name: string; lasts: string; does: string; good?: boolean }
-const StatusRows = ({ rows }: { rows: StatusInfo[] }) => (
-  <ul className="book-status">
-    {rows.map((r) => (
-      <li key={r.name}>
-        <span className={`st-icon ${r.good ? 'good' : 'bad'}`}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d={iconPath(r.icon)} />
-          </svg>
-        </span>
-        <span className="book-status-text">
-          <b>
-            {r.name} <em>{r.lasts}</em>
-          </b>
-          <small>{r.does}</small>
-        </span>
-      </li>
-    ))}
-  </ul>
+/** A status as the fight shows it: its icon (red edge bad, green good), one effect line, then labeled numbers
+ *  (stat-line style, like a MOBA tooltip: plans/ and memory "text style"). */
+type StatusInfo = { icon: RowIcon; name: string; effect: string; stats: string[]; good?: boolean }
+const GROUPS: { name: string; rows: StatusInfo[] }[] = [
+  {
+    name: 'Damage',
+    rows: [
+      { icon: 'burn', name: 'Burning', effect: 'Takes damage every 0.5 s.', stats: [`Light ${BURN[0]}, heavy ${BURN[1]} over 1.5 s`, `Magma ${MAGMA[1]} over 5 s`, `Sunfire ${SUNFIRE[1]} over 6 s, heals the caster`, `Thermal ${THERMAL.burn}, Plasma ${PLASMA.burn} over 2 s`] },
+      { icon: 'chill', name: 'Chilled', effect: 'The next hit you take does more.', stats: [`Light +${CHILL[0] * 100}% for ${s(CHILL_MS)}`, `Heavy +${CHILL[1] * 100}% for ${s(CHILL_HEAVY_MS)}`, `Frozen Prison +${PRISON_CHILL * 100}% for ${s(CHILL_HEAVY_MS)}`] },
+    ],
+  },
+  {
+    name: 'Pulses',
+    rows: [
+      { icon: 'static', name: 'Static', effect: "Throwing while it's on fizzles your spell.", stats: ['On 0.5 s, off 1 s (Thunderbolt off 0.8 s)', `Pulses: light ${STATIC_PULSES[0]}, heavy ${STATIC_PULSES[1]}, Thunderbolt 3`, `From: Lightning at ${STATIC_CUTOFF * 100}%+ power`] },
+      { icon: 'storm', name: 'Storm', effect: `${STORM.pulse} damage each time it's on.`, stats: [`On 0.35 s, off 0.6 s, ${STORM.count} times`, `Throwing while it's on fizzles and costs ${STORM.zap}`, 'From: Storm'] },
+    ],
+  },
+  {
+    name: "Can't act",
+    rows: [
+      { icon: 'silenced', name: 'Stunned', effect: "Can't draw or charge until their next hit. Charge lost.", stats: [`Up to ${s(COUNTER_SILENCE_MS)}`, 'From: their counterspell'] },
+      { icon: 'silenced', name: 'Frozen', effect: "Can't draw or charge.", stats: [s(PRISON_SILENCE_MS), 'From: Frozen Prison'] },
+      { icon: 'interrupted', name: 'Interrupted', effect: "Can't sign, draw or throw.", stats: [s(INTERRUPT_LOCK_MS), 'From: their interrupt'] },
+    ],
+  },
+  {
+    name: 'Your mistakes',
+    rows: [
+      { icon: 'whiffed', name: 'Whiffed', effect: "Can't sign, draw or throw.", stats: [s(WHIFF_MS), 'From: your interrupt missing'] },
+      { icon: 'fizzled', name: 'Fizzled', effect: "Can't throw. Charge lost.", stats: [s(FIZZLE_LOCK_MS), 'From: a bad drawing or a late throw'] },
+      { icon: 'staggered', name: 'Staggered', effect: "Can't throw or parry.", stats: [s(PARRY_MISS_MS), 'From: a missed parry'] },
+    ],
+  },
+  {
+    name: 'Curses',
+    rows: [
+      { icon: 'doom', name: 'Doomed', effect: `Take ${DOOM_DMG} when it runs out.`, stats: [s(DOOM_MS), `Lift it: throw a spell at ${DOOM_LIFT * 100}%+ power`, 'From: Doom'] },
+      { icon: 'exposed', name: 'Exposed', effect: `Take +${TWILIGHT_EXPOSE * 100}% damage.`, stats: [s(TWILIGHT_MS), 'From: Twilight'] },
+      { icon: 'fog', name: 'Fogged', effect: 'Your attacks miss.', stats: [`${s(STEAM_MS)} or ${STEAM_SHOTS} attacks`, 'From: Steam'] },
+      { icon: 'noHeal', name: 'Grave', effect: 'No healing or armor.', stats: [s(GRAVE.ms), 'From: Grave'] },
+    ],
+  },
+  {
+    name: 'Buffs',
+    rows: [
+      { icon: 'regen', name: 'Regenerating', effect: `Heals ${REGEN.amount} every 0.5 s.`, stats: [`${(REGEN.ticks * 0.5).toString()} s`, 'Ended by a counterspell', 'From: Hourglass'], good: true },
+      { icon: 'aegis', name: 'Aegis', effect: `${AEGIS_HP} armor that soaks direct hits.`, stats: [`Drains ${AEGIS_DRAIN} a second`, 'From: Aegis'], good: true },
+      { icon: 'guard', name: 'Guarded', effect: `Take ${TWILIGHT_GUARD * 100}% less damage.`, stats: [s(TWILIGHT_MS), 'From: Twilight'], good: true },
+      { icon: 'shroud', name: 'Shrouded', effect: "They can't see your charge or drawing.", stats: [s(SHROUD_MS), 'From: Shroud'], good: true },
+    ],
+  },
+]
+/** Every status on one page: its icons as the fight shows them (tap one to read it below). The lockouts share
+ *  one symbol in a fight, so they share one icon here too, and its entry lists every cause. */
+const LOCKOUTS = GROUPS.filter((g) => g.name === "Can't act" || g.name === 'Your mistakes').flatMap((g) => g.rows)
+type Entry = { key: string; icon: RowIcon; good?: boolean; group: string; rows: StatusInfo[]; compact?: boolean }
+const ENTRIES: Entry[] = GROUPS.flatMap((g): Entry[] =>
+  g.name === 'Your mistakes'
+    ? []
+    : g.name === "Can't act"
+      ? [{ key: 'lockouts', icon: 'silenced', group: "Can't act", rows: LOCKOUTS, compact: true }]
+      : g.rows.map((r) => ({ key: r.name, icon: r.icon, good: r.good, group: g.name, rows: [r] })),
 )
-const HURT: StatusInfo[] = [
-  { icon: 'burn', name: 'Burning', lasts: '1.5 s (Magma 5 s, Sunfire 6 s)', does: `Damage every 0.5 s: +${BURN[0]} light, +${BURN[1]} heavy.` },
-  { icon: 'chill', name: 'Chilled', lasts: `${s(CHILL_MS)} light, ${s(CHILL_HEAVY_MS)} heavy`, does: `The next hit on you does +${CHILL[0] * 100}% (light) or +${CHILL[1] * 100}% (heavy).` },
-  { icon: 'static', name: 'Static', lasts: `${STATIC_PULSES[0]} pulse light, ${STATIC_PULSES[1]} heavy`, does: 'Throwing while it is lit fizzles. Wait for the gap.' },
-  { icon: 'storm', name: 'Storm', lasts: `${STORM.count} pulses`, does: `${STORM.pulse} damage a pulse. Throwing in one costs ${STORM.zap}.` },
-]
-const STOPPED: StatusInfo[] = [
-  { icon: 'silenced', name: 'Stunned', lasts: `until their next hit, at most ${s(COUNTER_SILENCE_MS)}`, does: 'Their counterspell caught your element. No casting; your charge is gone.' },
-  { icon: 'silenced', name: 'Frozen', lasts: `up to ${s(PRISON_SILENCE_MS)}`, does: 'Frozen Prison. No casting, whatever your element.' },
-  { icon: 'interrupted', name: 'Interrupted', lasts: s(INTERRUPT_LOCK_MS), does: 'Their interrupt hit you. No signing, drawing or throwing.' },
-  { icon: 'whiffed', name: 'Whiffed', lasts: s(WHIFF_MS), does: 'Your interrupt missed. Locked out.' },
-]
-const STOPPED2: StatusInfo[] = [
-  { icon: 'fizzled', name: 'Fizzled', lasts: s(FIZZLE_LOCK_MS), does: 'A wrong drawing, or a spell not thrown in time. No throws; your charge is gone.' },
-  { icon: 'staggered', name: 'Staggered', lasts: s(PARRY_MISS_MS), does: 'A mistimed parry. No throws and no parries.' },
-  { icon: 'recover', name: 'Parried', lasts: s(PARRY_HIT_MS), does: 'A good parry. A moment before you can throw again.', good: true },
-]
-const CURSES: StatusInfo[] = [
-  { icon: 'doom', name: 'Doomed', lasts: s(DOOM_MS), does: `Throw a spell at ${DOOM_LIFT * 100}% power or higher before it ends, or take ${DOOM_DMG}.` },
-  { icon: 'exposed', name: 'Exposed', lasts: s(TWILIGHT_MS), does: `Twilight. You take +${TWILIGHT_EXPOSE * 100}% damage.` },
-  { icon: 'fog', name: 'Steam', lasts: `${s(STEAM_MS)} or ${STEAM_SHOTS} attacks`, does: 'Your attacks miss.' },
-  { icon: 'noHeal', name: 'Grave', lasts: s(GRAVE.ms), does: 'Nothing heals you or gives you armor. A full-power Heal clears it.' },
-]
-const BUFFS: StatusInfo[] = [
-  { icon: 'regen', name: 'Regenerating', lasts: '2.5 s', does: `+${REGEN.amount} every 0.5 s. A counterspell stops it.`, good: true },
-  { icon: 'aegis', name: 'Aegis', lasts: `until it drains (${AEGIS_DRAIN} a second)`, does: `${AEGIS_HP} armor soaks direct hits first.`, good: true },
-  { icon: 'guard', name: 'Guarded', lasts: s(TWILIGHT_MS), does: `Twilight. You take ${TWILIGHT_GUARD * 100}% less damage.`, good: true },
-  { icon: 'shroud', name: 'Shrouded', lasts: s(SHROUD_MS), does: "They can't see your charge or drawing.", good: true },
-]
+function StatusSpread({ ch }: { ch: { name: string; color: string } }) {
+  const [k, setK] = useState(0)
+  const e = ENTRIES[Math.min(k, ENTRIES.length - 1)]
+  const one = e.rows.length === 1 ? e.rows[0] : null
+  return (
+    <>
+      <div className="book-leaf left status-left">
+        <span className="book-chapter" style={{ background: ch.color }}>{ch.name}</span>
+        <div className="book-status-list" onPointerDown={(ev) => ev.stopPropagation()} onPointerUp={(ev) => ev.stopPropagation()}>
+          <div className="book-status-grid" role="tablist" aria-label="Statuses">
+            {ENTRIES.map((x, j) => (
+              <button key={x.key} role="tab" aria-selected={j === k} aria-label={x.rows.length > 1 ? x.group : x.rows[0].name} className={j === k ? 'on' : ''} onClick={() => setK(j)}>
+                <span className={`st-icon ${x.good ? 'good' : 'bad'}`}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={iconPath(x.icon)} />
+                  </svg>
+                </span>
+              </button>
+            ))}
+          </div>
+          <small className="book-status-note">Shown under each health bar. Red edge hurts you, green helps. Tap one to read it.</small>
+        </div>
+      </div>
+      <div className="book-leaf right status-right" role="tabpanel">
+        {one && <small className="book-status-group">{e.group}</small>}
+        <h2>{one ? one.name : e.group}</h2>
+        {one ? (
+          <>
+            <p className="book-how">{one.effect}</p>
+            <div className="book-chips">
+              {one.stats.map((t) => (
+                <span key={t}>{t}</span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <ul className="book-lockouts">
+            {e.rows.map((r) => (
+              <li key={r.name}>
+                <b>
+                  {r.name} <em>{r.stats[0]}</em>
+                </b>
+                <small>
+                  {r.effect} {r.stats[1]}
+                </small>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  )
+}
 
 const PAGES: Page[] = [
   { ch: 'basics', title: 'Charge', art: <div className="book-signs wrap">{[...ATTACK_ELS, 'A', 'U'].map((l) => <span key={l} className="book-sign-cap" style={{ color: ELEMENTS[l].color }}><Sign l={l} size={68} /><small>{ELEMENTS[l].name}</small></span>)}</div>, how: 'Sign a letter with one hand and hold it.', does: 'Your hand charges with that element. Open all five fingers and hold to drop it.' },
   { ch: 'basics', title: 'Draw', art: <DrawDemo />, how: "Keep holding the letter. Trace a shape with your other hand's index finger.", does: 'Open your signing hand to finish. The yellow dot is one place to start: any start or direction works.' },
-  { ch: 'basics', title: 'Throw', art: <ThrowArt />, how: 'Open your signing hand to a 5, then push it at the camera.', does: `The spell flies. Push within ${s(READY_LIFE_MS)} or it fizzles.` },
-  { ch: 'basics', title: 'Who beats who', art: cycle, how: 'Each element beats the next one, round the circle. Angelic and Unholy beat each other.', does: 'Use the element that beats theirs to counter or interrupt.' },
+  { ch: 'basics', title: 'Throw', art: <ThrowArt />, how: 'Open your signing hand to a 5, then push it at the camera.', does: `Push within ${s(READY_LIFE_MS)} of drawing, or the spell fizzles.` },
+  { ch: 'basics', title: 'Who beats who', art: cycle, how: 'Each element beats the next one, round the circle. Angelic and Unholy beat each other.', does: 'Counter or interrupt with the element that beats theirs.' },
   ...ATTACK_ELS.flatMap((el): Page[] => [
     { ch: 'elements', title: `${ELEMENTS[el].name} light`, color: ELEMENTS[el].color, art: <SignShape signs={[el]} shape="line" color={ELEMENTS[el].color} />, how: `Sign ${el}, draw one line.`, does: ATTACK_DOES[el](0), chips: [`${PUNCH[el][0]} dmg`, 'Fast'] },
     { ch: 'elements', title: `${ELEMENTS[el].name} heavy`, color: ELEMENTS[el].color, art: <SignShape signs={[el]} shape="h" color={ELEMENTS[el].color} />, how: `Sign ${el}, draw an H.`, does: ATTACK_DOES[el](1), chips: [`${PUNCH[el][1]} dmg`, 'Slower'] },
@@ -265,15 +334,11 @@ const PAGES: Page[] = [
         chips: COMBO_DOES[c].dmg ? [`${COMBO_DOES[c].dmg} dmg`] : [],
       }))
     : []),
-  { ch: 'defense', title: 'Counterspell', art: <SignShape signs={['W']} shape={COUNTER} color={ELEMENTS.W.color} />, how: 'They charge Fire? Water beats Fire: sign W, draw a circle, push.', does: `If they still hold the beaten element, they're stunned until your next hit (at most ${s(COUNTER_SILENCE_MS)}). Any element's circle stops a heal.` },
-  { ch: 'defense', title: 'Interrupt', art: <InterruptArt />, how: 'They charge Fire? Sign W and push it at the camera. No drawing.', does: `Their spell fizzles and they're locked out ${s(INTERRUPT_LOCK_MS)}. Miss and you're locked out ${s(WHIFF_MS)}. Can't stop heals.` },
-  { ch: 'defense', title: 'Parry', art: parryArt, how: 'A ring closes in on your hands as a spell flies at you. When it flashes white, push both hands at the camera.', does: `It flies back at half power. You get ${PARRY_WINDOWS.light / 1000} s to push for a light, ${PARRY_WINDOWS.heavy / 1000} s for a heavy, ${PARRY_WINDOWS.signature / 1000} s for a signature.` },
-  { ch: 'status', title: 'Wear', art: wearArt, how: `Power is how strong an element's spells are. At 70%, a 24 damage heavy does 17, and heals, burns and chills shrink the same way.`, does: `A light or Angelic throw takes ${WEAR_STEP * 50}%, anything else ${WEAR_STEP * 100}%, down to ${WEAR_FLOOR * 100}%. It comes back ${WEAR_STEP * 100}% every ${s(WEAR_DECAY_MS)}, so switch elements.` },
-  { ch: 'status', title: 'Burning and slowed', art: <StatusRows rows={HURT} />, how: 'Icons under a health bar, with a bar that runs down with the time left.', does: 'Worn spells give shorter, weaker effects.' },
-  { ch: 'status', title: "Can't act", art: <StatusRows rows={STOPPED} />, how: 'Your hand shows a red ring that drains, and a word saying why.', does: 'Wait it out. The ring is the timer.' },
-  { ch: 'status', title: "Can't act, part 2", art: <StatusRows rows={STOPPED2} />, how: 'Short lockouts from your own mistakes.', does: 'A good parry shows a green shield instead.' },
-  { ch: 'status', title: 'Curses', art: <StatusRows rows={CURSES} />, how: 'Red-edged icons under your health bar.', does: 'A Heal at full Angelic power clears them all.' },
-  { ch: 'status', title: 'Buffs', art: <StatusRows rows={BUFFS} />, how: 'Green-edged icons under your health bar.', does: 'Wear shortens them too, if the spell was worn.' },
+  { ch: 'defense', title: 'Counterspell', art: <SignShape signs={['W']} shape={COUNTER} color={ELEMENTS.W.color} />, how: 'They charge Fire? Water beats Fire: sign W, draw a circle, push.', does: `If they still hold the element yours beats, they're stunned until your next hit, up to ${s(COUNTER_SILENCE_MS)}. Any element's circle stops a heal.`, chips: [`Stun up to ${s(COUNTER_SILENCE_MS)}`, `Needs ${COUNTER_CUTOFF * 100}%+ power`] },
+  { ch: 'defense', title: 'Interrupt', art: <InterruptArt />, how: 'They charge Fire? Sign W and push it at the camera. No drawing.', does: `Their spell fizzles and they can't act for ${s(INTERRUPT_LOCK_MS)}. If it misses, you can't act for ${s(WHIFF_MS)}. Doesn't stop heals.`, chips: [`Lock ${s(INTERRUPT_LOCK_MS)}`, `Miss ${s(WHIFF_MS)}`, `Needs ${COUNTER_CUTOFF * 100}%+ power`] },
+  { ch: 'defense', title: 'Parry', art: parryArt, how: `Push both hands at the camera in the last ${PARRY_WINDOWS.light} ms before a spell hits you.`, does: `Parry timer in the Training dummy shows that moment. Each parry, hit or miss, wears your parry ${WEAR_STEP * 100}%: at 70%, 70% goes back and 30% hits you.`, chips: [`Miss: stagger ${s(PARRY_MISS_MS)}`] },
+  { ch: 'status', title: 'Wear', art: wearArt, how: "Each cast, counters included, weakens that element.", does: `At 70%, a 24 damage heavy does 17. Burns, chills and heals shrink too.`, chips: [`-${WEAR_STEP * 100}% a throw`, `-${WEAR_STEP * 50}% light, Angelic or interrupt`, `Lowest ${WEAR_FLOOR * 100}%`, `+${WEAR_STEP * 100}% every ${s(WEAR_DECAY_MS)}`] },
+  { ch: 'status', title: 'Statuses', art: null, spread: (ch) => <StatusSpread ch={ch} />, how: 'Icons under each health bar. Red edge hurts you, green helps.', does: 'The bar under an icon is its time left. Worn spells give weaker, shorter statuses. A full-power Heal clears curses.' },
 ]
 
 const CHAPTERS: { id: string; name: string; color: string }[] = [
@@ -333,6 +398,8 @@ export function Spellbook({ onHome, inMatch }: { onHome: () => void; inMatch?: b
         }}
       >
         <div className="book-spread" key={i}>
+          {p.spread ? p.spread(ch) : (
+          <>
           <div className="book-leaf left">
             <span className="book-chapter" style={{ background: ch.color }}>{ch.name}</span>
             {p.art}
@@ -349,6 +416,8 @@ export function Spellbook({ onHome, inMatch }: { onHome: () => void; inMatch?: b
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       </section>
       <div className="book-nav">

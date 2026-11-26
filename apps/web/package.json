@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sim": "esbuild scripts/ladder-sim.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/ladder-sim.mjs && node node_modules/.cache/ladder-sim.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.14",
