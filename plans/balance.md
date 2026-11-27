@@ -560,3 +560,16 @@ circle and its closed-loop fallback are gone. Bots draw it a little slower: 900 
 500). Against every other spell: counters land about 150-200 ms later, so heavies and signatures are a touch
 safer to throw; quick interrupts (no drawing) are unchanged and become the relatively faster answer to lights.
 No other shape passes the rule (plain circle, horizontal/vertical lines, half circle, hourglass, cage tested).
+
+### Feints: bots bail, remember, punish and bait (Nov 27; plans/feints.md)
+Every rung from Pip up: drops its counter when you drop yours, waits longer after you bait it, a quick light on
+your fizzle, baits with heavies it drops late, and dodges only a counter that would land first. Dodge now from
+Pip (3%) up; Rook 0 -> 15%, Gideon 5 -> 20%, Tamsin 15 -> 25%. Bots now start their stroke when drawing starts
+(not at the sign), so dodges and baits read real drawings, in the sims too.
+Ladder sim, 40 games, feints on / off (noise about +-15%): order kept. Morwen vs Brother Alden 50 / 35%, Gideon vs
+Rook 93 / 80%, Lady Glass vs Tamsin 57 / 75% (gap narrowed: Tamsin's dodge and bail went up the most), Archwizard
+vs Lady Glass 48 / 53% (near even before too). Duo sim, 48 games, reference table: every floor at or a little
+under its 1v1 pair (floor 6 40 / 60%, floor 7 50 / 65%, the rest within noise). Scripted feinter (80% feints, 10 min)
+vs Lady Glass: 17 of its counters bailed, 17 wasted; Old Bram: 0 bailed, 18 wasted.
+Then Tamsin's dodge 0.25 -> 0.15 (back to before). Ladder sim, 60 games: Lady Glass vs Tamsin 68%, Archwizard vs
+Lady Glass 67%, Tamsin vs Gideon 83%; order kept, every floor 48-98% over the one below.

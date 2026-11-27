@@ -9,7 +9,13 @@
 // hooks (arena.push/stroke) aren't called, so the bots' "read your habits" memory stays empty on both sides.
 // It measures bot vs bot, not how a person feels a floor: proof of order, not of difficulty.
 import { Combat } from '../src/combat'
-import { LADDER, PracticeArena, type Difficulty } from '../src/battle'
+import { AI, LADDER, PracticeArena, type Difficulty } from '../src/battle'
+
+// FEINTS=off: the feint package switched off (plans/feints.md), with the old dodge numbers, to compare against.
+if (process.env.FEINTS === 'off') {
+  const oldDodge: Record<string, number> = { magus: 0.05, archmage: 0.15, lich: 0.32, ascendant: 0.38 }
+  for (const [k, st] of Object.entries(AI)) Object.assign(st, { bail: 0, feintRead: 0, fizzlePunish: 0, feint: 0, dodge: oldDodge[k] ?? 0 })
+}
 
 let clock = 0
 Object.defineProperty(globalThis, 'performance', { value: { now: () => clock }, configurable: true })

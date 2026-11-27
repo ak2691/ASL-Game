@@ -1,5 +1,6 @@
 // Messages between the browser and the game server (one WebSocket per player, JSON).
 import type { CombatView, Fid, Side } from './combat'
+import type { BotInfo } from './duo'
 
 export const ROOM_MAX = 4 // up to 2 per team
 export const TEAM_MAX = 2
@@ -8,8 +9,9 @@ export const HP_MAX = 700 // Nov 25: was 600
 
 export type ClientMsg =
   | { t: 'hello'; token: string } // first message: who you are (kept across refreshes, so you can rejoin)
-  | { t: 'create' }
-  | { t: 'join'; code: string }
+  | { t: 'create'; progress?: number; duo?: boolean } // duo: a Duo Tower room (from the Tower page); progress: its floors you've cleared
+  | { t: 'join'; code: string; progress?: number; duo?: boolean } // duo: joining from the Tower page (Duo Tower codes only)
+  | { t: 'floor'; floor: number } // host only: the Duo Tower floor to fight
   | { t: 'ready' }
   | { t: 'unready' } // take back Ready (lobby only)
   | { t: 'leave' }
@@ -42,12 +44,18 @@ export interface SeatInfo {
   here: boolean // connected
 }
 
+/** A Duo Tower room: the floor picked, and the highest one anyone in the room may pick. */
+export interface DuoRoom {
+  floor: number
+  unlocked: number
+}
+
 export type ServerMsg =
   | { t: 'welcome'; resumed: boolean } // resumed = you were put back into your room
-  | { t: 'lobby'; code: string; seats: SeatInfo[]; you: number; host: number } // host = the seat that sets HP
+  | { t: 'lobby'; code: string; seats: SeatInfo[]; you: number; host: number; duo?: DuoRoom | null } // host = the seat that sets HP; duo = a Duo Tower room
   | { t: 'countdown'; ms: number }
   | { t: 'start' }
-  | { t: 'state'; view: CombatView; paused: boolean } // from your point of view: you are 'player', your team is 'player'
+  | { t: 'state'; view: CombatView; paused: boolean; conn?: Record<Fid, 'away' | 'left'>; bots?: Record<Fid, BotInfo> } // from your point of view: you are 'player', your team is 'player'. conn: fighters whose player is disconnected or gone
   | { t: 'opp'; from: Fid; ev: OppEvent } // another fighter's casting, by their id as you see them
   | { t: 'away'; ms: number } // someone disconnected; they have this long to come back
   | { t: 'back' } // ...and they're back

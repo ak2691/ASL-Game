@@ -16,7 +16,7 @@ const SLIDE_OUT_MS = 180 // matches page-slide-out in App.css
 
 export default function App() {
   // A refresh goes back home, except mid online room (the server puts you back in your seat).
-  const [mode, setMode] = useState<Mode | 'guide' | 'privacy' | null>(() => (getOnlineFlag() ? 'online' : null))
+  const [mode, setMode] = useState<Mode | 'guide' | 'privacy' | null>(() => getOnlineFlag())
   // Every page change: the old screen slides out first, then the new one slides in (TETR.IO-style); the
   // background stays put.
   const slideTo = (m: Mode | 'guide' | 'privacy' | null) => {
@@ -39,7 +39,8 @@ export default function App() {
       ) : mode === 'privacy' ? (
         <PrivacyPage onHome={() => slideTo(null)} />
       ) : mode ? (
-        <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => slideTo(null)} />
+        // onMode is the Tower's Solo / Duo switch: you stay in the tower, so it swaps at once (no slide; Nov 27).
+        <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => slideTo(null)} onMode={(m) => setMode(m)} />
       ) : (
         <Home slideTo={slideTo} />
       )}
@@ -84,7 +85,7 @@ function Home({ slideTo }: { slideTo: (m: Mode | 'guide' | 'privacy') => void })
 const ICON = { fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
 /** The home menu, in order. Practice AI is "The Tower" (its floors are the ladder); Online is "Duel". */
 const MODES: { mode: Mode; name: string; line: string; icon: React.ReactNode }[] = [
-  { mode: 'practice', name: 'The Tower', line: 'Climb 13 floors of wizards', icon: <Portrait id="ascendant" /> },
+  { mode: 'practice', name: 'The Tower', line: 'Climb its floors alone or with a friend', icon: <Portrait id="ascendant" /> },
   {
     mode: 'online',
     name: 'Duel',

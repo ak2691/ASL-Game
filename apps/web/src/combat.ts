@@ -145,6 +145,13 @@ export const FLY_MS = { light: 320, heavy: 700, signature: 850 }
 const COMBO_FLY_MS = 900
 /** Counters are already hard to land, so they fly faster: the counterspell 2×, the quick interrupt 3×. */
 const flyMs = (shape: string, tier: keyof typeof FLY_MS, el: string) => (shape === COUNTER ? 240 : shape === QUICK ? 160 : el in COMBO_CHARGES ? COMBO_FLY_MS : FLY_MS[tier])
+/** How long a spell flies before it lands (Duo Tower: a pair times its landings, not its throws). */
+export function flightOf(el: string, shape: string) {
+  if (el === 'glacier') return GLACIER_MS
+  const p = PUNCHES.indexOf(shape)
+  const tier: keyof typeof FLY_MS = p === 0 || shape === QUICK ? 'light' : p === 1 || shape === COUNTER || el === 'A' || !shape ? 'heavy' : 'signature'
+  return flyMs(shape, tier, el)
+}
 /** How long before impact a parry catches this spell. */
 export const parryMs = (b: Pick<Bolt, 'tier' | 'el' | 'reflected'>) => (b.reflected ? PARRY_WINDOW_MS : b.el in COMBO_CHARGES ? PARRY_WINDOWS.combo : PARRY_WINDOWS[b.tier])
 
@@ -604,6 +611,11 @@ export class Combat {
     else if (shape && c) this.note(side, 'Fizzle', `${chargeInfo(c.el).name} can't use ${FORMS[shape] ?? shape}`, '#888', false, now)
     this.fizzle(side, now)
     return null
+  }
+
+  /** When `side`'s current stroke started (null = not drawing). The AI reads this the way you see a drawing begin. */
+  strokeSince(side: Fid): number | null {
+    return this.strokeStart[side] ?? null
   }
 
   /** A stroke too short to count ended (the next stroke starts its own clock). */

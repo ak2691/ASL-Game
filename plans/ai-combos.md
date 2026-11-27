@@ -33,7 +33,7 @@ New bosses always sit after Lich (see "Characters" below).
 
 ## Fairness
 - It signs every letter like you do (C, then each element, each held), so its combos are visible and counterable.
-- Same rules as the player (skills.md): no spamming one combo, never twice in a row.
+- Same rules as the player (`AI Difficulty.md`): no spamming one combo, never twice in a row.
 
 ## Characters (pick a direction)
 1. **Keep the ladder, add one finale**: Adept to Lich gain combos gradually as above, plus one new last boss with the full kit.

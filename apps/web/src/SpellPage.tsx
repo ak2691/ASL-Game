@@ -14,7 +14,7 @@ import { Tower, chatLine } from './Ladder'
 import { DummyArena, LADDER, PracticeArena, beaterOf, dummyTimes, wizardCastMs, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
 import { HAND_ICONS, HAND_WORDS } from './statusIcons'
 import { BoltLayer, Impacts, ParryRings, StatusFx, StatusRow, canActState, setLocalBoltClock, useShake } from './effects'
-import { INTERRUPT_LOCK_MS, PARRY_WEAR, PARRY_WINDOW_MS, type Bolt, type Fid } from './combat'
+import { INTERRUPT_LOCK_MS, PARRY_WEAR, PARRY_WINDOW_MS, type Bolt, type Fid, type Side } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
@@ -23,8 +23,10 @@ import { DummySpells } from './DummySpells'
 import { BOOK, GEAR, HomeButton, Icon } from './HomeCorner'
 
 const RESET = 'M3 12a9 9 0 1 0 3-6.7 M3 4v5h5'
-import { OnlineArena, setOnlineFlag, type LobbyInfo } from './online'
+import { OnlineArena, duoProgress, setOnlineFlag, type LobbyInfo } from './online'
 import { Tutorial } from './Tutorial'
+import { DuoTower } from './DuoTower'
+import { DUO_CHARS, DUO_TOP, duoLine, type BotInfo } from './duo'
 
 // ?debug: cast with buttons, no camera needed. Local dev server only (npm run dev): the deployed build
 // drops it, since its cast buttons skip signing.
@@ -96,7 +98,6 @@ const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignore
 const MATCH_SCORE = 0.7 // network probability needed to count as a shape
 const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const PARRY_FLASH_MS = 800 // "Reflected" / "Destroyed" stays on your hand this long
-const MESSAGE_MS = 1500 // a failed-cast message (fizzle, missed parry) shows this long, or while its lock lasts
 const CIRCLE_SCORE = 0.5 // the counterspell (circle + diagonal line) is judged by a rule in shapes.ts
 const DROPOUT_MS = 150
 const REHOLD_MS = 100 // ...or keep holding it this long after the throw (charges again without letting go). Was 400; a whiffed interrupt now carries the spam cost
@@ -184,15 +185,7 @@ function splitHands(hands: NormalizedLandmark[][], handed: Handed[], signHand: H
   return isSign ? { sign: h, draw: null } : { sign: null, draw: h }
 }
 
-interface Cast {
-  name: string
-  detail: string
-  color: string
-  ok: boolean
-  t: number
-}
-
-export type Mode = 'dummy' | 'practice' | 'online' | 'tutorial'
+export type Mode = 'dummy' | 'practice' | 'online' | 'tutorial' | 'duo' // duo: the Tower with a partner (online, against the pairs)
 
 /** Two enemies (training dummy): where the throwing hand is on screen picks the target (Overview.md, "Team modes"). */
 type Zone = 'left' | 'right'
@@ -203,7 +196,8 @@ const MAJORITY_SWITCH = 0.6 // share of the hand that must be on the other side 
 /** A team card's spells: what it threw or what hit it (heals only on whoever they healed). */
 const cardBolts = (bolts: Bolt[], id: Fid) => bolts.filter((b) => (b.kind === 'heal' ? b.to === id : b.to === id || b.by === id))
 
-export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHome: () => void }) {
+export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mode; onHome: () => void; onMode?: (m: Mode) => void }) {
+  const net = mode === 'online' || mode === 'duo' // the fight runs on the game server
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [status, setStatus] = useState('Loading hand tracking and letter model…')
@@ -216,7 +210,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   const [seeing, setSeeing] = useState('')
   const [drawing, setDrawing] = useState(false)
-  const [log, setLog] = useState<Cast[]>([])
   const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave' | 'dummy' | 'forfeit'>(null)
   const menuRef = useRef(menu)
   menuRef.current = menu
@@ -343,13 +336,15 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const readyName = fight.ready.player && spellName(fight.ready.player.el, fight.ready.player.shape)
   const seenNotes = useRef(new Set<number>())
   const parryFlash = useRef<{ text: string; t: number } | null>(null) // your last landed parry, shown on your hand
+  const parryMiss = useRef<string | null>(null) // your last missed parry's "Too early" / "Too late" (parry timer on), shown under the stagger ring
+  const parryTimerRef = useRef(false)
   // Shake the half a spell lands on (see effects.tsx).
   const youRef = useRef<HTMLDivElement>(null)
   const oppRef = useRef<HTMLDivElement>(null)
   const sideRefs = useRef({ player: youRef, enemy: oppRef }).current
-  setLocalBoltClock(mode !== 'online')
+  setLocalBoltClock(!net)
   useShake(fight.running && !fight.over ? fight.bolts : NO_BOLTS, sideRefs)
-  useFightSfx(fight, 'player', mode === 'practice' || mode === 'online')
+  useFightSfx(fight, 'player', mode === 'practice' || net)
   const [lobby, setLobby] = useState<LobbyInfo | null>(null)
   const [clock, setClock] = useState(0)
   const charge = shownCharge(clock, fight.charge.player)
@@ -360,6 +355,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     let enemyPts = 0
     let enemyDrewAt = -1e9
     let drawnAt = -1e9
+    let wasOver = false
     const id = setInterval(() => {
       const t = performance.now()
       const snap = arena.current.update(t)
@@ -369,6 +365,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       const redraw = !menuRef.current || t - drawnAt >= MENU_REDRAW_MS
       if (redraw) drawnAt = t
       if (redraw) setFight(snap)
+      // Practice: the result screen turns on in the same render that ends the fight (a render later, the
+      // tower would flash in between).
+      if (snap.over && !wasOver && mode === 'practice') setReview(true)
+      wasOver = !!snap.over
       const ec = snap.running && !(snap.shroud.enemy > 0) ? snap.enemyCast : null
       const n = ec?.phase === 'draw' || ec?.phase === 'ready' ? ec.points.length : 0
       if (n > enemyPts) enemyDrewAt = t
@@ -379,12 +379,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
       // Silenced or knocked off (the server says so): the guessed charge goes at once, no waiting.
       if (snap.silenced.player > 0 || snap.knocked.player !== knockedRef.current) predicted.current = null
       knockedRef.current = snap.knocked.player
-      // Your cast log: what the fight says your casting did.
+      // What the fight says your casting did (parry results go on your hand).
       const fresh = snap.notes.filter((n) => n.side === 'player' && !seenNotes.current.has(n.id))
       if (redraw) seenNotes.current = new Set(snap.notes.map((n) => n.id)) // between menu redraws, notes wait
       const pr = fresh.find((n) => n.name === 'Reflected!' || n.name === 'Destroyed!')
       if (pr && redraw) parryFlash.current = { text: pr.name.slice(0, -1), t }
-      if (fresh.length && redraw) setLog((l) => [...fresh.reverse().map((n) => ({ name: n.name, detail: n.detail, color: n.color, ok: n.ok, t: t })), ...l].slice(0, 8))
+      const pm = fresh.find((n) => n.name === 'Parry missed')
+      if (pm && redraw) parryMiss.current = pm.detail.startsWith('Too ') ? pm.detail.split(',')[0] : null
       if (!redraw) return
       setLobby(online.current ? { ...online.current.info } : null)
       setClock(t)
@@ -404,10 +405,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   const goOnline = () => {
     online.current?.close()
-    online.current = new OnlineArena()
+    online.current = new OnlineArena(mode === 'duo')
     arena.current = online.current
   }
-  const inRoom = mode === 'online' && !!lobby?.code
+  const inRoom = net && !!lobby?.code
   // When the last match ended (the result shows a moment before the lobby comes back).
   const overAt = useRef(0)
   const lastOver = useRef<string | null>(null)
@@ -437,11 +438,11 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   // Duel: the camera turns on only in the arena (countdown or fight), never in the lobby, Ready included.
   useEffect(() => {
-    if (mode === 'online' && !camOn && (lobby?.phase === 'countdown' || lobby?.phase === 'fighting')) turnOnCamera()
+    if (net && !camOn && (lobby?.phase === 'countdown' || lobby?.phase === 'fighting')) turnOnCamera()
   }, [lobby?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
   const lastTick = useRef(0)
   const secsLeft = (ends: number | null | undefined) => (ends ? Math.max(0, Math.ceil((ends - clock) / 1000)) : 0)
-  const onlineEnds = mode === 'online' && lobby?.phase === 'countdown' ? lobby.countdownEnds : null
+  const onlineEnds = net && lobby?.phase === 'countdown' ? lobby.countdownEnds : null
   useEffect(() => {
     const left = secsLeft(countdownEnds ?? onlineEnds)
     if (left > 0 && left !== lastTick.current) play('countdown_tick', { vol: 0.6 })
@@ -456,7 +457,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }, [clock]) // eslint-disable-line react-hooks/exhaustive-deps
   const inPracticeMatch = mode === 'practice' && fight.running
   useEffect(() => {
-    if (mode === 'online') goOnline()
+    if (net) goOnline()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once, on open (mode never changes: the page is keyed by it)
   // Aiming with the zone your signing hand is in. Two enemies: left zone the left one, right zone the right one.
   // With a teammate, heals and buffs: your signing hand's own side is you, the other side your teammate.
@@ -568,7 +569,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             // lost), so a botched spell can't fall back to an instant quick interrupt.
             arena.current.drew(null)
             fade = { pts, color: '#888', t: now }
-            setLog((l) => [{ name: 'Fizzle', detail: 'Too short', color: '#888', ok: false, t: now }, ...l].slice(0, 8))
             return
           }
           const m = recognizeShape(shapeModel, pts)
@@ -603,9 +603,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           arena.current.drew(shape)
           const fits = shape && el && isValidSpell(el, shape)
           fade = { pts, color: fits ? chargeInfo(el).color : '#888', t: now }
-          if (!shape) log({ name: 'Fizzle', detail: m.name === 'none' ? 'Not a spell shape' : 'Shape unclear', color: '#888', ok: false, t: now })
         }
-        const log = (c: Cast) => setLog((l) => [c, ...l].slice(0, 8))
 
         const loop = async () => {
           if (stopped) return
@@ -658,6 +656,9 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           const shapeLm = lm && trueShape(lm, W, H)
           const view = fightRef.current
           const myCharge = shownCharge(now, view.charge.player)
+          // No match running (the tower before a fight, lobbies, after a match): free drawing. Any sign puts the pen
+          // down, the line is white, an open hand wipes it, and nothing is charged, cast or sent to the fight (Nov 27).
+          const idle = !view.running
           // A new charge: forget earlier hand movement, so raising your hand to sign isn't read as a
           // push. Only a push that starts after the charge throws (e.g. a quick interrupt).
           if (myCharge !== lastCharge) {
@@ -707,8 +708,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           // The signing hand holding an element letter (or C) = pen down, open hand = pen up.
           // Only while charged with nothing readied, and both hands in view.
           {
-            const can = !!myCharge && !myReady && !silenced && !mixing
-            const holdingType = pred !== null && pred.confidence >= CHARGE_PROB && (!!ELEMENTS[pred.letter] || (pred.letter === COMBO && COMBOS_ON))
+            const can = idle || (!!myCharge && !myReady && !silenced && !mixing)
+            const holdingType = pred !== null && pred.confidence >= CHARGE_PROB && (idle || !!ELEMENTS[pred.letter] || (pred.letter === COMBO && COMBOS_ON))
             const signOpen = !!shapeLm && isOpen(shapeLm, false)
             const want = can && (penDown ? !signOpen : holdingType && !signOpen)
             if (!can) {
@@ -785,7 +786,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               ctx.stroke(new Path2D(HAND_ICONS[cs.k]))
               ctx.restore()
               // The cause, in the theme's title font, under the ring.
-              const word = HAND_WORDS[cs.k]
+              const word = cs.k === 'staggered' && parryTimerRef.current && parryMiss.current ? parryMiss.current : HAND_WORDS[cs.k]
               if (word) {
                 ctx.save()
                 ctx.translate(cx, cy + r + 0.03 * W)
@@ -883,7 +884,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             const k = Math.max(cw / W, ch / H) // object-fit: cover
             const vw = cw / k
             const vh = ch / k
-            arena.current.stroke([{ x: (W - pen.x - (W - vw) / 2) / vw, y: (pen.y - (H - vh) / 2) / vh }], vw / vh)
+            if (!idle) arena.current.stroke([{ x: (W - pen.x - (W - vw) / 2) / vw, y: (pen.y - (H - vh) / 2) / vh }], vw / vh)
             const palmPx = Math.hypot((penHand[0].x - penHand[9].x) * W, (penHand[0].y - penHand[9].y) * H)
             palmSum += palmPx
             // Drawing sound: the pencil gets louder the faster the fingertip moves (a still finger is silent).
@@ -897,14 +898,19 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
             pencil('me', 0)
           }
           // Charge gone (open palm, knocked off, silenced) = the drawing is dropped, no fizzle.
-          if (stroke.length && !myCharge) {
+          if (stroke.length && !myCharge && !idle) {
             stroke = []
             palmSum = 0
             setDrawing(false)
             arena.current.cleared()
           }
           // The signing hand opened (pen up), or the drawing hand has been gone TWO_LOST_MS.
-          if (stroke.length && (!pointing || now - lastPointT > TWO_LOST_MS)) {
+          if (stroke.length && idle && (!pointing || now - lastPointT > TWO_LOST_MS)) {
+            // Free drawing: the open hand just wipes it.
+            stroke = []
+            palmSum = 0
+            setDrawing(false)
+          } else if (stroke.length && (!pointing || now - lastPointT > TWO_LOST_MS)) {
             finishStroke(now)
             // The open hand that ended the stroke doesn't drop the charge until it changes, unless the stroke
             // was only a dot.
@@ -952,7 +958,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                 stroke = []
                 palmSum = 0
                 setDrawing(false)
-                arena.current.cleared()
+                if (!idle) arena.current.cleared()
               }
               if (now - parryAt > PARRY_COOLDOWN_MS) {
                 parryAt = now
@@ -1098,12 +1104,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
     }
   }, [hand, camOn])
 
-  // A new match starts with a clean cast log (last match's "Knocked down!" mustn't linger).
-  useEffect(() => {
-    if (fight.running) setLog([])
-  }, [fight.running])
-  const latest = log[0]
-  const oppName = mode === 'online' ? 'Opponent' : mode === 'dummy' || mode === 'tutorial' ? 'Training dummy' : LADDER.find((b) => b.id === difficulty)?.name ?? 'Enemy'
+  const oppName = net ? 'Opponent' : mode === 'dummy' || mode === 'tutorial' ? 'Training dummy' : LADDER.find((b) => b.id === difficulty)?.name ?? 'Enemy'
   const teamOf = (id: Fid) => fight.fighters.find((f) => f.id === id)?.team ?? id
   // A stopped or finished fight shows no effects (statuses, armor, spells in flight): ending a match clears them at once.
   const fxOn = fight.running && !fight.over
@@ -1118,6 +1119,12 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   // The fighter's frame (Nov 26): the name and status icons on one row, then the health bar. The charge is
   // written inside the bar (a word, so it reads without telling colors apart) and the bar glows its color.
+  /** Written in a team fighter's empty HP bar: OUT (knocked out, or gone for good after a drop), or the
+   *  seat countdown while their player is reconnecting. */
+  const barTag = (side: Fid) => {
+    if (fight.conn?.[side] === 'away') return lobby?.awayUntil != null ? `Reconnecting ${Math.max(0, Math.ceil((lobby.awayUntil - clock) / 1000))} s` : 'Reconnecting'
+    return isTeam && fight.hp[side] <= 0 ? 'OUT' : null
+  }
   const fighterHead = (side: Fid, name?: string) => {
     const ch = chargeOf(side)
     const glow = ch.el === '?' ? ELEMENTS.U.color : ch.el ? chargeInfo(ch.el).color : undefined
@@ -1141,6 +1148,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           style={{ width: `${fight.maxHp[side] === Infinity ? 100 : (100 * fight.hp[side]) / fight.maxHp[side]}%`, background: armorOf(side) > 0 ? 'var(--armor-hp)' : teamOf(side) === 'player' ? 'var(--you)' : 'var(--foe)' }}
         />
         <ArmorBar hp={fight.hp[side]} max={fight.maxHp[side]} armor={armorOf(side)} />
+        {barTag(side) && <span className="hp-out">{barTag(side)}</span>}
         {words && (
           // At the bar's right end (the part that empties first). Three lengths; the bar's width picks one.
           <span className={`hp-charge ${words.len}`}>
@@ -1169,9 +1177,15 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   // Team modes.
   const tf = fight as TeamSnapshot
-  const online2 = mode === 'online' && fight.fighters.length > 2 // an online team match (1v2, 2v1, 2v2)
+  // The Tower's Duo between fights (after the result has shown): the tower and its room panel, laid out like
+  // the solo tower (not the last fight's 2v2 cards).
+  // Before the online arena is attached (first frames), `fight` is the placeholder dummy's and counts as idle:
+  // otherwise the bare arena with HP bars flashes before the tower.
+  const duoIdle = mode === 'duo' && !(fight.running && arena.current === online.current) && lobby?.phase !== 'countdown' && lobby?.phase !== 'fighting' && !(lobby?.phase === 'over' && clock - overAt.current <= RESULT_MS)
+  const online2 = net && fight.fighters.length > 2 && !duoIdle // an online team match (1v2, 2v1, 2v2)
   const isTeam = ((mode === 'dummy' || mode === 'tutorial') && twoFoes) || online2
   const parryTimer = mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam // the parry rings (and Too early / Too late on a miss)
+  parryTimerRef.current = parryTimer
   const foes = isTeam ? fight.fighters.filter((f) => f.team === 'enemy').map((f) => f.id) : []
   const allies = isTeam ? fight.fighters.filter((f) => f.team === 'player' && f.id !== 'player').map((f) => f.id) : []
   sidesRef.current = { foes, allies }
@@ -1179,6 +1193,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   const nameOf = (id: Fid) => {
     if (id === 'player') return 'You'
     if (id.startsWith('ally')) return 'Teammate'
+    const bot = tf.bots?.[id]
+    if (bot) return DUO_CHARS[bot.who]?.name ?? 'Wizard'
     if (!online2) return id === 'enemy' ? 'Left dummy' : 'Right dummy'
     return foes.length < 2 ? 'Opponent' : id === 'enemy' ? 'Left foe' : 'Right foe'
   }
@@ -1210,7 +1226,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         </div>
         {fxOn && <StatusFx side={id} view={fight} />}
         {fxOn && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
-        {out && <b className="out-tag">Out</b>}
       </div>
     )
   }
@@ -1223,13 +1238,13 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
         <EnemyCanvas cast={shrouded ? null : cast} zoom />
         <div className="side-hud" ref={watchHud}>
           {fighterHead(id, nameOf(id))}
+          {tf.bots?.[id] && chatter && <BotBubble who={tf.bots[id].who} say={tf.bots[id].say} />}
           <div className="hud-row">
             <OppStatus fight={fight} id={id} cast={cast} hint={mode === 'dummy' && aids.hint} />
           </div>
         </div>
         {fxOn && <StatusFx side={id} view={fight} />}
         {fxOn && <Impacts side="enemy" bolts={cardBolts(fight.bolts, id)} />}
-        {out && <b className="out-tag">Out</b>}
       </div>
     )
   }
@@ -1264,7 +1279,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   }
   const floorIdx = LADDER.findIndex((b) => b.id === difficulty)
   const nextFloor = fight.over === 'player' && floorIdx >= 0 && floorIdx < LADDER.length - 1 ? LADDER[floorIdx + 1].id : null
-  const showResult = !!result && (mode === 'practice' ? review && !countdownEnds : mode === 'online' && lobby?.phase === 'over')
+  const showResult = !!result && (mode === 'practice' ? review && !countdownEnds : net && lobby?.phase === 'over' && clock - overAt.current <= RESULT_MS)
   // Online: the lobby screen covers the arena except during the countdown and the fight (and the result,
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
@@ -1310,7 +1325,7 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
   return (
     <main className="page duel-page">
       <div className="corner-bar">
-        {mode === 'online' && lobby && !showLobby && <OnlineChip lobby={lobby} clock={clock} arena={online.current} onForfeit={askForfeit} />}
+        {net && lobby && !showLobby && (mode === 'online' || lobby.phase === 'countdown' || lobby.phase === 'fighting') && <OnlineChip lobby={lobby} clock={clock} arena={online.current} onForfeit={askForfeit} />}
         {/* One small round button (Home is inside the menu): the corner stays clear of the fight. */}
         <button className="small icon-btn menu-btn" onClick={() => setMenu('main')} title="Menu (Esc)" aria-label="Menu">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1383,12 +1398,6 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           ) : (
             status && <p className="status side-status">{status}</p>
           )}
-          {latest && !latest.ok && (!LOCK_NOTES.has(latest.name) || (parryTimer && latest.detail.startsWith('Too '))) && clock - latest.t < MESSAGE_MS && (
-            <div className="cast stage-overlay" key={latest.t} style={{ color: latest.color }}>
-              {latest.name}
-              <span>{latest.detail}</span>
-            </div>
-          )}
           {fxOn && <StatusFx side="player" view={fight} />}
           {fxOn && <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />}
           {fxOn && parryTimer && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
@@ -1429,8 +1438,10 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
           {mode === 'tutorial' && <Tutorial notes={fight.notes} onHome={goHome} drawHand={drawHand} onTry={tutorialTry} />}
           {/* Practice: picking an opponent, you're inside the tower (brick walls fill this half). It fades out as the fight starts. */}
           {mode === 'practice' && <div className={`tower-room ${fight.running || review ? '' : 'on'}`} aria-hidden="true" />}
+          {mode === 'duo' && <div className={`tower-room ${duoIdle ? 'on' : ''}`} aria-hidden="true" />}
           {mode === 'practice' && !fight.running && !review && (
-            <div className={`stage-center ${countdownEnds ? 'leaving' : ''}`}>
+            <div className={`stage-center solo-stage ${countdownEnds ? 'leaving' : ''}`}>
+              {onMode && !countdownEnds && <TowerSwitch duo={false} onPick={() => onMode('duo')} />}
               <Tower value={difficulty} onPick={setDifficulty} />
               {countdownEnds ? (
                 <b className="countdown">{secsLeft(countdownEnds) || 1}</b>
@@ -1439,7 +1450,21 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
               )}
             </div>
           )}
-          {mode === 'online' && !fight.running && (
+          {duoIdle && (
+            <div className="stage-center duo-stage">
+              {onMode && (
+                <TowerSwitch
+                  duo
+                  onPick={() => {
+                    leaveOnline()
+                    onMode('practice')
+                  }}
+                />
+              )}
+              <DuoPanel lobby={lobby} arena={online.current} joinCode={joinCode} setJoinCode={setJoinCode} lastOver={fight.over} onReconnect={goOnline} />
+            </div>
+          )}
+          {net && !fight.running && !duoIdle && (
             <div className="stage-center">
               {lobby?.phase === 'countdown' && <b className="countdown">{Math.max(1, Math.ceil(((lobby.countdownEnds ?? clock) - clock) / 1000))}</b>}
             </div>
@@ -1542,8 +1567,8 @@ export function SpellPage({ hand, mode, onHome }: { hand: Hand; mode: Mode; onHo
                 ? 'You’ll forfeit this fight and lose your spot in the room.'
                 : `You’ll leave room ${lobby?.code ?? ''}. Rejoin with the code if you change your mind.`}
             </p>
-            <button onClick={goHome}>Leave</button>
-            <button onClick={() => setMenu('main')}>Stay</button>
+            <button className="btn-forfeit" onClick={goHome}>Leave</button>
+            <button className="btn-stay" onClick={() => setMenu('main')}>Stay</button>
           </div>
         </div>
       )}
@@ -1634,7 +1659,6 @@ function ArmorBar({ hp, max, armor }: { hp: number; max: number; armor: number }
 /** Notes for "can't act" moments: the symbol on your hand says it, not the message line. (A fizzle keeps its
  *  line: it says why the drawing failed.) */
 const MENU_REDRAW_MS = 250 // while a menu is open, the page behind it redraws at most this often
-const LOCK_NOTES = new Set(['Parry missed', 'Interrupted!', 'Whiffed!']) // with the parry timer on, a missed parry still shows "Too early" / "Too late"
 
 const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U', PARRY_WEAR]
 /** Wear: only the worn elements ("F42"), packed from the left, in room that always fits all 8 (one row on a
@@ -1696,6 +1720,29 @@ function OppStatus({ fight, id = 'enemy', cast, hint: showHint }: { fight: Snaps
     </div>
   )
 }
+
+/** A Duo Tower bot's line, as a bubble under its name (like a tower bot's), gone after a few seconds. */
+const BotBubble = memo(
+  function BotBubble({ who, say }: { who: string; say: BotInfo['say'] }) {
+    const [shown, setShown] = useState<{ text: string; n: number } | null>(null)
+    const n = say?.n ?? 0
+    useEffect(() => {
+      if (!say || !n) return
+      const text = duoLine(who, say.key, say.i ?? 0)
+      if (!text) return
+      setShown({ text, n })
+      play('ui_click', { vol: 0.35, pitch: 1.7 })
+      const t = setTimeout(() => setShown((b) => (b?.n === n ? null : b)), say.key === 'win' || say.key === 'lose' ? 5000 : 3500)
+      return () => clearTimeout(t)
+    }, [n]) // eslint-disable-line react-hooks/exhaustive-deps
+    return shown ? (
+      <p className="chat-bubble" key={shown.n}>
+        {shown.text}
+      </p>
+    ) : null
+  },
+  (a, b) => a.who === b.who && (a.say?.n ?? 0) === (b.say?.n ?? 0),
+)
 
 const RESULT_MS = 3500 // the result shows this long before the lobby comes back
 
@@ -1790,17 +1837,26 @@ function FlagIcon() {
   )
 }
 
+const TOAST_MS = 4000 // an online notice shows this long
+
 /** During a match: the room code and Forfeit in the corner by Esc, and notices as a small toast. */
 function OnlineChip({ lobby, clock, arena, onForfeit }: { lobby: LobbyInfo; clock: number; arena: OnlineArena | null; onForfeit: () => void }) {
   const f = lobby.forfeit
-  const notice =
-    f && !f.mine
+  // The card of whoever dropped shows the countdown, so this is a heads-up that fades. A teammate's forfeit
+  // vote and a paused fight stay up: they need you or explain a frozen screen.
+  const kind = f && !f.mine ? 'forfeit' : lobby.awayUntil !== null ? 'away' : lobby.paused ? 'paused' : lobby.note ? `note:${lobby.note}` : ''
+  const seen = useRef({ kind: '', at: 0 })
+  if (seen.current.kind !== kind) seen.current = { kind, at: clock }
+  const fresh = kind === 'forfeit' || kind === 'paused' || clock - seen.current.at < TOAST_MS
+  const notice = !fresh
+    ? null
+    : kind === 'forfeit'
       ? `Your teammate wants to forfeit. Press the flag to agree.`
-      : lobby.awayUntil !== null
-      ? `A player disconnected. Waiting ${Math.max(0, Math.ceil((lobby.awayUntil - clock) / 1000))} s`
-      : lobby.paused
-        ? 'Paused while a player reconnects'
-        : lobby.note
+      : kind === 'away'
+        ? 'A player disconnected'
+        : kind === 'paused'
+          ? 'Paused while a player reconnects'
+          : lobby.note
   return (
     <>
       <div className="online-chip">
@@ -1867,6 +1923,90 @@ function LobbyHp({ hp, who, onSet }: { hp: number; who: string; onSet: (v: numbe
 }
 
 /** The room's two teams: who's on each, ready or not, and their HP (the host sets HP). */
+/** The Tower page's Solo / Duo switch (Duo: you and a friend against a pair of the tower's wizards). */
+function TowerSwitch({ duo, onPick }: { duo: boolean; onPick: (duo: boolean) => void }) {
+  return (
+    <span className="mode-seg tower-switch" role="group" aria-label="Solo or duo">
+      <button className={duo ? '' : 'on'} onClick={() => duo && onPick(false)}>
+        Solo
+      </button>
+      <button className={duo ? 'on' : ''} onClick={() => !duo && onPick(true)}>
+        Duo
+      </button>
+    </span>
+  )
+}
+
+/** The Tower page in Duo: the pairs' tower, and a room for you and a partner (a code to share). Make a room or
+ *  join one; in it, the host picks the floor and both ready up (or one, going alone). */
+function DuoPanel(props: { lobby: LobbyInfo | null; arena: OnlineArena | null; joinCode: string; setJoinCode: (c: string) => void; lastOver: Side | null; onReconnect: () => void }) {
+  const { lobby, arena, joinCode, setJoinCode, lastOver, onReconnect } = props
+  const duo = lobby?.duo
+  if (!lobby?.code || !duo || (lobby.phase !== 'lobby' && lobby.phase !== 'over')) {
+    // Not in a room yet: the floors you've reached, and how to start.
+    const top = Math.min(DUO_TOP, duoProgress() + 1)
+    return (
+      <>
+        <DuoTower floor={top} unlocked={top} onPick={null} />
+        {/* The buttons are always laid out (hidden while connecting) and the note line always holds its space,
+            so nothing shifts the tower when the server answers. */}
+        <div className="duo-start">
+          {lobby?.phase === 'offline' ? (
+            <button className="cta" onClick={onReconnect}>
+              Reconnect
+            </button>
+          ) : (
+            <div className={`duo-start-row ${!lobby || lobby.phase === 'connecting' || lobby.phase === 'reconnecting' ? 'waiting' : ''}`}>
+              <button className="cta" onClick={() => arena?.create()}>
+                Create room
+              </button>
+              <form
+                className="row"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  arena?.join(joinCode)
+                }}
+              >
+                <input className="code-input" value={joinCode} maxLength={4} placeholder="CODE" autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" aria-label="Room code" onChange={(e) => setJoinCode(e.target.value.toUpperCase())} />
+                <button type="submit" disabled={joinCode.length !== 4}>
+                  Join
+                </button>
+              </form>
+              <span className="sub-line duo-connecting">Connecting…</span>
+            </div>
+          )}
+        </div>
+        <span className="note-line">{lobby?.note ?? ' '}</span>
+      </>
+    )
+  }
+  const me = lobby.seats[lobby.you]
+  const host = lobby.you === lobby.host
+  const partner = lobby.seats.find((_, i) => i !== lobby.you)
+  const won = lastOver === 'player' && lobby.phase === 'over'
+  return (
+    <>
+      <div className="duo-room">
+        <span className="duo-code">
+          Room <b>{lobby.code}</b>
+        </span>
+        <span className="sub-line">{partner ? (partner.here ? (partner.ready ? 'Partner ready' : 'Partner joined') : 'Partner away') : 'Share the code, or go alone'}</span>
+      </div>
+      {won && <span className="duo-result won">{duo.floor === DUO_TOP && duo.unlocked === DUO_TOP ? 'Floor cleared!' : `Floor cleared! Next up: floor ${duo.floor}`}</span>}
+      <DuoTower floor={duo.floor} unlocked={duo.unlocked} onPick={host ? (n) => arena?.setFloor(n) : null} />
+      <div className="duo-start">
+        <button className={`cta ${me?.ready ? 'is-ready' : ''}`} onClick={() => (me?.ready ? arena?.unready() : arena?.ready())}>
+          {me?.ready ? 'Unready' : 'Ready'}
+        </button>
+        <button className="small" onClick={() => arena?.leave()}>
+          Leave room
+        </button>
+      </div>
+      {lobby.note && <span className="note-line">{lobby.note}</span>}
+    </>
+  )
+}
+
 function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | null }) {
   const host = lobby.you === lobby.host
   const team = (t: 'player' | 'enemy', label: string) => {

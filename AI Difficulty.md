@@ -37,7 +37,11 @@ The practice ladder has 13 opponents. The first 8 are intro bots that each teach
 | Parries your heavy / signature (tries) | 22% / 28% | 30% / 35% | 42% / 46% | 45% / 50% | 50% / 55% |
 | Parry lands (light / heavy / signature) | 42 / 59 / 66% | 45 / 64 / 71% | 48 / 68 / 76% | 50 / 71 / 79% | 53 / 75 / 84% |
 | Drops its own spell to counter you | 5% | 15% | 28% | 33% | 38% |
-| Dodges your counter | never | 5% | 15% | 32% | 38% |
+| Dodges your counter (when it would land first) | 15% | 20% | 15% | 32% | 38% |
+| Drops its counter when you drop or switch | 30% | 40% | 50% | 60% | 70% |
+| Learns from your feints (patience) | 0.5 | 0.6 | 0.7 | 0.85 | 1.0 |
+| Quick light when you fizzle | 20% | 30% | 40% | 50% | 60% |
+| Baits you (casts meant to be dropped) | 10% | 12% | 15% | 18% | 20% |
 | Punishes when you're silenced | no | yes | yes | yes | yes |
 | Heals itself below | 30% HP | 33% | 36% | 40% | 40% |
 | Angelic/Unholy spell chance per cast | 8% | 12% | 20% | 26% | 30% |
@@ -54,7 +58,7 @@ The practice ladder has 13 opponents. The first 8 are intro bots that each teach
 
 ## The intro bots
 
-They never punish a silence and never dodge; only Warden reads you. Each one only counters with its own elements. Most show "Counter with X" under their charge.
+They never punish a silence; only Warden reads you. From Pip up they handle feints a little (table below); Old Bram never does. Each one only counters with its own elements. Most show "Counter with X" under their charge.
 
 | Bot | Attacks | Angelic/Unholy | Combos | Wait | Speed | Counters you | Spam counter | Parries (heavy / sig) |
 |---|---|---|---|---|---|---|---|---|
@@ -68,6 +72,8 @@ They never punish a silence and never dodge; only Warden reads you. Each one onl
 | Warden | all 5 elements, reads you a little | rare | Magma, Advancing Glacier (15%) | 1.15 s | 0.75 | 38% | 75% | 20% / 25% |
 
 All of them throw lights, heavies and some signatures.
+
+Feints (plans/feints.md), Pip to Warden: dodge 3% to 14%, drops its counter 5% to 20%, feint memory 0.1 to 0.4, quick light on your fizzle 0% to 15%, baits 2% to 8%, rising floor by floor.
 
 ## Combos
 
@@ -87,7 +93,7 @@ Which ones each opponent throws is in the tables above. How it uses them:
 - **Expects a light:** fast interrupts, and sometimes a stopper (Frozen Prison, Earthquake or Lightning).
 - **Expects an element:** counters it sooner.
 - **Repeat heal within 12 s (Archmage and up):** counters it almost always, at double speed.
-- **Learns your pace:** your fastest of the last 3 charge-to-throw times. When it expects your move it reacts in time to land first, but never faster than 250 ms.
+- **Learns your pace:** your fastest of the last 3 charge-to-throw times (attacks), and separately the middle of your last 3 counterspell drawings (for dodges and baits). When it expects your move it reacts in time to land first, but never faster than 250 ms.
 - A circle that can't land before your throw becomes a quick interrupt. After any counter it attacks again within 0.25–0.5 s.
 - **When you're silenced:** it hits back at once with the biggest spell that lands before you can react.
 - **Static pulses:** it holds a finished spell through the pulse and throws in the gap (Adept throws blindly and fizzles).
@@ -104,10 +110,16 @@ Each cast first rolls the Angelic/Unholy chance. If it passes, the spell is pick
 - **Your Shroud:** it's blind. Once per charge it guesses: a random counterspell, or rushing its own spell.
 - **Doomed:** it skips its wait and throws a light attack at once.
 
+## Upkeep and goals
+- How each difficulty plays (chances, speed, patterns) is in `AI Difficulty.md` (local, gitignored). Update it whenever the `AI` table or AI logic in `apps/web/src/battle.ts` changes.
+- Goal: spamming one move should never win, on any difficulty. Adept still punishes mashing (intro bots before it don't).
+- The AI follows the player's rules: abandoning a spell fizzles, switching element takes the 50 ms hold, no special cancels.
+
 ## Rules it plays by (the same as yours)
 
 - Dropping a half-drawn spell fizzles it (0.5 s throw lock). Switching element takes the same letter hold.
-- Dodging needs a real threat: a circle readied, or the counter element charged while drawing. It won't bail in the last 0.5 s, and each bluff you get away with halves its dodge chance.
+- Dodging needs a real threat: a counterspell readied, or the counter element charged while drawing, and your counter has to land before its spell is out. It won't bail in the last 0.5 s, and each bluff you get away with halves its dodge chance.
+- Feints (plans/feints.md): it drops its counter when you drop yours (after a human beat), remembers feints that baited it and waits for your drawing, and sometimes baits you with a heavy it drops once you're deep into your counter.
 - Quick interrupts can't be dodged.
 
 ## Changes
@@ -119,3 +131,4 @@ Each cast first rolls the Angelic/Unholy chance. If it passes, the spell is pick
 - Nov 25, 2026: playtest fixes. Combos have their own drawing times by complexity (Grave 3 s up to Plasma 4.2 s at speed 1), and faster opponents only speed up simple drawings fully (signatures half, combos 30%). Combo letters and combo counterspells are signed at about a person's pace, and recognizing a combo takes it 0.4 s longer. Fewer combo counters (Adept 10%, Magus 25%, Archmage 50%, Lich 75%). Intro bots 1–7 now actually show "Counter with X" (it was never displayed). Warden combo chance 12%.
 - Nov 25, 2026 (later): intro bots also hint the combo counterspell ("Counter with C, Ice, Water") once a combo locks in; Warden shows it for combos only, after 1.5 s.
 - Nov 25, 2026 (interrupts): its interrupts follow the same rules as yours: a miss locks it out for 1 s, a landed one locks you out for 0.75 s. Its `miss` share (wrong-element counters) now costs it that second.
+- Nov 27, 2026 (feints): every rung from Pip up handles feints (bail, feint memory, fizzle punish, baits) and dodges; dodges now check that your counter would land first. plans/feints.md.

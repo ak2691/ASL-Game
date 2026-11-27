@@ -76,7 +76,7 @@ type Person = {
   glow?: string
   brow?: number
   mouth: 'smile' | 'flat' | 'grin' | 'smirk' | 'none'
-  prop?: 'bolt' | 'snow' | 'plus' | 'mark' | 'book' | 'mirror' | 'star' | 'rock' | 'drop' | 'clock'
+  prop?: 'bolt' | 'snow' | 'plus' | 'mark' | 'book' | 'mirror' | 'star' | 'rock' | 'drop' | 'clock' | 'flame'
 }
 
 const PEOPLE: Record<string, Person> = {
@@ -105,6 +105,21 @@ const PEOPLE: Record<string, Person> = {
   // Lady Glass: long silver hair, cool smirk, a hand mirror.
   lich: { bg: '#1c3a3a', hi: '#8fe0d0', skin: '#ece4f2', shade: '#cfc2d9', hair: { kind: 'long', color: '#d8dde8' }, eyes: 'narrow', brow: 0.6, mouth: 'smirk', prop: 'mirror' },
   // The Archwizard: white and gold hat, long white beard, a gold star.
+  // Duo Tower (plans/duo-tower.md). Ivy and Rowan, twins: the same red hair and grin, a bun and spikes.
+  ivy: { bg: '#245a5a', hi: '#7fe0d0', skin: '#f7d2ae', shade: '#e0ad84', hair: { kind: 'bun', color: '#e2643a' }, eyes: 'wide', mouth: 'grin', prop: 'bolt' },
+  rowan: { bg: '#245a5a', hi: '#7fe0d0', skin: '#f7d2ae', shade: '#e0ad84', hair: { kind: 'spiky', color: '#e2643a' }, eyes: 'wide', mouth: 'grin', prop: 'drop' },
+  // Bruno Kettle: the big quiet kid. Heavy fringe, sleepy eyes, says nothing, carries a rock.
+  bruno: { bg: '#5a4a32', hi: '#d9b77a', skin: '#b07a52', shade: '#8f5f3c', hair: { kind: 'fringe', color: '#3a2618' }, eyes: 'narrow', mouth: 'flat', prop: 'rock' },
+  // Sister Wren: a pale green hood, a halo, a happy healer.
+  wren: { bg: '#2f6e55', hi: '#c8f5c0', skin: '#f2d2b6', shade: '#d8b092', hat: { kind: 'hood', color: '#cfe9c4', shade: '#9cc490' }, halo: true, eyes: 'closed', mouth: 'smile', prop: 'plus' },
+  // Kai: Ito's loud student. Wild orange hair, huge grin, a flame.
+  kai: { bg: '#6e2c1f', hi: '#ffb05c', skin: '#e8b88f', shade: '#c9946a', hair: { kind: 'spiky', color: '#ff8a2a' }, eyes: 'wide', mouth: 'grin', prop: 'flame' },
+  // Proctor Quill: Vell's colleague. Mortarboard, glasses, a stack of forms.
+  quill: { bg: '#4a3f52', hi: '#c0a8d6', skin: '#e8c8a8', shade: '#c9a483', hat: { kind: 'cap', color: '#3d2f4a', shade: '#281e33', band: '#c58bff' }, hair: { kind: 'fringe', color: '#5a4a3a' }, glasses: true, eyes: 'normal', brow: 1.4, mouth: 'flat', prop: 'book' },
+  // Juno Vale: Rook's rival from another school. A teal witch hat, long violet hair, a smug look.
+  juno: { bg: '#1f4a5a', hi: '#6be3d6', skin: '#f0cfae', shade: '#d4ab88', hat: { kind: 'witch', color: '#1f8a8a', shade: '#146363', band: '#ffd24d' }, hair: { kind: 'long', color: '#7a4ac9' }, eyes: 'narrow', brow: 1, mouth: 'smirk', prop: 'bolt' },
+  // Old Bram, unleashed: the Archwizard's old partner. His old green hat, eyes wide open, still the rock.
+  bramx: { bg: '#2f7a3a', hi: '#c8ff9a', skin: '#e0b48a', shade: '#c08d62', hat: { kind: 'wizard', color: '#3f8a3a', shade: '#2a6327', band: '#ffd24d' }, beard: { kind: 'bushy', color: '#eeeeee' }, eyes: 'normal', brow: -1.2, mouth: 'smile', prop: 'rock' },
   ascendant: { bg: '#2a2340', hi: '#ffe9a8', skin: '#f2c9a0', shade: '#d9a479', hat: { kind: 'wizard', color: '#f4efe0', shade: '#c9c0a6', band: '#ffd24d' }, beard: { kind: 'bushy', color: '#ffffff' }, eyes: 'normal', brow: 0.4, mouth: 'none', prop: 'star' },
 }
 
@@ -240,6 +255,7 @@ function person(id: string) {
         </>
       )}
       {p.prop === 'star' && <path d={`M40 3 ${STAR}`} transform="translate(40 3) scale(1.4) translate(-40 -3)" fill="#ffd24d" stroke={INK} strokeWidth="0.9" />}
+      {p.prop === 'flame' && <path d="M40 2 Q46 8 44 13 Q43 16 40 16 Q36 16 36 12 Q36 9 39 7 Q39 10 41 10 Q42 6 40 2 Z" fill="#ff8a2a" {...O} strokeWidth={1.6} />}
       {p.prop === 'rock' && <path d="M35 45 Q34 39 39 38 Q44 37 45 42 Q45 46 40 46 Z" fill="#a8885a" {...O} strokeWidth={1.6} />}
     </>
   )

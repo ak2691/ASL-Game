@@ -13,8 +13,11 @@ export function idsFor(fighters: FighterSpec[], me: Fid): Record<Fid, Fid> {
 }
 
 export function viewFor(v: CombatView, me: Fid): CombatView {
-  const map = idsFor(v.fighters, me)
-  const flip = (v.fighters.find((f) => f.id === me)?.team ?? 'player') !== 'player'
+  return viewMapped(v, idsFor(v.fighters, me), (v.fighters.find((f) => f.id === me)?.team ?? 'player') !== 'player')
+}
+
+/** The fight with its fighter ids renamed by `map` (and the teams swapped if `flip`). */
+export function viewMapped(v: CombatView, map: Record<Fid, Fid>, flip: boolean): CombatView {
   const id = (x: Fid) => map[x] ?? x
   const team = (t: Side): Side => (flip ? other(t) : t)
   const ids = new Set(Object.keys(map))

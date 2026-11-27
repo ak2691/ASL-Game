@@ -86,6 +86,8 @@ export function samplePath(shape: string, n = 120): { x: number; y: number }[] {
   return pts.map((p) => ({ ...p }))
 }
 function measurePath(shape: string, n: number): { x: number; y: number }[] {
+  // The game server runs bots too (Duo Tower) but never draws them: any line will do there.
+  if (typeof document === 'undefined') return [{ x: 0, y: 0 }, { x: 1, y: 1 }]
   const el = document.createElementNS('http://www.w3.org/2000/svg', 'path')
   el.setAttribute('d', SHAPE_PATHS[shape])
   const L = el.getTotalLength()

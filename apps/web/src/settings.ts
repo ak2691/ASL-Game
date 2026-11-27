@@ -38,9 +38,9 @@ export function setSignDelay(v: number) {
 // Push sensitivity: how much the hand must grow on screen (move toward the camera) to throw or parry.
 // Lower = a smaller push counts (less effort, but leaning in can set it off). Read live every frame.
 export const PUSH_KEY = 'spells-push'
-// Stored as a growth ratio (1.2 = the hand looks 20% bigger). Players set it as a whole percent, 5 to 50.
-export const PUSH_MIN = 5
-export const PUSH_MAX = 50
+// Stored as a growth ratio (1.2 = the hand looks 20% bigger). Players set it as a whole percent, 1 to 100.
+export const PUSH_MIN = 1
+export const PUSH_MAX = 100
 export const PUSH_DEFAULT = 1.2
 const clampPush = (g: number) => 1 + Math.min(PUSH_MAX, Math.max(PUSH_MIN, Math.round((g - 1) * 100))) / 100
 let push = (() => {

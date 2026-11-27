@@ -6,7 +6,7 @@ import { brawlerPortrait, GLOW, GLOW_COLOR } from './portraits'
 /** What each practice opponent says (text only): at the start (also its line on the tower), now and then
  *  when its habit kicks in, once when it's low, and when it wins or loses. Written as the character talking,
  *  hinting at its habit instead of explaining it (plans/ai-personalities.md). */
-export const CHAT: Record<Difficulty, Record<Exclude<Bark, 'habit'>, string> & { habit: string[] }> = {
+export const CHAT: Record<Difficulty, Record<Exclude<Bark, 'habit' | 'partnerLow'>, string> & { habit: string[] }> = {
   pebble: {
     start: "Eh? A duel? Fine. Just don't expect me to hurry.",
     habit: ['Here comes a big one. Take your time.', 'Slow and heavy. Always worked for me.'],
@@ -100,7 +100,7 @@ export const CHAT: Record<Difficulty, Record<Exclude<Bark, 'habit'>, string> & {
   },
 }
 /** The line for a bark (habit: one of its lines at random). */
-export const chatLine = (d: Difficulty, key: Bark) => (key === 'habit' ? CHAT[d].habit[Math.floor(Math.random() * CHAT[d].habit.length)] : CHAT[d][key])
+export const chatLine = (d: Difficulty, key: Bark) => (key === 'habit' ? CHAT[d].habit[Math.floor(Math.random() * CHAT[d].habit.length)] : key === 'partnerLow' ? '' : CHAT[d][key])
 /** The badges: read from the bot itself (battle.ts AI), so they can't drift from what it really throws.
  *  Its attack elements, plus Angelic if it heals or casts Aegis, plus Unholy if it casts any curse. */
 const UNHOLY = ['scythe', 'veil', 'blade']
@@ -150,10 +150,10 @@ function GlowParts({ id }: { id: Difficulty }) {
 }
 
 /** A portrait for each rung (see portraits.tsx for the style). */
-export const Portrait = memo(function Portrait({ id }: { id: Difficulty }) {
+export const Portrait = memo(function Portrait({ id }: { id: string }) {
   return (
     <svg className="portrait" viewBox="0 0 48 48" aria-hidden="true">
-      {GLOW ? <GlowParts id={id} /> : brawlerPortrait(id)}
+      {GLOW && id in GLOW_COLOR ? <GlowParts id={id as Difficulty} /> : brawlerPortrait(id)}
     </svg>
   )
 })

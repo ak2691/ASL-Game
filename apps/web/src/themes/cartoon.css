@@ -29,7 +29,7 @@
 [data-theme='cartoon'] *::after { filter: none !important; }
 
 /* Display text: chunky font, dark outline drawn behind the fill, offset shadow. */
-[data-theme='cartoon'] :is(.logo, h1, .result, .tut-title, .room-code, .countdown, .cast, .impact-name, .st-silence b, .st-knock span, .tut-push) {
+[data-theme='cartoon'] :is(.logo, h1, .result, .tut-title, .room-code, .countdown, .impact-name, .st-silence b, .st-knock span, .tut-push) {
   font-family: var(--title);
   font-weight: normal;
   letter-spacing: 0.02em;
@@ -39,8 +39,7 @@
 }
 
 /* Bouncy pop-ins: overshoot, then settle. */
-[data-theme='cartoon'] :is(.cast, .impact-name, .float, .tut-push, .result) { animation-timing-function: var(--bounce) !important; }
-[data-theme='cartoon'] .cast { animation: toon-pop 0.5s var(--bounce); transform-origin: left bottom; }
+[data-theme='cartoon'] :is(.impact-name, .float, .tut-push, .result) { animation-timing-function: var(--bounce) !important; }
 @keyframes toon-pop { 0% { transform: scale(0.2) rotate(-12deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); opacity: 1; } 100% { transform: scale(1) rotate(-2deg); } }
 [data-theme='cartoon'] .impact.fizzle .impact-name { animation-name: toon-fizzle; animation-timing-function: ease-out !important; }
 @keyframes toon-fizzle {

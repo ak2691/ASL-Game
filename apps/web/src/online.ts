@@ -1,8 +1,9 @@
 // Online play: one WebSocket to the game server. The server runs the fight; this mirrors its
 // state for the page, relays your casting steps, and builds the opponent's cast from theirs.
 import { MAX_HP, type CombatView, type Fid } from './combat'
-import type { Arena, OppCast, Pt01 } from './battle'
-import type { ClientMsg, OppEvent, SeatInfo, ServerMsg } from './protocol'
+import { spellOf, type Arena, type OppCast, type Pt01 } from './battle'
+import type { ClientMsg, DuoRoom, OppEvent, SeatInfo, ServerMsg } from './protocol'
+import type { BotInfo } from './duo'
 import type { TeamSnapshot } from './team'
 import { chargeInfo, spellName } from './spells'
 
@@ -19,6 +20,7 @@ export interface LobbyInfo {
   awayUntil: number | null // performance.now() time a disconnected player's seat is held until
   note: string | null // errors, "a player left"
   forfeit: { votes: number; needed: number; mine: boolean } | null // your team's forfeit vote, if one is going
+  duo: DuoRoom | null // a Duo Tower room (you two against a pair of bots)
 }
 
 const EMPTY_VIEW: CombatView = {
@@ -76,20 +78,38 @@ function sessionToken() {
     return crypto.randomUUID()
   }
 }
-/** Remember that this tab is in an online room, so a refresh reopens online mode. */
-export function setOnlineFlag(on: boolean) {
+/** Duo Tower floors you've cleared (this browser). The room unlocks one past the best of its players. */
+export function duoProgress() {
   try {
-    if (on) sessionStorage.setItem('spells-online', '1')
+    return Math.max(0, Number(localStorage.getItem('duo-progress')) || 0)
+  } catch {
+    return 0
+  }
+}
+function saveDuoProgress(floor: number) {
+  try {
+    if (floor > duoProgress()) localStorage.setItem('duo-progress', String(floor))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Remember that this tab is in an online room, so a refresh reopens online mode. */
+export function setOnlineFlag(on: boolean, page: 'online' | 'duo' = 'online') {
+  try {
+    if (on) sessionStorage.setItem('spells-online', page)
     else sessionStorage.removeItem('spells-online')
   } catch {
     /* ignore */
   }
 }
-export function getOnlineFlag() {
+/** The page this tab's online room belongs to (Duel or the Tower's Duo), or null. */
+export function getOnlineFlag(): 'online' | 'duo' | null {
   try {
-    return sessionStorage.getItem('spells-online') === '1'
+    const v = sessionStorage.getItem('spells-online')
+    return v === 'duo' ? 'duo' : v ? 'online' : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -99,7 +119,10 @@ export class OnlineArena implements Arena {
   private closed = false
   private droppedAt: number | null = null
   private view: CombatView = EMPTY_VIEW
+  private conn: Record<Fid, 'away' | 'left'> = {}
   private casts: Record<Fid, OppCast | null> = {} // everyone else's spell in progress, by their id as you see them
+  private bots: Record<Fid, BotInfo> = {} // Duo Tower: the pair, as the server runs them
+  private botPts = new Map<string, Pt01[]>() // each bot cast's drawing (the server sends just its shape and progress)
   private sentAim: Fid | null | undefined = undefined
   private outbox: Pt01[] = [] // your stroke points, sent in batches
   private outAspect = 16 / 9 // your visible view's width / height
@@ -114,9 +137,12 @@ export class OnlineArena implements Arena {
     awayUntil: null,
     note: null,
     forfeit: null,
+    duo: null,
   }
 
-  constructor() {
+  readonly duo: boolean // opened from the Tower's Duo: it makes and joins Duo Tower rooms only
+  constructor(duo = false) {
+    this.duo = duo
     this.connect()
   }
 
@@ -152,11 +178,11 @@ export class OnlineArena implements Arena {
   // Lobby actions
   create() {
     this.info = { ...this.info, note: null }
-    this.send({ t: 'create' })
+    this.send({ t: 'create', progress: duoProgress(), duo: this.duo })
   }
   join(code: string) {
     this.info = { ...this.info, note: null }
-    this.send({ t: 'join', code })
+    this.send({ t: 'join', code, progress: duoProgress(), duo: this.duo })
   }
   ready() {
     this.send({ t: 'ready' })
@@ -170,6 +196,10 @@ export class OnlineArena implements Arena {
   switchTeam() {
     this.send({ t: 'team' })
   }
+  /** Host: the Duo Tower floor to fight. */
+  setFloor(floor: number) {
+    this.send({ t: 'floor', floor })
+  }
   /** Host: a player's max HP for the next match. */
   setHp(seat: number, hp: number) {
     this.send({ t: 'hp', seat, hp })
@@ -179,6 +209,8 @@ export class OnlineArena implements Arena {
     setOnlineFlag(false)
     this.casts = {}
     this.view = EMPTY_VIEW
+    this.conn = {}
+    this.bots = {}
     this.info = { ...this.info, phase: 'menu', code: null, seats: [], paused: false, awayUntil: null, note: null }
   }
 
@@ -189,17 +221,19 @@ export class OnlineArena implements Arena {
         if (!m.resumed) this.info = { ...this.info, phase: 'menu', code: null, seats: [] }
         return
       case 'lobby': {
-        setOnlineFlag(true)
+        setOnlineFlag(true, this.duo ? 'duo' : 'online')
         const was = this.info.phase
         // Mid-fight lobby updates (someone reconnecting) don't end the fight; the result arrives in 'state'.
         // After a fight, keep showing the result until someone readies up.
         const phase = was === 'fighting' ? 'fighting' : was === 'over' && !m.seats.some((s) => s.ready) ? 'over' : 'lobby'
-        this.info = { ...this.info, phase, code: m.code, seats: m.seats, you: m.you, host: m.host, countdownEnds: null }
+        this.info = { ...this.info, phase, code: m.code, seats: m.seats, you: m.you, host: m.host, countdownEnds: null, duo: m.duo ?? null }
         if (!m.seats.some((s) => !s.here)) this.info.awayUntil = null
         return
       }
       case 'countdown':
         this.view = EMPTY_VIEW
+        this.conn = {}
+        this.bots = {}
         this.casts = {}
         this.sentAim = undefined
         this.info = { ...this.info, phase: 'countdown', countdownEnds: performance.now() + m.ms, note: null, forfeit: null }
@@ -209,6 +243,10 @@ export class OnlineArena implements Arena {
         return
       case 'state':
         this.view = m.view
+        this.conn = m.conn ?? {}
+        this.bots = m.bots ?? {}
+        // A Duo Tower floor cleared: this browser remembers it (the room then moves on to the next floor).
+        if (m.view.over === 'player' && this.info.duo && this.info.phase === 'fighting') saveDuoProgress(this.info.duo.floor)
         this.info = { ...this.info, paused: m.paused, ...(m.view.over ? { phase: 'over' as const } : {}) }
         return
       case 'opp':
@@ -304,6 +342,35 @@ export class OnlineArena implements Arena {
       if (o?.phase === 'ready' && !this.view.ready[id]) this.casts[id] = null
       else if (o?.phase === 'charge' && !this.view.charge[id]) this.casts[id] = null
     }
-    return { ...this.view, casts: { ...this.casts }, enemyCast: this.casts.enemy ?? null, running: this.info.phase === 'fighting' }
+    const casts = { ...this.casts, ...this.botCasts() }
+    return { ...this.view, casts, enemyCast: casts.enemy ?? null, conn: this.conn, bots: this.bots, running: this.info.phase === 'fighting' }
+  }
+
+  /** The bots' spells in progress, drawn here from what the server says (shape and how far along). */
+  private botCasts(): Record<Fid, OppCast | null> {
+    const out: Record<Fid, OppCast | null> = {}
+    for (const [id, b] of Object.entries(this.bots)) {
+      const c = b.cast
+      if (!c) {
+        out[id] = null
+        continue
+      }
+      const key = `${id}:${c.id}:${c.el}:${c.shape}`
+      let pts = this.botPts.get(key)
+      if (!pts) {
+        if (this.botPts.size > 40) this.botPts.clear()
+        this.botPts.set(key, (pts = spellOf(c.el, c.shape, 1).points))
+      }
+      out[id] = {
+        el: c.el,
+        name: c.name,
+        color: chargeInfo(c.el).color,
+        phase: c.phase,
+        points: c.phase === 'charge' ? [] : pts.slice(0, Math.max(0, Math.ceil(c.drawn * pts.length))),
+        view: { aspect: 1, fit: 'contain' },
+        progress: c.progress,
+      }
+    }
+    return out
   }
 }

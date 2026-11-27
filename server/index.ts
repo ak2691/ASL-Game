@@ -15,6 +15,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { Combat, MAX_HP, type Fid, type Side } from '../apps/web/src/combat.ts'
 import { HP_MAX, HP_MIN, ROOM_MAX, TEAM_MAX, type ClientMsg, type OppEvent, type ServerMsg } from '../apps/web/src/protocol.ts'
 import { hideShrouded, idsFor, viewFor } from '../apps/web/src/teamView.ts'
+import { DuoBots, DUO_HP, DUO_TOP } from '../apps/web/src/duo.ts'
 
 const PORT = Number(process.env.PORT ?? 8787)
 const COUNTDOWN_MS = 3000
@@ -37,6 +38,7 @@ interface Seat {
   hp: number // max HP for the next match
   fid: Fid | null // fighter id in the current match (null = not in it)
   forfeit: boolean // voted to forfeit this match
+  progress: number // Duo Tower floors this player has cleared (their browser remembers it)
 }
 interface Room {
   code: string
@@ -45,7 +47,13 @@ interface Room {
   combat: Combat
   timer: ReturnType<typeof setTimeout> | null // countdown or tick
   pausedAt: number | null
+  duo: { floor: number } | null // a Duo Tower room: the players (up to 2) against a pair of bots
+  bots: DuoBots | null // the pair, during a Duo Tower match
 }
+const BOT_IDS: [Fid, Fid] = ['b0', 'b1']
+const isBot = (id: Fid) => (BOT_IDS as Fid[]).includes(id)
+/** The highest Duo Tower floor this room may pick: one past the best anyone here has cleared. */
+const unlocked = (room: Room) => Math.min(DUO_TOP, Math.max(0, ...room.seats.map((s) => s.progress)) + 1)
 
 const rooms = new Map<string, Room>()
 const seatOfToken = new Map<string, { room: Room; seat: Seat }>()
@@ -59,6 +67,8 @@ function newCode() {
   }
 }
 
+/** A player's Duo Tower progress, as their browser reports it (floors cleared, 0..DUO_TOP). */
+const progressOf = (n: unknown) => Math.min(DUO_TOP, Math.max(0, Math.round(Number(n) || 0)))
 const send = (ws: WebSocket | null | undefined, msg: ServerMsg) => {
   if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg))
 }
@@ -67,13 +77,28 @@ const teamSize = (room: Room, t: Side) => room.seats.filter((s) => s.team === t)
 
 function sendLobby(room: Room) {
   const seats = room.seats.map((s) => ({ team: s.team, ready: s.ready, hp: s.hp, here: !!s.ws }))
-  room.seats.forEach((s, i) => send(s.ws, { t: 'lobby', code: room.code, seats, you: i, host: 0 }))
+  const duo = room.duo && { floor: room.duo.floor, unlocked: unlocked(room) }
+  room.seats.forEach((s, i) => send(s.ws, { t: 'lobby', code: room.code, seats, you: i, host: 0, duo }))
 }
 
 function sendState(room: Room) {
   const view = room.combat.view(room.pausedAt ?? Date.now())
   const paused = room.pausedAt !== null
-  for (const s of room.seats) if (s.fid) send(s.ws, { t: 'state', view: hideShrouded(viewFor(view, s.fid)), paused })
+  // Who's disconnected (seat held) or gone (seat removed), so their cards can say so.
+  const conn: Record<Fid, 'away' | 'left'> = {}
+  for (const f of view.fighters) {
+    if (isBot(f.id)) continue
+    const seat = room.seats.find((s) => s.fid === f.id)
+    if (!seat) conn[f.id] = 'left'
+    else if (!seat.ws) conn[f.id] = 'away'
+  }
+  for (const s of room.seats) {
+    if (!s.fid) continue
+    const map = idsFor(view.fighters, s.fid)
+    const mine = Object.fromEntries(Object.entries(conn).map(([id, c]) => [map[id] ?? id, c]))
+    const bots = room.bots ? Object.fromEntries(Object.entries(room.bots.info(room.pausedAt ?? Date.now())).map(([id, b]) => [map[id] ?? id, b.cast && view.shroud[id] > 0 ? { ...b, cast: null } : b])) : undefined
+    send(s.ws, { t: 'state', view: hideShrouded(viewFor(view, s.fid)), paused, conn: mine, bots })
+  }
 }
 
 function stopTimer(room: Room) {
@@ -83,6 +108,7 @@ function stopTimer(room: Room) {
 
 /** Ready to go: everyone here and ready, and both teams have someone (at most TEAM_MAX each). */
 function canStart(room: Room) {
+  if (room.duo) return room.seats.length >= 1 && room.seats.length <= TEAM_MAX && room.seats.every((s) => s.ws && s.ready)
   const a = teamSize(room, 'player')
   const b = teamSize(room, 'enemy')
   return a >= 1 && b >= 1 && a <= TEAM_MAX && b <= TEAM_MAX && room.seats.every((s) => s.ws && s.ready)
@@ -94,10 +120,18 @@ function startCountdown(room: Room) {
     s.fid = `f${i}`
     s.forfeit = false
   })
-  room.combat = new Combat({ fighters: room.seats.map((s) => ({ id: s.fid!, team: s.team, maxHp: s.hp })) })
+  if (room.duo) {
+    // Duo Tower: the players (fixed HP) against the floor's pair (a little tougher).
+    room.combat = new Combat({ fighters: [...room.seats.map((s) => ({ id: s.fid!, team: 'player' as Side, maxHp: MAX_HP })), ...BOT_IDS.map((id) => ({ id, team: 'enemy' as Side, maxHp: DUO_HP }))] })
+    room.bots = new DuoBots(room.combat, room.duo.floor, BOT_IDS, room.seats.map((s) => s.fid!))
+  } else {
+    room.combat = new Combat({ fighters: room.seats.map((s) => ({ id: s.fid!, team: s.team, maxHp: s.hp })) })
+    room.bots = null
+  }
   room.pausedAt = null
   room.seats.forEach((s) => send(s.ws, { t: 'countdown', ms: COUNTDOWN_MS }))
   room.timer = setTimeout(() => {
+    room.bots?.start(Date.now())
     room.phase = 'fighting'
     room.seats.forEach((s) => send(s.ws, { t: 'start' }))
     tick(room)
@@ -106,7 +140,14 @@ function startCountdown(room: Room) {
 
 function endFight(room: Room) {
   stopTimer(room)
+  room.bots?.update(Date.now()) // their last words
+  // Duo Tower: a win clears the floor for everyone in the room, and the next one is up.
+  if (room.duo && room.bots && room.combat.winner === 'player') {
+    room.seats.forEach((s) => (s.progress = Math.max(s.progress, room.duo!.floor)))
+    room.duo.floor = Math.min(DUO_TOP, room.duo.floor + 1)
+  }
   sendState(room)
+  room.bots = null
   room.phase = 'over'
   room.seats.forEach((s) => (s.ready = false))
   room.pausedAt = null
@@ -116,7 +157,11 @@ function endFight(room: Room) {
 function tick(room: Room) {
   room.timer = null
   try {
-    if (room.pausedAt === null) room.combat.update(Date.now())
+    if (room.pausedAt === null) {
+      const now = Date.now()
+      room.combat.update(now)
+      room.bots?.update(now)
+    }
     sendState(room)
     if (room.combat.winner) return endFight(room)
   } catch (err) {
@@ -250,8 +295,9 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
   switch (msg.t) {
     case 'create': {
       if (at) removeSeat(at.room, at.seat, false)
-      const seat: Seat = { token, ws, awayTimer: null, team: 'player', ready: false, hp: MAX_HP, fid: null, forfeit: false }
-      const r: Room = { code: newCode(), seats: [seat], phase: 'lobby', combat: new Combat(), timer: null, pausedAt: null }
+      const seat: Seat = { token, ws, awayTimer: null, team: 'player', ready: false, hp: MAX_HP, fid: null, forfeit: false, progress: progressOf(msg.progress) }
+      const r: Room = { code: newCode(), seats: [seat], phase: 'lobby', combat: new Combat(), timer: null, pausedAt: null, duo: null, bots: null }
+      if (msg.duo) r.duo = { floor: unlocked(r) } // a Duo Tower room (made on the Tower page)
       rooms.set(r.code, r)
       seatOfToken.set(token, { room: r, seat })
       sendLobby(r)
@@ -263,10 +309,13 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       if (at?.room === r) return
       if (r.seats.length >= ROOM_MAX) return send(ws, { t: 'error', msg: 'That room is full.' })
       if (r.phase === 'fighting' || r.phase === 'countdown') return send(ws, { t: 'error', msg: 'That room is in a match. Try again when it ends.' })
+      // Duo Tower rooms are joined from the Tower page, Duel rooms from Duel.
+      if (!!r.duo !== !!msg.duo) return send(ws, { t: 'error', msg: r.duo ? 'That code is for a Duo Tower room. Join it from the Tower.' : 'That code is for a Duel room. Join it from Duel.' })
+      if (r.duo && r.seats.length >= TEAM_MAX) return send(ws, { t: 'error', msg: 'That room is full.' })
       if (at) removeSeat(at.room, at.seat, false)
-      // The smaller team gets the new player (team 2 on a tie, so a 1v1 fills first).
-      const team: Side = teamSize(r, 'enemy') <= teamSize(r, 'player') ? 'enemy' : 'player'
-      const seat: Seat = { token, ws, awayTimer: null, team, ready: false, hp: MAX_HP, fid: null, forfeit: false }
+      // The smaller team gets the new player (team 2 on a tie, so a 1v1 fills first). Duo Tower: your team.
+      const team: Side = r.duo ? 'player' : teamSize(r, 'enemy') <= teamSize(r, 'player') ? 'enemy' : 'player'
+      const seat: Seat = { token, ws, awayTimer: null, team, ready: false, hp: MAX_HP, fid: null, forfeit: false, progress: progressOf(msg.progress) }
       r.seats.push(seat)
       seatOfToken.set(token, { room: r, seat })
       r.phase = 'lobby'
@@ -292,7 +341,15 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
       if (!lobby || !seat.ready) return
       seat.ready = false
       return sendLobby(room)
+    case 'floor': {
+      const n = Math.round(Number(msg.floor))
+      if (!lobby || room.seats[0] !== seat || !room.duo || !(n >= 1 && n <= unlocked(room))) return
+      room.duo.floor = n
+      room.seats.forEach((s) => (s.ready = false))
+      return sendLobby(room)
+    }
     case 'team': {
+      if (room.duo) return
       const to: Side = seat.team === 'player' ? 'enemy' : 'player'
       if (!lobby || teamSize(room, to) >= TEAM_MAX) return
       seat.team = to
@@ -301,7 +358,7 @@ function onMessage(ws: WebSocket, msg: ClientMsg) {
     }
     case 'hp': {
       const target = room.seats[Number(msg.seat)]
-      if (!lobby || room.seats[0] !== seat || !target) return
+      if (room.duo || !lobby || room.seats[0] !== seat || !target) return
       target.hp = Math.min(HP_MAX, Math.max(HP_MIN, Math.round(Number(msg.hp) || MAX_HP))) // exact whole numbers (Nov 25: was rounded to 10)
       room.seats.forEach((s) => (s.ready = false))
       return sendLobby(room)

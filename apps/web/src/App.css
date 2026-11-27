@@ -92,9 +92,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 
 /* Spells page */
 .sub-line { color: var(--sub); }
-.cast { font-size: 40px; font-weight: bold; animation: cast-pop 0.4s ease-out; }
-.cast span { display: block; font-size: 13px; font-weight: normal; color: var(--sub); }
-@keyframes cast-pop { from { transform: scale(1.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .battle { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 32px; margin: 8px 0; }
 .fighter { flex: 1 1 260px; max-width: 360px; display: flex; flex-direction: column; gap: 6px; }
 .fighter-name { display: flex; gap: 8px; align-items: center; font-weight: bold; }
@@ -127,7 +124,6 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .duel .fighter { max-width: none; flex: none; }
 .status-strip { display: flex; gap: 16px; align-items: baseline; min-height: 26px; flex-wrap: wrap; text-shadow: 0 1px 4px var(--shadow); }
 .side-status { position: absolute; top: 50%; left: 0; right: 0; text-align: center; z-index: 2; }
-.stage-overlay { position: absolute; left: 16px; bottom: 14px; z-index: 2; pointer-events: none; text-shadow: 0 2px 6px #000; }
 .dummy-bar { display: flex; gap: 8px; align-items: center; }
 .dummy-bar .icon-btn { width: 34px; min-width: 0; height: 34px; padding: 0 !important; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
 .dummy-bar .icon-btn svg { width: 18px; height: 18px; flex: none; }
@@ -525,8 +521,9 @@ html[data-theme] button.cta.is-ready:hover, button.cta.is-ready:hover { backgrou
 .team-card .enemy-stroke { vector-effect: non-scaling-stroke; stroke-width: 9px; }
 .team-card.foe { container-type: inline-size; }
 .team-card.targeted { box-shadow: inset 0 0 0 4px var(--aim, var(--you)), inset 0 0 40px color-mix(in srgb, var(--aim, var(--you)) 45%, transparent); }
-.team-card.out { filter: grayscale(1) brightness(0.5); }
-.out-tag { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 32px; color: #ccc; z-index: 3; }
+.team-card.out { filter: grayscale(1); }
+/* OUT (or the reconnect countdown) written in the empty HP bar. */
+.hp-out { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--title, inherit); font-weight: normal; letter-spacing: 0.05em; font-size: 15px; color: #fffaf0; opacity: 0.75; white-space: nowrap; pointer-events: none; } /* the HP numbers' title font: no small letter-spaced caps (skills.md) */
 .aim-zones { position: absolute; inset: 0; display: grid; z-index: 1; pointer-events: none; }
 .aim-zones > div { display: flex; align-items: flex-end; justify-content: center; padding-bottom: 22%; border-right: 1px dashed color-mix(in srgb, var(--aim) 35%, transparent); }
 .aim-zones > div:last-child { border-right: none; }
@@ -591,7 +588,6 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .room-hp input { width: 90px; }
 .room-ready { margin-left: auto; font-size: 12px; color: var(--sub); }
 .room-ready.on { color: var(--you); }
-.team-card.ally .out-tag { font-size: 20px; justify-content: flex-end; padding-right: 14px; }
 
 /* Online lobby: its own screen over the arena (custom games by code). */
 .lobby-screen { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--bg); overflow: auto; }
@@ -606,7 +602,8 @@ html[data-theme] .tut-head .tut-title.long { font-size: 22px; }
 .lobby-home { align-self: flex-start; }
 .online-chip { display: flex; gap: 10px; align-items: center; }
 .online-chip b { color: var(--main); letter-spacing: 0.1em; }
-.online-toast { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 7; padding: 6px 16px; border-radius: 999px; background: var(--sub-alt); font-size: 14px; pointer-events: none; }
+.online-toast { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); z-index: 7; padding: 6px 16px; border-radius: 999px; background: var(--sub-alt); font-size: 14px; pointer-events: none; white-space: nowrap; animation: toast-in 200ms ease-out; } /* under the HP bars, never on them */
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -6px); } }
 .room-hp, .room-ready, .room-seat-name { white-space: nowrap; }
 .room-hp input { accent-color: var(--main); }
 .room-hp span, .room-ready { white-space: nowrap; flex-shrink: 0; }
@@ -1173,6 +1170,7 @@ html[data-theme] .corner-bar .forfeit-btn:hover, .corner-bar .forfeit-btn:hover 
 .corner-bar .forfeit-btn svg { width: 22px; height: 22px; }
 .forfeit-count { position: absolute; top: -8px; right: -8px; padding: 1px 5px; border-radius: 8px; font-size: 11px; line-height: 1.3; background: #141226; color: #fffaf0; }
 html[data-theme] .pause-menu button.btn-forfeit, .pause-menu button.btn-forfeit { background: var(--foe); color: #fff; }
+html[data-theme] .pause-menu button.btn-stay, .pause-menu button.btn-stay { background: #3fbf6a; color: #fff; }
 
 /* The three fire spells, each its own look (Nov 26): Meteor craters (dust shockwave, rock chunks flung out),
    Magma wells up as lava and spits molten globs, Sunfire is light from above (a turning sun, beams, motes). */
@@ -1389,3 +1387,51 @@ html[data-theme] .duel .team-card .hp-bar { height: clamp(26px, 4vmin, 44px); }
 /* The Tower list fades its own top 14px: its up arrow sits below that, a little bigger. */
 .tower.more-above::before { height: 46px; margin-bottom: -46px; background-size: 28px, auto; animation-name: more-bob-up-tower; }
 @keyframes more-bob-up-tower { 0%, 100% { background-position: center 75%, 0 0; } 50% { background-position: center 50%, 0 0; } }
+
+/* Duo Tower (plans/duo-tower.md): the room's mode switch, the floor picker, the last result. */
+.mode-seg { display: inline-flex; padding: 3px; gap: 3px; border-radius: 10px; background: color-mix(in srgb, var(--ink, #000) 35%, transparent); }
+.mode-seg button { all: unset; cursor: pointer; box-sizing: border-box; min-width: 120px; padding: 8px 14px; border-radius: 7px; text-align: center; font-family: var(--title, inherit); font-size: 17px; color: var(--sub); }
+.mode-seg button:hover { color: var(--text); }
+.mode-seg button.on { background: var(--main); color: var(--ink, #111); cursor: default; }
+.duo-result { font-family: var(--title, inherit); font-size: 17px; text-align: center; }
+.duo-result.won { color: var(--you); }
+.tower-switch { flex: none; }
+.duo-stage .duo-room { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.duo-code { font-family: var(--title, inherit); font-size: 20px; }
+.duo-code b { color: var(--main); letter-spacing: 0.1em; font-weight: normal; margin-left: 4px; }
+.duo-start { flex: none; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.duo-start .row { display: flex; gap: 6px; }
+.duo-start-row { position: relative; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.duo-start-row.waiting > :not(.duo-connecting) { visibility: hidden; }
+.duo-connecting { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; }
+.duo-start-row.waiting > .duo-connecting { display: flex; }
+.duo-stage .duo-result, .duo-stage .note-line { flex: none; }
+.tower .window.pair { width: 86px; display: flex; justify-content: center; gap: 0; }
+.tower .window.pair .portrait { width: 40px; height: 40px; }
+.tower .floor.locked { opacity: 0.45; cursor: default; }
+.tower .floor:disabled:not(.locked) { cursor: default; }
+.tower .floor.locked:hover { border-color: #1d1b2e; border-bottom-color: #7a5534; }
+@media (max-width: 600px) {
+  .mode-seg button { min-width: 100px; font-size: 15px; padding: 8px 10px; }
+  .tower .window.pair { width: 72px; }
+  .tower .window.pair .portrait { width: 34px; height: 34px; }
+}
+/* The Tower on a phone, Solo and Duo (Nov 26): the floors get the room. Compact floors, a smaller switch, no
+   quote; Duo's room code and partner on one line. */
+@media (max-width: 600px) {
+  .duo-stage, .solo-stage { gap: 6px; }
+  html[data-theme] .duo-stage .mode-seg button, html[data-theme] .solo-stage .mode-seg button { min-width: 84px; min-height: 0; padding: 6px 10px; font-size: 14px; }
+  .duo-stage .duo-room { flex-direction: row; gap: 8px; align-items: baseline; }
+  .duo-stage .duo-code { font-size: 17px; }
+  .duo-stage .duo-room .sub-line { font-size: 13px; }
+  .duo-stage .tower-wrap > .sub-line, .solo-stage .tower-wrap > .sub-line { display: none; }
+  html[data-theme] .duo-stage .tower .floor, html[data-theme] .solo-stage .tower .floor { padding: 2px 6px; min-height: 44px; margin-bottom: 4px; gap: 6px; border-bottom-width: 4px; }
+  .duo-stage .tower .window.pair { width: 62px; height: 36px; border-radius: 18px 18px 4px 4px; }
+  .duo-stage .tower .window.pair .portrait { width: 30px; height: 30px; }
+  .duo-stage .tower .floor-name, .solo-stage .tower .floor-name { font-size: 14px; line-height: 1.15; }
+  .duo-stage .tower .trait, .solo-stage .tower .trait { font-size: 12px; line-height: 1.15; }
+  .duo-stage .tower .tier-band, .solo-stage .tower .tier-band { margin: 2px -10px 4px; padding: 1px 0 2px; font-size: 14px; }
+  .duo-stage .duo-start .cta, .solo-stage > .cta { padding-top: 8px; padding-bottom: 8px; }
+  .solo-stage .tower .window { width: 38px; height: 38px; border-radius: 19px 19px 4px 4px; }
+  .solo-stage .tower .portrait { width: 32px; height: 32px; }
+}

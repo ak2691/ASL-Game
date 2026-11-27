@@ -2,6 +2,7 @@
 // its own spells. Nobody can be hurt. The fight engine supports teams; this is the first use of it.
 import { signsFor } from './spells'
 import { Combat, type Fid, type FighterSpec } from './combat'
+import type { BotInfo } from './duo'
 import { DUMMY_EVERY_MS, dummyParry, dummyPick, dummySpell, signTimes, spellOf, type Arena, type OppCast, type Snapshot } from './battle'
 
 export const FOES: Fid[] = ['enemy', 'enemy2'] // left, right
@@ -17,6 +18,7 @@ type BotCast = ReturnType<typeof spellOf> & { start: number; ends: number; signs
 
 export interface TeamSnapshot extends Snapshot {
   casts: Record<Fid, OppCast | null> // each dummy's spell in progress
+  bots?: Record<Fid, BotInfo> // Duo Tower: who each bot is and what it last said
 }
 
 export class TeamArena implements Arena {

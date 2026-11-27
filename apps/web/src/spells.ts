@@ -60,6 +60,52 @@ export const COMBO_SHAPE: Record<string, string> = {
 export const COMBO_MIX: Record<string, string[]> = {
   magma: ['F', 'E'], storm: ['W', 'L'], glacier: ['I', 'E'], twilight: ['A', 'U'], steam: ['F', 'W'], thermal: ['F', 'I'], plasma: ['L', 'F'], sunfire: ['A', 'F'], grave: ['U', 'E'],
 }
+// ---- Bot tags (plans/bot-tags.md): what a spell does, so bots pick by tag instead of by name.
+// A new spell needs only its tags here (plus a draw time) for every bot to use it sensibly.
+export type SpellTag =
+  | 'setup' // puts a debuff on the target (chill, Exposed, no-heal, Doom)
+  | 'payoff' // hits harder into a debuff
+  | 'antiHeal' // punishes or blocks a heal
+  | 'antiDraw' // best while the target is drawing
+  | 'antiLight' // punishes light spam
+  | 'burst' // big damage, for a stunned or silenced target
+  | 'stopper' // stuns, silences, locks or knocks a charge off
+  | 'shield'
+  | 'stealth'
+  | 'selfHeal'
+  | 'comeback' // best when its caster is hurt but not yet healing
+  | 'lastStand' // best when its caster is very low
+  | 'pressure' // best when the target has let several spells through
+  | 'unparryable' // no parry stops it: for a silenced, drawing or turtling target
+  | 'dot' // damage over time (burn)
+/** Keyed by spell id: a signature/Angelic/Unholy shape, or a combo id. Lights and heavies are untagged. */
+export const SPELL_TAGS: Record<string, SpellTag[]> = {
+  // Signatures
+  flame: ['burst', 'dot'], // Meteor
+  cage: ['stopper', 'antiLight', 'setup'], // Frozen Prison
+  zigzag7: ['stopper', 'antiLight'], // Thunderbolt
+  battlements: ['stopper', 'antiLight', 'burst'], // Earthquake
+  spiral: ['selfHeal'], // Tidal Wave
+  // Angelic / Unholy
+  star: ['selfHeal'],
+  hourglass: ['selfHeal'],
+  aegis: ['shield'],
+  scythe: ['setup'], // Doom
+  veil: ['stealth'], // Shroud
+  blade: ['payoff'], // Execute
+  // Combos
+  magma: ['burst'],
+  storm: ['antiLight'],
+  glacier: ['unparryable'],
+  twilight: ['lastStand', 'selfHeal'],
+  steam: ['pressure'],
+  thermal: ['payoff', 'setup'],
+  plasma: ['antiDraw'],
+  sunfire: ['comeback'],
+  grave: ['antiHeal', 'setup'],
+}
+export const hasTag = (spell: string, tag: SpellTag) => SPELL_TAGS[spell]?.includes(tag) ?? false
+
 /** Elements that can go into a combo. */
 export const MIXABLE = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
 /** The letters to sign for a charge: a combo is C, then its two elements. */
