@@ -7,18 +7,18 @@ import { directionLetter, passesGate } from './rules'
 import { getTracker, type Handed } from './trackers'
 import { BadFrameGuard, LandmarkSmoother } from './smoothing'
 import { Spellbook } from './Spellbook'
-import { PushSlab, SignDelaySlab, SlabChoice, SlabSection, SlabSlider, VolumeSlab } from './SettingRows'
-import { loadShapeModel, matchAmong, pathLength, recognizeShape, shapeFeatures, type Pt } from './shapes'
-import { STRICT_SHAPES, BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
+import { DrawingZoomSlab, PushSlab, SignDelaySlab, SlabChoice, SlabSection, SlabSlider, VolumeSlab } from './SettingRows'
+import { loadShapeModel, pathLength, readStroke, shapeFeatures, type Pt } from './shapes'
+import { BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
 import { Tower, chatLine } from './Ladder'
 import { DummyArena, LADDER, PracticeArena, beaterOf, dummyTimes, wizardCastMs, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
 import { HAND_ICONS, HAND_WORDS } from './statusIcons'
 import { BoltLayer, Impacts, ParryRings, StatusFx, StatusRow, canActState, setLocalBoltClock, useShake } from './effects'
-import { INTERRUPT_LOCK_MS, PARRY_WEAR, PARRY_WINDOW_MS, type Bolt, type Fid, type Side } from './combat'
+import { INTERRUPT_LOCK_MS, PARRY_POWER, PARRY_WINDOW_MS, type Bolt, type Fid, type Side } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
 import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
-import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getPushGrowth, getSignDelay, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, SPELL_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids, loadChatter, saveChatter } from './settings'
+import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getDrawingZoom, getPushGrowth, getSignDelay, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, SPELL_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids, loadChatter, saveChatter } from './settings'
 import { DummySpells } from './DummySpells'
 import { BOOK, GEAR, HomeButton, Icon } from './HomeCorner'
 
@@ -95,10 +95,7 @@ const PARRY_COOLDOWN_MS = 500
 const parryPendingGrowth = () => 1 + (getPushGrowth() - 1) / 2
 const MIN_STROKE_PALMS = 0.8 // shorter strokes fizzle (too short to be a shape). Was 1.2: lines (one segment) had to be far bigger than a W
 const NOISE_STROKE_PALMS = 0.5 // shorter still = just settling the hand, ignored (no fizzle)
-const MATCH_SCORE = 0.7 // network probability needed to count as a shape
-const SIGNATURE_SCORE = 0.9 // signatures are stricter
 const PARRY_FLASH_MS = 800 // "Reflected" / "Destroyed" stays on your hand this long
-const CIRCLE_SCORE = 0.5 // the counterspell (circle + diagonal line) is judged by a rule in shapes.ts
 const DROPOUT_MS = 150
 const REHOLD_MS = 100 // ...or keep holding it this long after the throw (charges again without letting go). Was 400; a whiffed interrupt now carries the spam cost
 const PREDICT_MS = 400 // how long a just-signed charge shows before the fight must confirm it
@@ -571,17 +568,8 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
             fade = { pts, color: '#888', t: now }
             return
           }
-          const m = recognizeShape(shapeModel, pts)
-          const need = m.name === COUNTER ? CIRCLE_SCORE : STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
-          let shape = m.score >= need && m.name !== 'none' ? m.name : null
           const el = fightRef.current.charge.player
-          // A single element (or Angelic / Unholy) charged: only what it can cast competes, at lower minimums:
-          // the counter circle 30%, a heavy 40%, Angelic heals 50%. Signatures and combos keep their strict
-          // checks (a cheat test let round-topped Meteors and scribbles through at any lower minimum).
-          if (el && el !== 'C' && !(el in COMBO_MIX) && (!shape || !isValidSpell(el, shape)) && m.name !== 'line') {
-            const cands = [...shapesFor(el), ...(el in BEATS || el === 'A' || el === 'U' ? [COUNTER] : [])]
-            shape = matchAmong(m, pts, cands, (n) => (n === COUNTER ? 0.3 : STRICT_SHAPES.has(n) ? Infinity : n === 'h' ? 0.4 : 0.5))
-          }
+          const { shape, m } = readStroke(shapeModel, pts, el)
           if (DEBUG) {
             const ft = shapeFeatures(pts)
             const o = ft.length - 8 // summary inputs: turns, …, corners (see shapes.ts)
@@ -871,7 +859,7 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
 
           // Pen: the index fingertip, in pixels (so circles aren't squashed by the 16:9 frame).
           // Right after a parry the drawing hand is still moving: no new line until it settles.
-          // Staggered from a missed parry: no drawing at all until it wears off.
+          // Staggered from a missed parry: no drawing at all until it ends.
           if (penHand && pen && pointing && now - parryAt >= PARRY_COOLDOWN_MS && !((view.staggered?.player ?? 0) > 0)) {
             if (stroke.length === 0) setDrawing(true) // drawing with a spell readied drops it (the fight decides)
             release = null // pointing to draw is letting go of the thrown letter (else signing it again right after stays blocked)
@@ -1129,7 +1117,7 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
     const ch = chargeOf(side)
     const glow = ch.el === '?' ? ELEMENTS.U.color : ch.el ? chargeInfo(ch.el).color : undefined
     const words = chargeWords(ch.el, ch.mix)
-    const showWear = fxOn && !(mode === 'tutorial' && side === 'enemy')
+    const showPower = fxOn && !(mode === 'tutorial' && side === 'enemy')
     return (
     <div className="fighter">
       {/* Name left, HP number right (Nov 26: out of the bar, so the bar shows only health and the charge). */}
@@ -1167,10 +1155,10 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
       </div>
       {/* Under the bar, fixed room that fits the worst case (Nov 26): nothing here ever moves, wraps into the
           drawing or hides behind "+N". The status icons get their rows (one on a wide bar, two on a 2v2
-          card); then all 8 elements' wear in fixed slots. Your own "can't act" states are on your hand. */}
+          card); then all 8 elements' power in fixed slots. Your own "can't act" states are on your hand. */}
       <div className="fighter-status">
         <div className="status-slot">{fxOn && <StatusRow view={fight} side={side} hand={side === 'player'} max={99} />}</div>
-        <WearGrid wear={showWear ? fight.wear?.[side] ?? {} : undefined} />
+        <PowerGrid power={showPower ? fight.power?.[side] ?? {} : undefined} />
       </div>
     </div>
     )
@@ -1284,7 +1272,7 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
   const askForfeit = useCallback(() => setMenu('forfeit'), [])
-  // The opponent's drawing starts right below their HUD, at its real height (Nov 26): status and wear rows
+  // The opponent's drawing starts right below their HUD, at its real height (Nov 26): status and power rows
   // take only the room they need, and the drawing area moves down when they grow, so nothing ever covers it.
   const hudWatch = useMemo(
     () =>
@@ -1530,6 +1518,9 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
               <PushSlab />
               <SignDelaySlab />
             </SlabSection>
+            <SlabSection title="Display">
+              <DrawingZoomSlab />
+            </SlabSection>
             <SlabSection title="Sound">
               <VolumeSlab />
               {mode === 'practice' && (
@@ -1617,7 +1608,7 @@ function EnemyCanvas({ cast, zoom = false }: { cast: Snapshot['enemyCast']; zoom
     return () => ro.disconnect()
   }, [zoom])
   let transform = 'none'
-  if (zoom && size && pts.length > 1) {
+  if (zoom && getDrawingZoom() && size && pts.length > 1) {
     const xs = pts.map((p) => p.x * fw)
     const ys = pts.map((p) => p.y * FRAME_H)
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
@@ -1654,29 +1645,29 @@ function ArmorBar({ hp, max, armor }: { hp: number; max: number; armor: number }
   )
 }
 
-/** Your charge's power when worn (an element, or a combo: the average of its two), else null. */
+/** Your charge's power when below full (an element, or a combo: the average of its two), else null. */
 
 /** Notes for "can't act" moments: the symbol on your hand says it, not the message line. (A fizzle keeps its
  *  line: it says why the drawing failed.) */
 const MENU_REDRAW_MS = 250 // while a menu is open, the page behind it redraws at most this often
 
-const WEAR_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U', PARRY_WEAR]
-/** Wear: only the worn elements ("F42"), packed from the left, in room that always fits all 8 (one row on a
+const POWER_ORDER = ['F', 'I', 'W', 'E', 'L', 'A', 'U', PARRY_POWER]
+/** Power: only the elements below full ("F42"), packed from the left, in room that always fits all 8 (one row on a
  *  wide bar, 4 x 2 on a 2v2 card), so however many show, nothing below ever moves or gets covered. */
-function WearGrid({ wear }: { wear: Record<string, number> | undefined }) {
-  const worn = WEAR_ORDER.filter((e) => (wear?.[e] ?? 100) < 100)
+function PowerGrid({ power }: { power: Record<string, number> | undefined }) {
+  const shown = POWER_ORDER.filter((e) => (power?.[e] ?? 100) < 100)
   return (
-    <div className="wear-grid" aria-label="Worn elements">
-      {worn.map((e) => (
-        <span key={e} style={{ '--el': e === PARRY_WEAR ? '#ffffff' : ELEMENTS[e].color } as React.CSSProperties}>
-          {e === PARRY_WEAR ? (
-            <svg className="wear-shield" viewBox="0 0 24 24" aria-label="Parry">
+    <div className="power-grid" aria-label="Element power">
+      {shown.map((e) => (
+        <span key={e} style={{ '--el': e === PARRY_POWER ? '#ffffff' : ELEMENTS[e].color } as React.CSSProperties}>
+          {e === PARRY_POWER ? (
+            <svg className="power-shield" viewBox="0 0 24 24" aria-label="Parry">
               <path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z" />
             </svg>
           ) : (
             <b>{e}</b>
           )}
-          {wear![e]}
+          {power![e]}
         </span>
       ))}
     </div>

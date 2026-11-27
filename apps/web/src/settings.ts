@@ -61,6 +61,28 @@ export function setPushGrowth(v: number) {
   }
 }
 
+// Drawing zoom (Nov 27): on 2v2 cards, a foe's small drawing is zoomed in to stay readable. Until set, on for
+// phones and tablets (touch screens, where the cards are small), off on desktop. Read live every render.
+const ZOOM_KEY = 'spells-drawing-zoom'
+let drawingZoom = (() => {
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  try {
+    const v = localStorage.getItem(ZOOM_KEY)
+    return v === null ? touch : v === '1'
+  } catch {
+    return touch
+  }
+})()
+export const getDrawingZoom = () => drawingZoom
+export function setDrawingZoom(on: boolean) {
+  drawingZoom = on
+  try {
+    localStorage.setItem(ZOOM_KEY, on ? '1' : '0')
+  } catch {
+    /* not saved */
+  }
+}
+
 // Training dummy: which spells it may throw when attacking, as "element:shape" ("F:line", "A:star", ...).
 export const DUMMY_POOL_KEY = 'spells-dummy-pool'
 export const DUMMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L', 'A', 'U']

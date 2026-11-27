@@ -3,6 +3,7 @@
 // "none" class for near-misses (wrong peak count, upside down, rounded instead of sharp...).
 // features() must match ml/synth_shapes.py.
 import { runLayer, type Dense } from './recognition'
+import { BEATS, COMBO_MIX, COUNTER, STRICT_SHAPES, isValidSpell, shapesFor } from './spells'
 
 export interface Pt {
   x: number
@@ -603,6 +604,26 @@ export function passesRules(name: string, points: Pt[]) {
   if (name === 'scythe') return bladeCurve(points) >= DOOM_CURVE && scytheTipOk(scytheTip(points))
   if (name === 'circle') return nullSign(points)
   return true
+}
+
+const MATCH_SCORE = 0.7 // network probability needed to count as a shape
+const SIGNATURE_SCORE = 0.9 // signatures are stricter
+const CIRCLE_SCORE = 0.5 // the counterspell (circle + diagonal line) is judged by a rule (nullSign)
+
+/** Which spell shape a finished stroke is, with `el` charged (null = not a spell shape). The browser decides
+ *  with this, and the server runs it again on the points it was sent to check what the browser claimed. */
+export function readStroke(model: ShapeModel, pts: Pt[], el: string | null) {
+  const m = recognizeShape(model, pts)
+  const need = m.name === COUNTER ? CIRCLE_SCORE : STRICT_SHAPES.has(m.name) ? SIGNATURE_SCORE : MATCH_SCORE
+  let shape = m.score >= need && m.name !== 'none' ? m.name : null
+  // A single element (or Angelic / Unholy) charged: only what it can cast competes, at lower minimums:
+  // the counter circle 30%, a heavy 40%, Angelic heals 50%. Signatures and combos keep their strict
+  // checks (a cheat test let round-topped Meteors and scribbles through at any lower minimum).
+  if (el && el !== 'C' && !(el in COMBO_MIX) && (!shape || !isValidSpell(el, shape)) && m.name !== 'line') {
+    const cands = [...shapesFor(el), ...(el in BEATS || el === 'A' || el === 'U' ? [COUNTER] : [])]
+    shape = matchAmong(m, pts, cands, (n) => (n === COUNTER ? 0.3 : STRICT_SHAPES.has(n) ? Infinity : n === 'h' ? 0.4 : 0.5))
+  }
+  return { shape, m }
 }
 
 /** Charge-aware reading (Nov 25): with a charge up, only the spells that charge can cast (plus "none", the

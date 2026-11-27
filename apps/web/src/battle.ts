@@ -1,6 +1,6 @@
 // Arenas: what the Spells page fights in. Practice = an AI enemy in the browser; online = a real
 // opponent through the server (online.ts). Both give the page the same Snapshot to draw.
-import { CHILL_HEAVY_MS, CHILL_MS, THERMAL, Combat, COUNTER_CUTOFF, WEAR_STEP, FIZZLE_LOCK_MS, FLY_MS, TWILIGHT_MS, MAX_HP, PARRY_WEAR, PARRY_WINDOW_MS, STATIC_CUTOFF, type CombatView, type Fid, type Side, flightOf } from './combat'
+import { CHILL_HEAVY_MS, CHILL_MS, THERMAL, Combat, COUNTER_CUTOFF, POWER_STEP, FIZZLE_LOCK_MS, FLY_MS, TWILIGHT_MS, MAX_HP, PARRY_POWER, PARRY_WINDOW_MS, STATIC_CUTOFF, type CombatView, type Fid, type Side, flightOf } from './combat'
 import { BEATS, canQuick, chargeInfo, COMBOS_ON, COMBO_MIX, COMBO_SHAPE, COUNTER, QUICK, SIGNATURE, SPELL_TAGS, type SpellTag, hasTag, UNHOLY_SHAPES, ANGELIC_SHAPES, mixCounter, signsFor, spellName } from './spells'
 import { samplePath } from './shapePaths'
 import { spiralPoints } from './shapes'
@@ -133,7 +133,7 @@ export const AI: Record<Difficulty, AiStyle> = {
   // Nov 24 (later): waiting between casts shorter, 25% at the bottom tapering to 5% at the top (the top was
   // already near human limits; halving made it inhuman), drawing slower (DRAW_MS): time goes into drawing you can see.
   // Nov 24 balance pass (plans/balance.md): every rung faster, signatures from the start, parrying from Cleric,
-  // spam punished everywhere. Single-element bots got a second element, and (10 s wear recovery) Frost, Cleric, Hexer and Zealot a third: two sink to the floor.
+  // spam punished everywhere. Single-element bots got a second element, and (10 s power recovery) Frost, Cleric, Hexer and Zealot a third: two sink to the floor.
   pebble: { ...BOT, miss: 0.33, every: 2600, speed: 1.0, els: ['E', 'W', 'F'], moves: { line: 15, h: 80, signature: 5 }, order: 'alternate', react: 0.05, spamCounter: 0.25, habit: 'wall', habitStrength: 0.8 },
   ember: { ...BOT, bail: 0.05, feintRead: 0.1, fizzlePunish: 0, feint: 0.02, dodge: 0.03, miss: 0.28, every: 1300, speed: 0.95, els: ['F', 'L', 'I'], moves: LHS, order: 'fresh', react: 0.1, spamCounter: 0.35, habit: 'spammer', habitStrength: 0.8 },
   frost: { ...BOT, bail: 0.08, feintRead: 0.15, fizzlePunish: 0.05, feint: 0.03, dodge: 0.05, miss: 0.26, order: 'fresh', every: 1400, speed: 0.9, els: ['I', 'E', 'F'], moves: LHS, react: 0.2, spamCounter: 0.5, combos: ['thermal'], comboRate: 0.15, habit: 'setup', habitStrength: 0.8 },
@@ -628,7 +628,7 @@ export class PracticeArena implements Arena {
         return this.cast(el, Math.random() < 0.05 ? SIGNATURE[el] : 'h', sp) // Nov 26: was 15% (ladder sim: Old Bram out-healed Pip)
       }
       case 'spammer': {
-        // A smart spammer: Lightning while it still has static, else whichever element is least worn.
+        // A smart spammer: Lightning while it still has static, else whichever element has the most power.
         const pw = (e: string) => this.combat.powerOf('enemy', e, now)
         // Nov 26 (ladder sim): Lightning only some of the time; its lights hit softest, so all-Lightning spam was weak.
         const el = this.els.includes('L') && pw('L') >= STATIC_CUTOFF && Math.random() < 0.35 ? 'L' : this.els.reduce((a, b) => (pw(b) > pw(a) ? b : a))
@@ -797,7 +797,7 @@ export class PracticeArena implements Arena {
     }
     // Cleanse (Nov 25): healers star off a burn, chill or static once they've taken some damage; smarter ones more often.
     const afflicted = v.burning.enemy || v.chillMs.enemy > 0 || v.static.enemy !== null || v.noHeal.enemy > 0 || v.exposed.enemy > 0 || v.fog.enemy > 0 || (v.doom?.enemy ?? 0) > 0
-    if (s.healBelow > 0 && afflicted && (v.wear?.enemy?.A ?? 100) >= 100 && hpShare < 0.9 && now - this.lastHeal > (s.healGap ?? 6000) && Math.random() < 0.25 + 0.5 * s.smart) {
+    if (s.healBelow > 0 && afflicted && (v.power?.enemy?.A ?? 100) >= 100 && hpShare < 0.9 && now - this.lastHeal > (s.healGap ?? 6000) && Math.random() < 0.25 + 0.5 * s.smart) {
       this.lastHeal = now
       return this.cast('A', 'star', sp)
     }
@@ -849,7 +849,7 @@ export class PracticeArena implements Arena {
     const repeating = predict(this.moves) !== null || predict(this.history) !== null
     const stun = s.stun * (predict(this.moves) === 'L' ? 1.3 : 1)
     if (repeating && this.unanswered >= 2 && Math.random() < stun && !(v.hp.player / v.maxHp.player < 0.2)) {
-      // Lightning too worn for static (under STATIC_CUTOFF) can't stop anything.
+      // Lightning too weak for static (under STATIC_CUTOFF) can't stop anything.
       const stoppers = ANTI_LIGHT.filter(([el]) => this.els.includes(el) && (el !== 'L' || this.combat.powerOf('enemy', 'L', now) >= STATIC_CUTOFF))
       if (stoppers.length) {
         const [el, shape] = stoppers[Math.floor(Math.random() * stoppers.length)]
@@ -870,18 +870,18 @@ export class PracticeArena implements Arena {
     }
     let shape = pick(moves)
     if (this.exploiting && Math.random() < lerp(0.5, 0.9, s.read)) shape = 'signature' // you can't counter it: go big
-    // Turtling (Nov 25): you only parry. Readers bait with cheap lights (each parry you land wears your parry)
-    // and throw the big one once your parry is worn (its reflect would come back weak) or you're staggered.
-    const parryPower = (v.wear?.player?.[PARRY_WEAR] ?? 100) / 100
+    // Turtling (Nov 25): you only parry. Readers bait with cheap lights (each parry you land lowers your parry's power)
+    // and throw the big one once your parry is weak (its reflect would come back weak) or you're staggered.
+    const parryPower = (v.power?.player?.[PARRY_POWER] ?? 100) / 100
     if (s.read > 0 && this.turtling(now, v) && Math.random() < lerp(0.4, 1, s.read)) shape = parryPower <= 0.7 ? 'signature' : 'line'
     if (s.capitalize && (v.silenced.player > 1200 || (v.staggered?.player ?? 0) > 600)) shape = 'signature' // you can't counter (or parry) it now
     else if (s.capitalize && v.hp.player / v.maxHp.player < 0.2) shape = 'line' // finish fast
     return this.cast(el, shape === 'signature' ? SIGNATURE[el] : shape, sp)
   }
 
-  /** You're turtling: parrying (your parry is worn) and you haven't attacked for 4 s. */
+  /** You're turtling: parrying (your parry is below full power) and you haven't attacked for 4 s. */
   private turtling(now: number, v: CombatView) {
-    return (v.wear?.player?.[PARRY_WEAR] ?? 100) < 100 && now - Math.max(this.playerThrewAt, this.started) > 4000
+    return (v.power?.player?.[PARRY_POWER] ?? 100) < 100 && now - Math.max(this.playerThrewAt, this.started) > 4000
   }
 
   /** A counterspell's power before it's cast: its element's, or a combo counterspell's two averaged. */
@@ -889,7 +889,7 @@ export class PracticeArena implements Arena {
     const els = el.length === 3 && el[0] === 'C' ? [el[1], el[2]] : [el]
     return els.reduce((t, e) => t + this.combat.powerOf('enemy', e, now), 0) / els.length
   }
-  /** Its least worn attack element (a heal's counterspell can be any element). */
+  /** Its strongest attack element (a heal's counterspell can be any element). */
   private freshestEl() {
     const now = this.clock
     return this.els.reduce((a, b) => (this.combat.powerOf('enemy', b, now) > this.combat.powerOf('enemy', a, now) ? b : a))
@@ -908,21 +908,21 @@ export class PracticeArena implements Arena {
       const rest = this.els.filter((x) => x !== this.lastEl)
       el = rest[Math.floor(Math.random() * rest.length)]
     } else if ((this.style.smart >= 0.5 || this.style.read > 0) && this.els.length > 1) {
-      // Smart ones rotate: fresher elements (less wear) are more likely.
+      // Smart ones rotate: stronger elements (more power) are more likely.
       const now = this.clock
       el = pick(this.els.map((x) => ({ w: this.combat.powerOf('enemy', x, now) ** 3, v: x })))
     } else el = this.anyEl()
-    el = this.wearPlay(el)
+    el = this.powerPlay(el)
     this.lastEl = el
     return el
   }
 
-  /** Wear play (Nov 26, counters need COUNTER_CUTOFF power). Readers (Warden up) use it both ways:
+  /** Power play (Nov 26, counters need COUNTER_CUTOFF power). Readers (Warden up) use it both ways:
    *  - exploit: an element you can't counter right now (yours that beats it is under the cutoff) is thrown,
    *    and nextSpell makes it a big one;
    *  - reserve: they don't spend the element that counters yours if that would drop it under the cutoff. */
   private exploiting = false
-  private wearPlay(el: string) {
+  private powerPlay(el: string) {
     const s = this.style
     this.exploiting = false
     if (!(s.read > 0) || this.els.length < 2) return el
@@ -935,7 +935,7 @@ export class PracticeArena implements Arena {
     // Your element: your charge, or else what you threw last.
     const yours = this.combat.chargeOf('player') ?? this.thrown[this.thrown.length - 1]?.split(':')[0] ?? null
     const keep = yours && yours in BEATS ? beaterOf(yours) : null
-    if (keep === el && this.combat.powerOf('enemy', el, now) - WEAR_STEP < COUNTER_CUTOFF && Math.random() < lerp(0.4, 0.9, s.smart)) {
+    if (keep === el && this.combat.powerOf('enemy', el, now) - POWER_STEP < COUNTER_CUTOFF && Math.random() < lerp(0.4, 0.9, s.smart)) {
       const rest = this.els.filter((x) => x !== el)
       return rest.reduce((a, b) => (this.combat.powerOf('enemy', b, now) > this.combat.powerOf('enemy', a, now) ? b : a))
     }
@@ -993,7 +993,7 @@ export class PracticeArena implements Arena {
   /** Angelic buffs and Unholy curses, when one fits the moment. */
   private utilitySpell(v: CombatView, sp: number) {
     const s = this.style
-    // Doomed: throw its freshest element fast (a worn one wouldn't lift Doom).
+    // Doomed: throw its freshest element fast (a weak one wouldn't lift Doom).
     if (v.doom.enemy > 0) {
       const now = this.clock
       return this.cast(this.els.reduce((a, b) => (this.combat.powerOf('enemy', b, now) > this.combat.powerOf('enemy', a, now) ? b : a)), 'line', sp)
@@ -1129,7 +1129,7 @@ export class PracticeArena implements Arena {
     let shape = healing || Math.random() < circle ? 'circle' : 'jab'
     const vsCombo = this.reactTo in COMBO_MIX
     let el = healing ? this.freshestEl() : vsCombo ? mixCounter(COMBO_MIX[this.reactTo].map(beaterOf)) : beaterOf(this.reactTo)
-    // Counters need COUNTER_CUTOFF power (Nov 26). Bots that watch wear (smart or reading) don't try a worn one;
+    // Counters need COUNTER_CUTOFF power (Nov 26). Bots that watch power (smart or reading) don't try a weak one;
     // the intro bots still do, and it fails like yours.
     if ((s.smart >= 0.3 || s.read > 0) && this.counterPower(el, now) < COUNTER_CUTOFF) return
     if (vsCombo) shape = 'circle' // a combo counterspell is always a circle
@@ -1180,7 +1180,7 @@ export class PracticeArena implements Arena {
     if (this.glacierRolled || (e && (e.counter || now - e.start >= e.chargeMs))) return
     this.glacierRolled = true
     if (Math.random() >= (this.style.comboCounter ?? 0)) return
-    if (this.counterPower(mixCounter(['F', 'I']), now) < COUNTER_CUTOFF) return // too worn to break it
+    if (this.counterPower(mixCounter(['F', 'I']), now) < COUNTER_CUTOFF) return // too weak to break it
     const hold = Math.max(SIGN_HOLD_MS, COUNTER_HOLD_MS * this.speed(now))
     const base = this.cast(mixCounter(['F', 'I']), 'circle', this.speed(now), hold * 2)
     const sp = { ...base, readyMs: COUNTER_READY_MS }

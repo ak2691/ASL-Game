@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   HEAL, REGEN, AEGIS_DRAIN, AEGIS_HP, GLACIER_DMG, GLACIER_MS, GRAVE, MAGMA, PLASMA, STEAM_HIT, STEAM_MS, STEAM_SHOTS, STORM, SUNFIRE, THERMAL,
   TWILIGHT_MS, DOOM_DMG, DOOM_MS, DOOM_LIFT, SHROUD_MS, EXECUTE, BURN, CHILL, CHILL_MS, CHILL_HEAVY_MS, COUNTER_SILENCE_MS, FIZZLE_LOCK_MS, PRISON_CHILL,
-  PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, STATIC_CUTOFF, COUNTER_CUTOFF, PARRY_MISS_MS, TWILIGHT_GUARD, TWILIGHT_EXPOSE, WEAR_STEP, WEAR_FLOOR, WEAR_DECAY_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS,
+  PRISON_SILENCE_MS, PUNCH, READY_LIFE_MS, STATIC_PULSES, STATIC_CUTOFF, COUNTER_CUTOFF, PARRY_MISS_MS, TWILIGHT_GUARD, TWILIGHT_EXPOSE, POWER_STEP, POWER_FLOOR, POWER_DECAY_MS, PARRY_WINDOWS, TIDAL_HEAL, INTERRUPT_LOCK_MS, WHIFF_MS,
   SIG_HIT,
 } from './combat'
 import { COMBO, COMBO_CHARGES, COMBO_MIX, COMBO_SHAPE, COMBOS_ON, COUNTER, ELEMENTS, SIGNATURE } from './spells'
@@ -137,17 +137,17 @@ const ThrowArt = () => {
     </div>
   )
 }
-/** Wear: the same chips a fight shows on your status row (only worn elements appear). */
-const wearArt = (
-  <div className="book-wear-demo">
-    <div className="wear-chips">
+/** Power: the same chips a fight shows on your status row (only elements below full power appear). */
+const powerArt = (
+  <div className="book-power-demo">
+    <div className="power-chips">
       {[['F', 70], ['I', 40], ['W', 85]].map(([e, v]) => (
         <span key={e as string} style={{ '--el': ELEMENTS[e as string].color } as React.CSSProperties}>
           {e} {v}
         </span>
       ))}
     </div>
-    <small>Power left, shown under your health bar. Fresh elements don't show.</small>
+    <small>Power left, shown under your health bar. Elements at full power don't show.</small>
   </div>
 )
 
@@ -336,9 +336,9 @@ const PAGES: Page[] = [
     : []),
   { ch: 'defense', title: 'Counterspell', art: <SignShape signs={['W']} shape={COUNTER} color={ELEMENTS.W.color} />, how: 'They charge Fire? Water beats Fire: sign W, draw a circle with a diagonal line through it, push.', does: `If they still hold the element yours beats, they're stunned until your next hit, up to ${s(COUNTER_SILENCE_MS)}. Any element's counterspell stops a heal.`, chips: [`Stun up to ${s(COUNTER_SILENCE_MS)}`, `Needs ${COUNTER_CUTOFF * 100}%+ power`] },
   { ch: 'defense', title: 'Interrupt', art: <InterruptArt />, how: 'They charge Fire? Sign W and push it at the camera. No drawing.', does: `Their spell fizzles and they can't act for ${s(INTERRUPT_LOCK_MS)}. If it misses, you can't act for ${s(WHIFF_MS)}. Doesn't stop heals.`, chips: [`Lock ${s(INTERRUPT_LOCK_MS)}`, `Miss ${s(WHIFF_MS)}`, `Needs ${COUNTER_CUTOFF * 100}%+ power`] },
-  { ch: 'defense', title: 'Parry', art: parryArt, how: `Push both hands at the camera in the last ${PARRY_WINDOWS.light} ms before a spell hits you.`, does: `Parry timer in the Training dummy shows that moment. Each parry, hit or miss, wears your parry ${WEAR_STEP * 100}%: at 70%, 70% goes back and 30% hits you.`, chips: [`Miss: stagger ${s(PARRY_MISS_MS)}`] },
-  { ch: 'status', title: 'Wear', art: wearArt, how: "Each cast, counters included, weakens that element.", does: `At 70%, a 24 damage heavy does 17. Burns, chills and heals shrink too.`, chips: [`-${WEAR_STEP * 100}% a throw`, `-${WEAR_STEP * 50}% light, Angelic or interrupt`, `Lowest ${WEAR_FLOOR * 100}%`, `+${WEAR_STEP * 100}% every ${s(WEAR_DECAY_MS)}`] },
-  { ch: 'status', title: 'Statuses', art: null, spread: (ch) => <StatusSpread ch={ch} />, how: 'Icons under each health bar. Red edge hurts you, green helps.', does: 'The bar under an icon is its time left. Worn spells give weaker, shorter statuses. A full-power Heal clears curses.' },
+  { ch: 'defense', title: 'Parry', art: parryArt, how: `Push both hands at the camera in the last ${PARRY_WINDOWS.light} ms before a spell hits you.`, does: `Parry timer in the Training dummy shows that moment. Each parry, hit or miss, lowers your parry's power ${POWER_STEP * 100}%: at 70%, 70% goes back and 30% hits you.`, chips: [`Miss: stagger ${s(PARRY_MISS_MS)}`] },
+  { ch: 'status', title: 'Power', art: powerArt, how: "Each cast, counters included, lowers that element's power.", does: `At 70%, a 24 damage heavy does 17. Burns, chills and heals shrink too.`, chips: [`-${POWER_STEP * 100}% a throw`, `-${POWER_STEP * 50}% light, Angelic or interrupt`, `Lowest ${POWER_FLOOR * 100}%`, `+${POWER_STEP * 100}% every ${s(POWER_DECAY_MS)}`] },
+  { ch: 'status', title: 'Statuses', art: null, spread: (ch) => <StatusSpread ch={ch} />, how: 'Icons under each health bar. Red edge hurts you, green helps.', does: 'The bar under an icon is its time left. Low-power spells give weaker, shorter statuses. A full-power Heal clears curses.' },
 ]
 
 const CHAPTERS: { id: string; name: string; color: string }[] = [

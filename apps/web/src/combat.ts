@@ -24,11 +24,11 @@ export const AEGIS_DRAIN = 4 // ...and drains this much per second. Can't be rec
 export const MIRROR_MS = 4000 // Mirror: the next direct-damage spell within this time flies back
 export const DOOM_MS = 2500 // Doom: land a cast within this time...
 export const DOOM_DMG = 30 // ...or take this
-export const DOOM_LIFT = 0.7 // ...and the cast that lifts it must be at this power or more (wear)
-export const SHROUD_MS = 6000 // Shroud: they can't see your charge or your drawing (Nov 24: was 5 s; now worn by wear)
-export const SHROUD_MIN_MS = 3000 // a worn Shroud never drops below this
+export const DOOM_LIFT = 0.7 // ...and the cast that lifts it must be at this power or more
+export const SHROUD_MS = 6000 // Shroud: they can't see your charge or your drawing (Nov 24: was 5 s; now shrunk by low power)
+export const SHROUD_MIN_MS = 3000 // a weak Shroud never drops below this
 // Execute (Nov 24): no longer about HP (it took over every late game). Double damage on a cursed target:
-// burning, chilled, static, Doomed, Exposed, fogged or no-heal when it lands. Wear still shrinks it.
+// burning, chilled, static, Doomed, Exposed, fogged or no-heal when it lands. Low power still shrinks it.
 export const EXECUTE = { base: 30, cursed: 60 }
 // (a readied Execute hit by a counterspell backfires: the caster takes half of what it would do to them)
 // Combos (plans/combos.md). First guesses, to tune in playtests.
@@ -77,17 +77,17 @@ export const SIG_HIT: Record<string, number> = { flame: 32, cage: 24, zigzag7: 2
 /** Combo direct hits (land() uses the same constants); Twilight has none. */
 const COMBO_HIT: Record<string, number> = { magma: MAGMA[0], storm: STORM.hit, glacier: GLACIER_DMG, steam: STEAM_HIT, thermal: THERMAL.hit, plasma: PLASMA.hit, sunfire: SUNFIRE[0], grave: GRAVE.hit }
 export const PARRY_HINT_MS = 300 // a missed parry this close to a spell says Too early / Too late
-export const PARRY_WEAR = 'P' // the parry's own wear key (alongside the elements')
-// Wear (Nov 24 balance pass, plans/balance.md): each throw of an element wears it. A worn element's
-// spells do less (damage, burns, heals): -WEAR_STEP per stack, down to WEAR_FLOOR. A stack fades every
-// WEAR_DECAY_MS. Spamming one element sinks fast; rotating 3 elements stays at full power.
-// A light adds half a stack. Counters don't wear. A combo hits at the average of its two elements' power
+export const PARRY_POWER = 'P' // the parry's own power key (alongside the elements')
+// Power (Nov 24 balance pass, plans/balance.md): each throw of an element lowers its power. A weakened element's
+// spells do less (damage, burns, heals): -POWER_STEP per stack, down to POWER_FLOOR. A stack fades every
+// POWER_DECAY_MS. Spamming one element sinks fast; rotating 3 elements stays at full power.
+// A light adds half a stack. Counters don't lose power. A combo hits at the average of its two elements' power
 // and adds a stack to each.
-export const WEAR_STEP = 0.3
-export const WEAR_FLOOR = 0.3 // Nov 24: was 0.4
-export const WEAR_DECAY_MS = 10000 // Nov 24: was 8000, before that 5000 (two elements alternated recovered fully; three in rotation still do)
-const WEAR_MAX_STACKS = (1 - WEAR_FLOOR) / WEAR_STEP // stacks that reach the floor
-// Wear also shrinks effects (Nov 24): chill %, stun and silence lengths (never below STUN_MIN_MS), timed
+export const POWER_STEP = 0.3
+export const POWER_FLOOR = 0.3 // Nov 24: was 0.4
+export const POWER_DECAY_MS = 10000 // Nov 24: was 8000, before that 5000 (two elements alternated recovered fully; three in rotation still do)
+const POWER_MAX_STACKS = (1 - POWER_FLOOR) / POWER_STEP // stacks that reach the floor
+// Low power also shrinks effects (Nov 24): chill %, stun and silence lengths (never below STUN_MIN_MS), timed
 // effects (Twilight, fog, no-heal, Shroud), Doom and Storm damage. Lightning is the exception: below
 // STATIC_CUTOFF power its hits still land but add no static. Earthquake's knockdown and Doom's timer don't change.
 export const STATIC_CUTOFF = 0.7
@@ -172,7 +172,7 @@ export interface Bolt {
   parryable?: boolean // a spell flying at someone that a parry can send back
   parried?: boolean // sent back (or ended) by a parry before it landed
   reflected?: boolean // this bolt is a parry's reflection (not a fresh throw)
-  power?: number // share of its damage (1, or less once reflected or worn)
+  power?: number // share of its damage (1, or less once reflected or weakened)
   parryMs?: number // its parry window (ms before impact)
   t: number
 }
@@ -230,7 +230,7 @@ export interface CombatView {
   fog: Record<Fid, number> // ms of Steam left (0 once its misses are used up)
   fogShots: Record<Fid, number> // attacks Steam will still make miss
   noHeal: Record<Fid, number> // ms of Grave left (can't heal)
-  wear: Record<Fid, Record<string, number>> // worn elements only: their power now, in % (WEAR_FLOOR..99)
+  power: Record<Fid, Record<string, number>> // weakened elements only: their power now, in % (POWER_FLOOR..99)
   glacier: Record<Fid, number> // ms until an Advancing Glacier reaches them (0 = none)
   storm: Record<Fid, boolean> // a Storm (combo) is raining on them: its static pulses hurt
   notes: Note[]
@@ -254,7 +254,7 @@ export class Combat {
   // active = last drawing/charging activity (idle fade); since = when charged
   private charge: Record<Fid, { el: string; since: number; active: number; mix?: string[] } | null> = {}
   private ready: Record<Fid, { el: string; shape: string; at: number } | null> = {}
-  private wear: Record<Fid, Record<string, { n: number; at: number }>> = {}
+  private loss: Record<Fid, Record<string, { n: number; at: number }>> = {}
   private strokeStart: Record<Fid, number | null> = {} // when the current stroke began
   notes: Note[] = []
   private static: Record<Fid, Static | null> = {}
@@ -274,13 +274,13 @@ export class Combat {
   private aimAt: Record<Fid, Fid | null> = {} // who each fighter aims at (null = default target)
   private lastHitBy: Record<Fid, Fid | null> = {} // the last enemy that hit them (default target)
   private ticking: Ticking[] = []
-  private flying: { caster: Fid; target: Fid; el: string; shape: string; landAt: number; bolt: Bolt; power?: number; wear?: number; reflects?: number; miss?: boolean; weak?: boolean }[] = []
+  private flying: { caster: Fid; target: Fid; el: string; shape: string; landAt: number; bolt: Bolt; power?: number; castPower?: number; reflects?: number; miss?: boolean; weak?: boolean }[] = []
   private staggeredUntil: Record<Fid, number> = {} // a missed parry: no parrying again until then
   private lastParryable: Record<Fid, { at: number }> = {} // the last parryable spell that landed on each side (a late parry)
   private pendingWeak = false // the counterspell / interrupt landing right now was cast under COUNTER_CUTOFF power
   private pendingMiss = false // the spell landing right now was thrown from Steam's fog: it misses
   private landScale = 1 // the power of the spell landing right now (a reflected one hits softer)
-  private landWear = 1 // just the wear part of landScale (Lightning's static cutoff)
+  private landCastPower = 1 // just the cast-power part of landScale (Lightning's static cutoff)
   private doomScale: Record<Fid, number> = {} // a Doom's power when it landed
   private by: Fid | null = null // who caused the damage being dealt right now
   floats: Float[] = []
@@ -324,18 +324,23 @@ export class Combat {
       this.aimAt[f.id] = null
       this.lastHitBy[f.id] = null
       this.staggeredUntil[f.id] = 0
-      this.wear[f.id] = {}
+      this.loss[f.id] = {}
     }
   }
 
-  /** Wear stacks on `side`'s element right now (they fade over time). */
-  private wearOf(side: Fid, el: string, now: number) {
-    const w = this.wear[side][el]
-    return w ? Math.max(0, w.n - (now - w.at) / WEAR_DECAY_MS) : 0
+  /** Power-loss stacks on `side`'s element right now (they fade over time). */
+  private lossOf(side: Fid, el: string, now: number) {
+    const w = this.loss[side][el]
+    return w ? Math.max(0, w.n - (now - w.at) / POWER_DECAY_MS) : 0
+  }
+  /** When each weakened element is back to full power (for the server: unlike the power, these hold still between casts). */
+  powerEnds(now: number): Record<Fid, Record<string, number>> {
+    const end = (w: { n: number; at: number }) => w.at + w.n * POWER_DECAY_MS
+    return Object.fromEntries(this.ids.map((s) => [s, Object.fromEntries(Object.entries(this.loss[s]).map(([e, w]) => [e, end(w)] as const).filter(([, t]) => t > now))]))
   }
   /** The power `side`'s next spell of `el` would have (1 = fresh). */
   powerOf(side: Fid, el: string, now: number) {
-    return Math.max(WEAR_FLOOR, 1 - WEAR_STEP * this.wearOf(side, el, now))
+    return Math.max(POWER_FLOOR, 1 - POWER_STEP * this.lossOf(side, el, now))
   }
 
   /** Out of the fight (no HP left). Out fighters can't act or be targeted. */
@@ -472,7 +477,7 @@ export class Combat {
     this.chill[side] = { pct, until: now + ms }
   }
 
-  /** An effect's length, shrunk by the landing spell's power (wear), never below `min`. */
+  /** An effect's length, shrunk by the landing spell's power, never below `min`. */
   private dur(ms: number, min = 0) {
     return Math.max(min, Math.round(ms * this.landScale))
   }
@@ -556,6 +561,15 @@ export class Combat {
   }
 
   /** The charged element (or combo) right now. */
+  /** Everyone in the fight (the server's ids), without building a whole view. */
+  get roster(): readonly FighterSpec[] {
+    return this.fighters
+  }
+  /** Shroud is up on this side (its charge and drawing stay hidden). */
+  shrouded(side: Fid, now: number) {
+    return this.shroudUntil[side] > now
+  }
+
   chargeOf(side: Fid) {
     return this.charge[side]?.el ?? null
   }
@@ -677,40 +691,40 @@ export class Combat {
     // Steam: an attack thrown from the fog misses, and uses up one of its misses.
     const miss = kind === 'hit' && this.fogUntil[caster] > now && this.fogShots[caster] > 0
     if (miss) this.fogShots[caster]--
-    // Wear: the spell is weakened by its element's wear (a combo: the average of its two), then adds wear.
-    let wear = 1
+    // Power: the spell is weakened by its element's power (a combo: the average of its two), then lowers it.
+    let castPower = 1
     if (kind !== 'counter') {
       const els = el in COMBO_MIX ? COMBO_MIX[el] : el in ELEMENTS ? [el] : []
-      if (els.length) wear = els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length
+      if (els.length) castPower = els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length
       // Capped at the floor: 30% is the bottom, and recovery starts right away (no hidden stacks under it).
       // Lights and Angelic (heal, regen, Aegis: one element, nothing to rotate to; Nov 25) add half a stack.
       const step = shape === 'line' || el === 'A' ? 0.5 : 1
-      for (const e of els) this.wear[caster][e] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(caster, e, now) + step), at: now }
-      if (wear < 1) bolt.power = wear
+      for (const e of els) this.loss[caster][e] = { n: Math.min(POWER_MAX_STACKS, this.lossOf(caster, e, now) + step), at: now }
+      if (castPower < 1) bolt.power = castPower
     }
-    // Counterspells and interrupts (Nov 26) wear their element too (an interrupt like a light, a counterspell like
+    // Counterspells and interrupts (Nov 26) lower their element's power too (an interrupt like a light, a counterspell like
     // a heavy; a combo counterspell both of its elements), but their stun and lock times never shrink. Instead
     // they need COUNTER_CUTOFF power, judged before this cast: below it they land and do nothing. Watch their
-    // wear chips: drain the element that beats yours and they can't stop you for a few seconds.
+    // power chips: drain the element that beats yours and they can't stop you for a few seconds.
     let counterPower = 1
     if (kind === 'counter') {
       const els = isMixCounter(el) ? [el[1], el[2]] : el in ELEMENTS ? [el] : []
       if (els.length) counterPower = els.reduce((t, e) => t + this.powerOf(caster, e, now), 0) / els.length
       const step = shape === QUICK ? 0.5 : 1
-      for (const e of els) this.wear[caster][e] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(caster, e, now) + step), at: now }
+      for (const e of els) this.loss[caster][e] = { n: Math.min(POWER_MAX_STACKS, this.lossOf(caster, e, now) + step), at: now }
     }
     const weak = kind === 'counter' && counterPower < COUNTER_CUTOFF
     // Doom (Nov 25): only a spell at DOOM_LIFT power or more lifts it (a combo: its average power). Spamming one
-    // worn element can't save you. A counterspell is judged by its element's power before the cast, like any spell.
-    const liftPower = kind === 'counter' ? counterPower : wear
+    // weak element can't save you. A counterspell is judged by its element's power before the cast, like any spell.
+    const liftPower = kind === 'counter' ? counterPower : castPower
     if (this.doomAt[caster]) {
       if (liftPower >= DOOM_LIFT) {
         this.doomAt[caster] = 0
         this.float(caster, 'Doom lifted', ELEMENTS.U.color, now)
-      } else this.float(caster, 'Too worn to lift Doom', ELEMENTS.U.color, now)
+      } else this.float(caster, 'Too weak to lift Doom', ELEMENTS.U.color, now)
     }
     if (bolt.parryable) bolt.parryMs = parryMs(bolt)
-    this.flying.push({ caster, target, el, shape, landAt, bolt, miss, wear, weak })
+    this.flying.push({ caster, target, el, shape, landAt, bolt, miss, castPower, weak })
     this.update(now)
     return 'ok'
   }
@@ -747,22 +761,22 @@ export class Combat {
     if (!caught.length) {
       this.parryLockUntil[side] = Math.max(this.parryLockUntil[side], now + PARRY_MISS_MS)
       this.staggeredUntil[side] = now + PARRY_MISS_MS
-      // A miss wears your parry too (Nov 25): every push counts, so spamming it costs you.
-      this.wear[side][PARRY_WEAR] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(side, PARRY_WEAR, now) + 1), at: now }
+      // A miss lowers your parry's power too (Nov 25): every push counts, so spamming it costs you.
+      this.loss[side][PARRY_POWER] = { n: Math.min(POWER_MAX_STACKS, this.lossOf(side, PARRY_POWER, now) + 1), at: now }
       this.float(side, 'Parry missed', '#999', now)
       this.note(side, 'Parry missed', `${this.parryOff(side, now)}staggered ${PARRY_MISS_MS / 1000} s`, '#999', false, now)
       return 'missed'
     }
-    // Parry wear (Nov 25): each landed parry wears your parry like casting wears an element, so the next
-    // reflect goes back weaker (same step, floor and recovery as element wear). One push, one stack.
-    const parryPower = this.powerOf(side, PARRY_WEAR, now)
-    this.wear[side][PARRY_WEAR] = { n: Math.min(WEAR_MAX_STACKS, this.wearOf(side, PARRY_WEAR, now) + 1), at: now }
+    // Parry power (Nov 25): each landed parry lowers your parry's power like casting lowers an element's, so the next
+    // reflect goes back weaker (same step, floor and recovery as element power). One push, one stack.
+    const parryPower = this.powerOf(side, PARRY_POWER, now)
+    this.loss[side][PARRY_POWER] = { n: Math.min(POWER_MAX_STACKS, this.lossOf(side, PARRY_POWER, now) + 1), at: now }
     let result: 'reflected' | 'ended' = 'ended'
     for (const f of caught) {
       this.flying = this.flying.filter((x) => x !== f)
       f.bolt.kind = 'missed'
       f.bolt.parried = true
-      // A worn parry lets the rest through: at 70% parry power, 30% of the spell still hits you.
+      // A weak parry lets the rest through: at 70% parry power, 30% of the spell still hits you.
       if (parryPower < 1) this.leak(f, side, 1 - parryPower, now)
       if (this.winner) return null // what got through ended it
       const reflects = f.reflects ?? 0
@@ -779,7 +793,7 @@ export class Combat {
       back.power = power
       back.fly = Math.round(back.fly / REFLECT_SPEED)
       back.parryMs = PARRY_WINDOW_MS
-      this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, wear: f.wear, reflects: reflects + 1 })
+      this.flying.push({ caster: side, target: f.caster, el: f.el, shape: f.shape, landAt: now + back.fly, bolt: back, power, castPower: f.castPower, reflects: reflects + 1 })
       this.float(side, 'Reflected!', '#ffffff', now)
       this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%${parryPower < 1 ? `, ${Math.round((1 - parryPower) * 100)}% got through` : ''}`, '#ffffff', true, now)
       result = 'reflected'
@@ -787,16 +801,16 @@ export class Combat {
     return result
   }
 
-  /** Part of a parried spell gets through a worn parry: only its direct damage, at `share` of its power, lands
+  /** Part of a parried spell gets through a weak parry: only its direct damage, at `share` of its power, lands
    *  on `side` now. No effects (burn, chill, silence, knock-off, curses...): the parry still won the exchange. */
-  private leak(f: { caster: Fid; el: string; shape: string; bolt: Bolt; power?: number; wear?: number }, side: Fid, share: number, now: number) {
+  private leak(f: { caster: Fid; el: string; shape: string; bolt: Bolt; power?: number; castPower?: number }, side: Fid, share: number, now: number) {
     const dmg = this.directDamage(f.el, f.shape, side, now)
     if (dmg <= 0) return
     const b = this.bolt(f.caster, side, f.bolt.name, f.bolt.color, 'hit', now, f.el, f.shape)
     b.fly = 0
     b.power = share
     b.landed = true
-    this.landScale = (f.power ?? 1) * (f.wear ?? 1) * share
+    this.landScale = (f.power ?? 1) * (f.castPower ?? 1) * share
     this.by = f.caster
     this.hit(side, dmg, chargeInfo(f.el).color, now)
     this.by = null
@@ -834,7 +848,7 @@ export class Combat {
       // A combo (mixing or locked) needs a combo counterspell whose two elements beat both of its own.
       const c = this.charge[target]
       const mixed = isMixCounter(el)
-      const weak = this.pendingWeak // too worn (under COUNTER_CUTOFF): it lands and does nothing
+      const weak = this.pendingWeak // too weak (under COUNTER_CUTOFF): it lands and does nothing
       const healing = !weak && shape === COUNTER && !mixed && (c?.el === 'A' || this.ticking.some((t) => t.side === target && t.amount > 0))
       const caught = !weak && (mixed ? !!c?.mix && mixBeats(el, c.mix) : !!c && !c.mix && beats(el, c.el))
       // Fire + Ice also shatters any Advancing Glacier the target has on its way.
@@ -874,8 +888,8 @@ export class Combat {
         if (shape === QUICK) {
           // A missed interrupt leaves you open.
           this.lock(caster, WHIFF_MS, now)
-          this.note(caster, 'Whiffed!', weak ? `too worn to interrupt, locked ${WHIFF_MS / 1000} s` : `interrupt missed, locked ${WHIFF_MS / 1000} s`, '#999', false, now)
-        } else this.float(caster, weak ? 'Too worn to counter' : 'Counter missed', '#999', now)
+          this.note(caster, 'Whiffed!', weak ? `too weak to interrupt, locked ${WHIFF_MS / 1000} s` : `interrupt missed, locked ${WHIFF_MS / 1000} s`, '#999', false, now)
+        } else this.float(caster, weak ? 'Too weak to counter' : 'Counter missed', '#999', now)
       }
       return
     }
@@ -897,12 +911,12 @@ export class Combat {
       // Grave (Nov 25): no healing or armor from anything while it lasts; other Angelic spells still work.
       const graved = this.noHealUntil[target] > now
       // On yourself, or (team modes) on a teammate.
-      // Wear (landScale) weakens heals too.
+      // Low power (landScale) weakens heals too.
       if (shape === 'star') {
-        // Cleanse (Nov 25): only at full Angelic power (100%, not worn), so spamming heals can't keep you clean.
+        // Cleanse (Nov 25): only at full Angelic power (100%), so spamming heals can't keep you clean.
         // It clears every debuff: burns, chill, static, Doom, Exposed, fog and Grave. Against Grave it clears
         // the Grave but heals nothing (the heal lands while it's still on).
-        const cleanse = this.landWear >= 1
+        const cleanse = this.landCastPower >= 1
         if (graved) this.float(target, cleanse ? 'Grave cleared' : 'No healing', COMBO_CHARGES.grave.color, now)
         else this.changeHp(target, Math.round(HEAL * this.landScale), color, now)
         if (cleanse) {
@@ -976,7 +990,7 @@ export class Combat {
       if (el === 'W') this.changeHp(caster, Math.floor(dealt / 2), color, now)
       if (el === 'I') this.chillOn(target, CHILL[p], now, p ? CHILL_HEAVY_MS : CHILL_MS)
       // Static doesn't chain: a hit while it's still running does damage but doesn't restart it.
-      if (el === 'L' && this.landWear >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
+      if (el === 'L' && this.landCastPower >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...PUNCH_STATIC, count: STATIC_PULSES[p] }
       return
     }
 
@@ -994,11 +1008,11 @@ export class Combat {
         break
       case 'zigzag7': // Thunderbolt: a long, tight static rhythm
         this.hit(target, SIG_HIT.zigzag7, color, now)
-        if (this.landWear >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
+        if (this.landCastPower >= STATIC_CUTOFF && !this.staticAt(target, now)) this.static[target] = { start: now, ...THUNDERBOLT_STATIC }
         break
       case 'battlements': // Earthquake: huge hit; knocks their charge off only at full Earth power (Nov 25)
         this.hit(target, SIG_HIT.battlements, color, now)
-        if (this.landWear < 1) break
+        if (this.landCastPower < 1) break
         this.charge[target] = null
         this.ready[target] = null
         this.knocked[target]++
@@ -1046,15 +1060,15 @@ export class Combat {
         this.chillOn(target, THERMAL.chill, now, THERMAL.chillMs)
         break
       }
-      case 'plasma': { // knocks their charge off and wears all their elements down to PLASMA.cap
+      case 'plasma': { // knocks their charge off and drops all their elements' power to PLASMA.cap
         this.hit(target, PLASMA.hit, color, now)
         this.burn(target, PLASMA.burn, 4, color, now)
         this.charge[target] = null
         this.ready[target] = null
         this.knocked[target]++
-        const n = (1 - PLASMA.cap) / WEAR_STEP
-        for (const e of [...Object.keys(ELEMENTS), PARRY_WEAR]) if (this.wearOf(target, e, now) < n) this.wear[target][e] = { n, at: now }
-        this.note(target, 'Overloaded!', `Plasma: your elements and parry above ${PLASMA.cap * 100}% wear down to ${PLASMA.cap * 100}%`, color, false, now)
+        const n = (1 - PLASMA.cap) / POWER_STEP
+        for (const e of [...Object.keys(ELEMENTS), PARRY_POWER]) if (this.lossOf(target, e, now) < n) this.loss[target][e] = { n, at: now }
+        this.note(target, 'Overloaded!', `Plasma: your elements and parry above ${PLASMA.cap * 100}% drop to ${PLASMA.cap * 100}% power`, color, false, now)
         this.float(target, 'Overloaded!', color, now)
         break
       }
@@ -1107,7 +1121,7 @@ export class Combat {
       }
       const r = this.ready[s]
       if (r) r.at += ms
-      for (const w of Object.values(this.wear[s])) w.at += ms
+      for (const w of Object.values(this.loss[s])) w.at += ms
       const ss = this.strokeStart[s]
       if (ss !== null) this.strokeStart[s] = ss + ms
       const st = this.static[s]
@@ -1162,8 +1176,8 @@ export class Combat {
     while (this.flying.length && this.flying[0].landAt <= now && !this.winner) {
       const f = this.flying.shift()!
       if (f.bolt.parryable) this.lastParryable[f.target] = { at: f.landAt }
-      this.landScale = (f.power ?? 1) * (f.wear ?? 1)
-      this.landWear = f.wear ?? 1
+      this.landScale = (f.power ?? 1) * (f.castPower ?? 1)
+      this.landCastPower = f.castPower ?? 1
       this.by = f.caster
       this.pendingMiss = !!f.miss
       this.pendingWeak = !!f.weak
@@ -1172,7 +1186,7 @@ export class Combat {
       this.pendingWeak = false
       this.by = null
       this.landScale = 1
-      this.landWear = 1
+      this.landCastPower = 1
     }
     if (this.winner) this.flying = []
     for (const t of this.ticking) {
@@ -1229,7 +1243,7 @@ export class Combat {
       fog: per((s) => (this.fogShots[s] > 0 ? Math.max(0, this.fogUntil[s] - now) : 0)),
       fogShots: per((s) => (this.fogUntil[s] > now ? this.fogShots[s] : 0)),
       noHeal: per((s) => Math.max(0, this.noHealUntil[s] - now)),
-      wear: per((s) => Object.fromEntries(Object.keys(this.wear[s]).map((e) => [e, Math.floor(this.powerOf(s, e, now) * 100)] as const).filter(([, p]) => p < 100))),
+      power: per((s) => Object.fromEntries(Object.keys(this.loss[s]).map((e) => [e, Math.floor(this.powerOf(s, e, now) * 100)] as const).filter(([, p]) => p < 100))),
       storm: per((s) => !!this.static[s]?.dmg && this.staticAt(s, now) !== null),
       glacier: per((s) => {
         const g = this.flying.filter((f) => f.target === s && f.el === 'glacier').map((f) => f.landAt - now)

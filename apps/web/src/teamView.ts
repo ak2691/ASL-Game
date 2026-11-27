@@ -4,7 +4,7 @@
 import { other, type CombatView, type Fid, type FighterSpec, type Side } from './combat'
 
 /** Server fighter id -> the id `me` sees it as. */
-export function idsFor(fighters: FighterSpec[], me: Fid): Record<Fid, Fid> {
+export function idsFor(fighters: readonly FighterSpec[], me: Fid): Record<Fid, Fid> {
   const mine = fighters.find((f) => f.id === me)?.team ?? 'player'
   const map: Record<Fid, Fid> = { [me]: 'player' }
   fighters.filter((f) => f.team === mine && f.id !== me).forEach((f, i) => (map[f.id] = i ? `ally${i + 1}` : 'ally'))

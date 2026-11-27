@@ -1,8 +1,8 @@
 // Online play: one WebSocket to the game server. The server runs the fight; this mirrors its
 // state for the page, relays your casting steps, and builds the opponent's cast from theirs.
-import { MAX_HP, type CombatView, type Fid } from './combat'
+import { MAX_HP, POWER_DECAY_MS, POWER_FLOOR, POWER_STEP, type CombatView, type Fid } from './combat'
 import { spellOf, type Arena, type OppCast, type Pt01 } from './battle'
-import type { ClientMsg, DuoRoom, OppEvent, SeatInfo, ServerMsg } from './protocol'
+import { COUNTDOWNS, type ClientMsg, type DuoRoom, type OppEvent, type SeatInfo, type ServerMsg, type StateFields } from './protocol'
 import type { BotInfo } from './duo'
 import type { TeamSnapshot } from './team'
 import { chargeInfo, spellName } from './spells'
@@ -49,7 +49,7 @@ const EMPTY_VIEW: CombatView = {
   fog: { player: 0, enemy: 0 },
   fogShots: { player: 0, enemy: 0 },
   noHeal: { player: 0, enemy: 0 },
-  wear: { player: {}, enemy: {} },
+  power: { player: {}, enemy: {} },
   glacier: { player: 0, enemy: 0 },
   storm: { player: false, enemy: false },
   ready: { player: null, enemy: null },
@@ -118,7 +118,10 @@ export class OnlineArena implements Arena {
   private token = sessionToken()
   private closed = false
   private droppedAt: number | null = null
-  private view: CombatView = EMPTY_VIEW
+  private view: CombatView = EMPTY_VIEW // the countdowns in it are filled in from `ends` when read
+  private ends: Partial<Record<(typeof COUNTDOWNS)[number], Record<Fid, number>>> = {} // performance.now() end times (0 = none)
+  private powerEnds: Record<Fid, Record<string, number>> | null = null // performance.now() time each weakened element is back to full
+  private frozenAt: number | null = null // paused: countdowns hold at this time
   private conn: Record<Fid, 'away' | 'left'> = {}
   private casts: Record<Fid, OppCast | null> = {} // everyone else's spell in progress, by their id as you see them
   private bots: Record<Fid, BotInfo> = {} // Duo Tower: the pair, as the server runs them
@@ -208,9 +211,7 @@ export class OnlineArena implements Arena {
     this.send({ t: 'leave' })
     setOnlineFlag(false)
     this.casts = {}
-    this.view = EMPTY_VIEW
-    this.conn = {}
-    this.bots = {}
+    this.resetView()
     this.info = { ...this.info, phase: 'menu', code: null, seats: [], paused: false, awayUntil: null, note: null }
   }
 
@@ -231,9 +232,7 @@ export class OnlineArena implements Arena {
         return
       }
       case 'countdown':
-        this.view = EMPTY_VIEW
-        this.conn = {}
-        this.bots = {}
+        this.resetView()
         this.casts = {}
         this.sentAim = undefined
         this.info = { ...this.info, phase: 'countdown', countdownEnds: performance.now() + m.ms, note: null, forfeit: null }
@@ -242,12 +241,10 @@ export class OnlineArena implements Arena {
         this.info = { ...this.info, phase: 'fighting', countdownEnds: null }
         return
       case 'state':
-        this.view = m.view
-        this.conn = m.conn ?? {}
-        this.bots = m.bots ?? {}
+        this.onState(m.at, m.d)
         // A Duo Tower floor cleared: this browser remembers it (the room then moves on to the next floor).
-        if (m.view.over === 'player' && this.info.duo && this.info.phase === 'fighting') saveDuoProgress(this.info.duo.floor)
-        this.info = { ...this.info, paused: m.paused, ...(m.view.over ? { phase: 'over' as const } : {}) }
+        if (m.d.over === 'player' && this.info.duo && this.info.phase === 'fighting') saveDuoProgress(this.info.duo.floor)
+        if (m.d.over) this.info = { ...this.info, phase: 'over' }
         return
       case 'opp':
         return this.onOpp(m.from, m.ev)
@@ -267,6 +264,56 @@ export class OnlineArena implements Arena {
         this.info = { ...this.info, note: m.msg }
         return
     }
+  }
+
+  private resetView() {
+    this.view = EMPTY_VIEW
+    this.ends = {}
+    this.powerEnds = null
+    this.frozenAt = null
+    this.conn = {}
+    this.bots = {}
+  }
+
+  /** The server sends only what changed. Countdowns come as end times on its clock (`at` = its now);
+   *  they become end times on ours, so they run down here between updates and hold while paused. */
+  private onState(at: number, d: Partial<StateFields>) {
+    const now = performance.now()
+    if (d.paused !== undefined) {
+      if (d.paused && this.frozenAt === null) this.frozenAt = now
+      else if (!d.paused && this.frozenAt !== null) {
+        const held = now - this.frozenAt
+        for (const r of [...Object.values(this.ends), ...Object.values(this.powerEnds ?? {})]) for (const id in r) if (r[id]) r[id] += held
+        this.frozenAt = null
+      }
+      this.info = { ...this.info, paused: d.paused }
+    }
+    const base = this.frozenAt ?? now
+    const { conn, bots, power, ...rest } = d
+    delete rest.paused
+    if (power) this.powerEnds = Object.fromEntries(Object.entries(power).map(([id, r]) => [id, Object.fromEntries(Object.entries(r).map(([el, end]) => [el, base + (end - at)]))]))
+    for (const k of COUNTDOWNS) {
+      const r = rest[k]
+      if (!r) continue
+      this.ends[k] = Object.fromEntries(Object.entries(r).map(([id, end]) => [id, end > 0 ? base + (end - at) : 0]))
+      delete rest[k]
+    }
+    this.view = { ...this.view, ...rest }
+    if (conn) this.conn = conn
+    if (bots) this.bots = bots
+  }
+
+  /** The fight now, with each countdown's ms left worked out from its end time. */
+  private viewNow(): CombatView {
+    const t = this.frozenAt ?? performance.now()
+    const out: CombatView = { ...this.view }
+    for (const [k, r] of Object.entries(this.ends)) out[k as (typeof COUNTDOWNS)[number]] = Object.fromEntries(Object.entries(r).map(([id, end]) => [id, end ? Math.max(0, Math.round(end - t)) : 0]))
+    // Weakened elements' power now, in % (as Combat.view gives it): it climbs back as the stacks fade.
+    if (this.powerEnds) {
+      const pct = (end: number) => Math.floor(Math.max(POWER_FLOOR, 1 - (POWER_STEP * Math.max(0, end - t)) / POWER_DECAY_MS) * 100)
+      out.power = Object.fromEntries(Object.entries(this.powerEnds).map(([id, r]) => [id, Object.fromEntries(Object.entries(r).map(([el, end]) => [el, pct(end)] as const).filter(([, p]) => p < 100))]))
+    }
+    return out
   }
 
   private onOpp(from: Fid, ev: OppEvent) {
@@ -331,7 +378,7 @@ export class OnlineArena implements Arena {
 
   private flush() {
     if (!this.outbox.length) return
-    this.send({ t: 'stroke', a: Math.round(this.outAspect * 1000) / 1000, pts: this.outbox.map((p) => [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000]) })
+    this.send({ t: 'stroke', a: Math.round(this.outAspect * 1000) / 1000, pts: this.outbox.map((p) => [Math.round(p.x * 1e4) / 1e4, Math.round(p.y * 1e4) / 1e4]) }) // 4 places: the server reads the drawing from these
     this.outbox = []
   }
 
@@ -343,7 +390,7 @@ export class OnlineArena implements Arena {
       else if (o?.phase === 'charge' && !this.view.charge[id]) this.casts[id] = null
     }
     const casts = { ...this.casts, ...this.botCasts() }
-    return { ...this.view, casts, enemyCast: casts.enemy ?? null, conn: this.conn, bots: this.bots, running: this.info.phase === 'fighting' }
+    return { ...this.viewNow(), casts, enemyCast: casts.enemy ?? null, conn: this.conn, bots: this.bots, running: this.info.phase === 'fighting' }
   }
 
   /** The bots' spells in progress, drawn here from what the server says (shape and how far along). */

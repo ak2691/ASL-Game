@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COMBOS_ON, COMBO_SHAPE, COUNTER, FORMS, QUICK, SIGNATURE, chargeInfo, signsFor, spellName } from './spells'
 import { SHAPE_PATHS, SHAPE_STARTS } from './shapePaths'
 import type { Snapshot } from './battle'
-import { COUNTER_CUTOFF, AEGIS_DRAIN, AEGIS_HP, DOOM_DMG, MAGMA, REGEN, SHROUD_MS, SUNFIRE, THERMAL, COUNTER_SILENCE_MS, DOOM_LIFT, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_MISS_MS, PARRY_WINDOWS, WEAR_DECAY_MS, WEAR_FLOOR, STATIC_CUTOFF, WEAR_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_SHOTS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
+import { COUNTER_CUTOFF, AEGIS_DRAIN, AEGIS_HP, DOOM_DMG, MAGMA, REGEN, SHROUD_MS, SUNFIRE, THERMAL, COUNTER_SILENCE_MS, DOOM_LIFT, DOOM_MS, GLACIER_MS, INTERRUPT_LOCK_MS, PARRY_MISS_MS, PARRY_WINDOWS, POWER_DECAY_MS, POWER_FLOOR, STATIC_CUTOFF, POWER_STEP, WHIFF_MS, GRAVE, PLASMA, STORM, STEAM_SHOTS, STEAM_MS, TWILIGHT_EXPOSE, TWILIGHT_GUARD, TWILIGHT_MS } from './combat'
 import type { Hand } from './recognition'
 import { IconLegend } from './effects'
 import { LEGEND_HAND, type RowIcon } from './statusIcons'
@@ -103,12 +103,12 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two'; icons?: Row
     icons: LEGEND_HAND,
   },
   {
-    title: 'Wear',
+    title: 'Power',
     points: [
-      `Each cast lowers that element's power ${pct(WEAR_STEP)}, ${pct(WEAR_STEP / 2)} for lights, Angelic and interrupts. Lowest ${pct(WEAR_FLOOR)}.`,
-      `It comes back ${pct(WEAR_STEP)} every ${secs(WEAR_DECAY_MS)}.`,
-      `Worn spells hit softer, with weaker, shorter effects. Under ${pct(STATIC_CUTOFF)}, Lightning adds no static and counters and interrupts don't work.`,
-      'Worn elements show under each health bar, like I 70%.',
+      `Each cast lowers that element's power ${pct(POWER_STEP)}, ${pct(POWER_STEP / 2)} for lights, Angelic and interrupts. Lowest ${pct(POWER_FLOOR)}.`,
+      `It comes back ${pct(POWER_STEP)} every ${secs(POWER_DECAY_MS)}.`,
+      `Low-power spells hit softer, with weaker, shorter effects. Under ${pct(STATIC_CUTOFF)}, Lightning adds no static and counters and interrupts don't work.`,
+      'Elements below full power show under each health bar, like I 70.',
     ],
   },
   {
@@ -117,7 +117,7 @@ const END: { title: string; points: string[]; try?: 'parry' | 'two'; icons?: Row
     points: [
       `Push both hands at the camera in the last ${PARRY_WINDOWS.light} ms before a spell hits you. The ring around your hands shows that moment.`,
       'It goes back at your parry power. Parried back again, 50%. A third parry destroys it.',
-      `Each parry, hit or miss, wears your parry ${pct(WEAR_STEP)}: at 70%, 70% goes back and 30% hits you.`,
+      `Each parry, hit or miss, lowers your parry's power ${pct(POWER_STEP)}: at 70%, 70% goes back and 30% hits you.`,
       `Miss: can't throw or parry for ${secs(PARRY_MISS_MS)}. Parrying drops your charge. Counterspells and Glacier can't be parried.`,
     ],
   },

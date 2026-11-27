@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx index.ts",
-    "dev": "tsx watch index.ts"
+    "dev": "tsx watch index.ts --trust-drawings",
+    "loadtest": "tsx loadtest.ts"
   },
   "dependencies": {
     "tsx": "^4.19.2",

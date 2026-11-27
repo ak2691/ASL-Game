@@ -2,7 +2,7 @@
 // the left in the title font, a full-width control in the middle (end words under a slider), and the exact
 // value in a box on the right. Used by the in-match menu and home Settings.
 import { useState, type ReactNode } from 'react'
-import { PUSH_MAX, PUSH_MIN, SIGN_DELAY_MAX, getPushGrowth, getSignDelay, setPushGrowth, setSignDelay } from './settings'
+import { PUSH_MAX, PUSH_MIN, SIGN_DELAY_MAX, getDrawingZoom, getPushGrowth, getSignDelay, setDrawingZoom, setPushGrowth, setSignDelay } from './settings'
 import { getVolume, play, setVolume } from './sfx'
 
 export function SlabSlider(p: { label: string; min: number; max: number; value: number; lo: string; hi: string; unit?: string; step?: number; show?: string; onChange: (v: number) => void; onRelease?: () => void; hint?: string; children?: ReactNode }) {
@@ -41,7 +41,7 @@ export function SlabSlider(p: { label: string; min: number; max: number; value: 
   )
 }
 
-export function SlabChoice<T extends string>(p: { label: string; value: T; options: { v: T; name: string }[]; onChange: (v: T) => void }) {
+export function SlabChoice<T extends string>(p: { label: string; value: T; options: { v: T; name: string }[]; onChange: (v: T) => void; hint?: string }) {
   return (
     <div className="slab">
       <span className="slab-label">{p.label}</span>
@@ -52,7 +52,24 @@ export function SlabChoice<T extends string>(p: { label: string; value: T; optio
           </button>
         ))}
       </div>
+      {p.hint && <p className="slab-hint">{p.hint}</p>}
     </div>
+  )
+}
+
+export function DrawingZoomSlab() {
+  const [on, setOn] = useState(getDrawingZoom)
+  return (
+    <SlabChoice
+      label="Drawing zoom"
+      value={on ? 'on' : 'off'}
+      options={[{ v: 'off', name: 'Off' }, { v: 'on', name: 'On' }]}
+      hint="In 2v2, zooms in on a foe's small drawing so it's easier to see."
+      onChange={(v) => {
+        setOn(v === 'on')
+        setDrawingZoom(v === 'on')
+      }}
+    />
   )
 }
 

@@ -129,13 +129,13 @@ footer { display: flex; gap: 24px; color: var(--sub); flex-wrap: wrap; }
 .dummy-bar .icon-btn svg { width: 18px; height: 18px; flex: none; }
 .corner-bar { position: fixed; bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); z-index: 5; display: flex; gap: 8px; align-items: center; }
 .dealt-line { font-size: 13px; color: var(--sub); }
-/* Wear: worn elements only, as small chips under a fighter's status. White outlined text; the element's
+/* Power: weakened elements only, as small chips under a fighter's status. White outlined text; the element's
    color is the chip's edge, so it reads for everyone. */
-.wear-chips { display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; animation: wear-in 0.25s ease-out; }
-.wear-chips span { padding: 2px 7px; border-radius: 6px; border-left: 4px solid var(--el); background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 14px; font-weight: 800;
+.power-chips { display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; animation: power-in 0.25s ease-out; }
+.power-chips span { padding: 2px 7px; border-radius: 6px; border-left: 4px solid var(--el); background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 14px; font-weight: 800;
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
-.wear-shield { width: 0.85em; height: 0.85em; vertical-align: -0.1em; fill: #fff; stroke: #000; stroke-width: 2; }
-@keyframes wear-in { from { opacity: 0; } to { opacity: 1; } }
+.power-shield { width: 0.85em; height: 0.85em; vertical-align: -0.1em; fill: #fff; stroke: #000; stroke-width: 2; }
+@keyframes power-in { from { opacity: 0; } to { opacity: 1; } }
 .dealt-line b { color: var(--text); font-weight: 600; }
 .dummy-spells { display: flex; flex-direction: column; gap: 12px; }
 .dummy-spells-list { display: flex; flex-direction: column; gap: 14px; }
@@ -977,7 +977,7 @@ html[data-theme] .book-overlay .info-page::before { display: none; }
 .slab input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 28px; margin-top: -9px; border: 3px solid #1d1b2e; border-radius: 7px;
   background: #fffaf0; box-shadow: 0 3px 0 #1d1b2e; }
 .slab input[type='range']::-moz-range-thumb { width: 18px; height: 22px; border: 3px solid #1d1b2e; border-radius: 7px; background: #fffaf0; box-shadow: 0 3px 0 #1d1b2e; }
-.slab:has(.slab-choice) { grid-template-areas: 'label ctrl'; }
+.slab:has(.slab-choice) { grid-template-areas: 'label ctrl' 'hint hint'; }
 .slab-choice { display: flex; justify-self: end; border: 3px solid #1d1b2e; border-radius: 10px; overflow: hidden; }
 html[data-theme] .slab-choice button, .slab-choice button { width: auto; min-width: 64px; margin: 0; padding: 7px 12px; border: none; border-radius: 0; box-shadow: none;
   transform: none; font-size: 15px; background: #141226; color: #9aa3c7; }
@@ -987,7 +987,7 @@ html[data-theme] .slab-choice button.on { background: #ffd24d; color: #1d1b2e; }
 .slab-section { container-type: inline-size; }
 @container (min-width: 460px) {
   .slab { grid-template-columns: 120px 1fr auto; grid-template-areas: 'label ctrl value' 'hint hint hint'; }
-  .slab:has(.slab-choice) { grid-template-columns: 120px 1fr; grid-template-areas: 'label ctrl'; }
+  .slab:has(.slab-choice) { grid-template-columns: 120px 1fr; grid-template-areas: 'label ctrl' 'hint hint'; }
   .slab-hint { padding-left: 130px; }
 }
 /* In-match menu and home Settings around the slabs. */
@@ -1084,11 +1084,11 @@ html[data-theme] .pm-tile.stop { background: #ff5470; color: #fff; }
 @keyframes book-parry-flash { 0%, 45% { opacity: 0; transform: translate(-50%, -50%) scale(0.85); } 55% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
 .book-parry .book-hand { margin: 0; }
 .book-parry { padding: 10px; gap: 4px; }
-/* Wear: the in-fight chips, a little bigger. */
-.book-wear-demo { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 280px; text-align: center; }
-.book-wear-demo .wear-chips { justify-content: center; }
-.book-wear-demo .wear-chips span { font-size: 20px; padding: 4px 10px; }
-.book-wear-demo small { color: #4a3f5c; font-size: 13px; font-weight: 700; }
+/* Power: the in-fight chips, a little bigger. */
+.book-power-demo { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 280px; text-align: center; }
+.book-power-demo .power-chips { justify-content: center; }
+.book-power-demo .power-chips span { font-size: 20px; padding: 4px 10px; }
+.book-power-demo small { color: #4a3f5c; font-size: 13px; font-weight: 700; }
 /* Draw: fingertip on the start dot. The cut-out's fingertip sits ~62% across its top. */
 .book-draw-demo { position: relative; }
 .book-fingertip { position: absolute; width: 0; height: 0; }
@@ -1230,7 +1230,7 @@ html[data-theme] .lobby-card .room-seat.mine { box-shadow: inset 0 0 0 2px #ffd2
 
 /* ---- Fighter frame (Nov 26) ------------------------------------------------------------------------------
    Name left, "HP 63" right; the health bar (glowing in the charged color) with the charge written at its right
-   end, the part that empties first, so it never covers the health that's left; then status icons and wear,
+   end, the part that empties first, so it never covers the health that's left; then status icons and power,
    taking only the room they need. The opponent's drawing starts below the HUD's measured height (--hud-live,
    set by SpellPage), so nothing ever covers it. Sideways phones: a grid (name, bar, HP on one line). */
 html[data-theme] .duel .fighter { gap: 5px; }
@@ -1261,21 +1261,23 @@ html[data-theme] .hp-bar.charged { box-shadow: 0 0 0 2px var(--charge), 0 0 6px 
 @container hpbar (max-width: 269px) { .hp-charge.combo > span { display: none !important; } .hp-charge.combo > .w-tiny { display: inline !important; } }
 .team-card .hp-charge.combo > span { display: none !important; }
 .team-card .hp-charge.combo > .w-tiny { display: inline !important; }
-/* Status icons, then wear (only worn elements, "F42"): each only when there's something to show. */
+/* Status icons, then power (only weakened elements, "F42"): each only when there's something to show. */
 .duel .fighter-status { display: flex; flex-direction: column; gap: 4px; }
-.status-slot:empty, .wear-grid:empty { display: none; }
+.status-slot:empty, .power-grid:empty { display: none; }
 .status-slot > .status-row { flex-wrap: wrap; justify-content: flex-start; margin-left: 0; gap: 3px; }
 .status-slot .st-icon { width: 22px; height: 22px; }
 .status-slot .st-icon svg { width: 14px; height: 14px; }
 .team-card .status-slot .st-icon { width: 20px; height: 20px; }
 .team-card .status-slot .st-icon svg { width: 13px; height: 13px; }
-.wear-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: 18px; gap: 3px; width: 100%; max-width: 380px; box-sizing: border-box; pointer-events: none; }
-.team-card .wear-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.wear-grid span { display: flex; align-items: center; justify-content: center; gap: 1px; border-radius: 5px; border-left: 3px solid var(--el);
-  background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 11px; font-weight: 800; white-space: nowrap;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
-.wear-grid span b { font-weight: 900; }
-.wear-grid .wear-shield { width: 10px; height: 10px; }
+/* Power chips (Nov 27): the HP text's look (title font, thick ink outline), so "F42" reads on a phone. */
+.power-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: 24px; gap: 4px; width: 100%; max-width: 380px; box-sizing: border-box; pointer-events: none; }
+.team-card .power-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.power-grid span { display: flex; align-items: center; justify-content: center; gap: 2px; border-radius: 5px; border-left: 4px solid var(--el);
+  background: rgba(0, 0, 0, 0.55); color: #fff; font-family: var(--title, inherit); font-size: 15px; letter-spacing: 0.03em; white-space: nowrap;
+  -webkit-text-stroke: 3px #1d1b2e; paint-order: stroke fill; }
+.team-card .power-grid span { font-size: 14px; }
+.power-grid span b { font-weight: inherit; }
+.power-grid .power-shield { width: 12px; height: 12px; }
 /* The line under it: your "seeing" letter, or the counter hint. */
 .side-hud .status-strip { min-height: 0; }
 .side-hud .hud-row:empty { display: none; }
@@ -1372,8 +1374,10 @@ html[data-theme] .duel .team-card .hp-bar { height: clamp(26px, 4vmin, 44px); }
 .duel .status-slot .st-icon { width: clamp(22px, 3.4vmin, 38px); height: clamp(22px, 3.4vmin, 38px); }
 .duel .status-slot .st-icon svg { width: 64%; height: 64%; }
 .duel .team-card .status-slot .st-icon { width: clamp(20px, 3vmin, 34px); height: clamp(20px, 3vmin, 34px); }
-.duel .wear-grid { grid-auto-rows: clamp(18px, 2.9vmin, 32px); max-width: clamp(380px, 52vmin, 600px); }
-.duel .wear-grid span { font-size: clamp(11px, 1.8vmin, 20px); }
+.duel .power-grid { grid-auto-rows: clamp(24px, 3.4vmin, 38px); max-width: clamp(380px, 52vmin, 600px); }
+.duel .power-grid span { font-size: clamp(15px, 2.2vmin, 24px); }
+.duel .team-card .power-grid span { font-size: clamp(14px, 2vmin, 22px); }
+.duel .power-grid .power-shield { width: 0.8em; height: 0.8em; }
 .duel .side-hud .sub-line { font-size: clamp(13px, 2vmin, 24px); }
 /* More above (the Tower opens at floor 1, its bottom): the same arrow, pointing up, pinned to the top edge. */
 .more-above::before { content: ''; position: sticky; top: 0; display: block; flex: none; align-self: stretch; height: 34px; margin-bottom: -34px; pointer-events: none; z-index: 3;

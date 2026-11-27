@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import type { Hand } from './recognition'
 import { DRAW_HAND_KEY, loadDrawHand } from './settings'
-import { PushSlab, SignDelaySlab, SlabChoice, SlabSection, VolumeSlab } from './SettingRows'
+import { DrawingZoomSlab, PushSlab, SignDelaySlab, SlabChoice, SlabSection, VolumeSlab } from './SettingRows'
 
 const save = (k: string, v: string) => {
   try {
@@ -49,6 +49,9 @@ export function HomeCorner({ onGuide }: { onGuide: () => void }) {
             />
             <PushSlab />
             <SignDelaySlab />
+          </SlabSection>
+          <SlabSection title="Display">
+            <DrawingZoomSlab />
           </SlabSection>
           <SlabSection title="Sound">
             <VolumeSlab />

@@ -55,10 +55,24 @@ export type ServerMsg =
   | { t: 'lobby'; code: string; seats: SeatInfo[]; you: number; host: number; duo?: DuoRoom | null } // host = the seat that sets HP; duo = a Duo Tower room
   | { t: 'countdown'; ms: number }
   | { t: 'start' }
-  | { t: 'state'; view: CombatView; paused: boolean; conn?: Record<Fid, 'away' | 'left'>; bots?: Record<Fid, BotInfo> } // from your point of view: you are 'player', your team is 'player'. conn: fighters whose player is disconnected or gone
+  | { t: 'state'; at: number; d: Partial<StateFields> } // what changed since the last one (see StateFields); at = the server's clock
   | { t: 'opp'; from: Fid; ev: OppEvent } // another fighter's casting, by their id as you see them
   | { t: 'away'; ms: number } // someone disconnected; they have this long to come back
   | { t: 'back' } // ...and they're back
   | { t: 'left'; forfeited: boolean } // someone left for good (forfeited = mid-fight)
   | { t: 'forfeitVote'; votes: number; needed: number; mine: boolean } // your team's forfeit vote (needed 0 = no vote going)
   | { t: 'error'; msg: string }
+
+/** The fight as one player sees it: you are 'player', your team is 'player'. conn: fighters whose player is
+ *  disconnected or gone. Sent as changes only: each 'state' message carries just the fields that differ
+ *  from the last one sent to you (all of them after a countdown or a reconnect). */
+export interface StateFields extends CombatView {
+  paused: boolean
+  conn: Record<Fid, 'away' | 'left'>
+  bots: Record<Fid, BotInfo>
+}
+
+/** Fields that count down (ms left). On the wire they're end times on the server's clock (0 = none), so they
+ *  stay the same between events and aren't resent; the browser counts them down itself. */
+// `power` is sent the same way: for each weakened element, the time it's back to full power (POWER_DECAY_MS per stack).
+export const COUNTDOWNS = ['silenced', 'chillMs', 'fizzled', 'staggered', 'locked', 'recover', 'mirror', 'doom', 'shroud', 'guard', 'exposed', 'fog', 'noHeal', 'glacier'] as const satisfies readonly (keyof CombatView)[]

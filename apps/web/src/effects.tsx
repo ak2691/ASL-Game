@@ -782,7 +782,7 @@ function special(b: Bolt, r: () => number, parts: ReactElement[], delay: number)
 }
 
 /** Every status on a fighter, as one row of same-size icons under its health bar: debuffs edged red, buffs
- *  green, a bar under each that drains with its time (sized from when it started, so wear or early ends never
+ *  green, a bar under each that drains with its time (sized from when it started, so low power or early ends never
  *  confuse it). A number where it matters: chill's bonus, Doom's seconds. `hand`: your own "can't act"
  *  states are drawn on your hand instead, so they're left out here. */
 export function StatusRow({ view, side, hand = false, max = 5 }: { view: CombatView; side: Fid; hand?: boolean; max?: number }) {
