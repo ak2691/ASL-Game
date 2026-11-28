@@ -130,6 +130,22 @@ export const shapesFor = (el: string) =>
 export const STRICT_SHAPES = new Set([...Object.values(SIGNATURE), 'aegis', 'mirror', ...UNHOLY_SHAPES, ...Object.values(COMBO_SHAPE).filter((x) => x !== 'plasma' && x !== 'sun')]) // Plasma and Sunfire: loose (hard to draw)
 
 /** Short labels for the guide. */
+/** The shortest way to say a charge (Nov 28, the phone teammate card): an element's letter ("F"), a combo's first
+ *  three letters and its elements ("Mag F+E"), a mixed counter's elements ("F+E"). */
+export function shortCharge(el: string) {
+  if (el in ELEMENTS) return el
+  if (el in COMBO_CHARGES) return `${COMBO_CHARGES[el].name.slice(0, 3)} ${COMBO_MIX[el].join('+')}`
+  if (isMixCounter(el)) return `${el[1]}+${el[2]}`
+  return el === COMBO ? 'Combo' : el
+}
+/** A spell's shape in a word or two (combos' own shapes say nothing extra: the charge already names them). */
+export function shortShape(shape: string) {
+  const SHORT: Record<string, string> = { line: 'Light', h: 'Heavy', circle: 'Counter', jab: 'Int', cage: 'Prison', zigzag7: 'Bolt', battlements: 'Quake', spiral: 'Wave' }
+  if (SHORT[shape]) return SHORT[shape]
+  if (Object.values(COMBO_SHAPE).includes(shape)) return ''
+  return FORMS[shape] ?? ''
+}
+
 export const FORMS: Record<string, string> = {
   line: 'Light attack',
   h: 'Heavy attack',

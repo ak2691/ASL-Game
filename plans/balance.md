@@ -573,3 +573,8 @@ under its 1v1 pair (floor 6 40 / 60%, floor 7 50 / 65%, the rest within noise). 
 vs Lady Glass: 17 of its counters bailed, 17 wasted; Old Bram: 0 bailed, 18 wasted.
 Then Tamsin's dodge 0.25 -> 0.15 (back to before). Ladder sim, 60 games: Lady Glass vs Tamsin 68%, Archwizard vs
 Lady Glass 67%, Tamsin vs Gideon 83%; order kept, every floor 48-98% over the one below.
+
+## Nov 27: Shroud on a teammate
+Shroud can now be aimed at a teammate (same zones as heals); no aim = yourself. 1v1 unchanged. Team modes: no stacking
+(one Shroud timer per fighter, recast just resets it), same 6 s / min 3 s and draw time, so it trades your own cover for
+theirs. Watch in 2v2: Shrouding a partner mid-heavy hides the throw; if parries feel impossible, cap it at 4 s on others.

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Rank sigils: stronger tiers</title>
+<style>
+  body { margin: 0; padding: 10px; background: #1d1b2e; color: #fffaf0; font-family: system-ui, sans-serif; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  p.sub { margin: 0 0 16px; color: #a7a3d6; font-size: 14px; }
+  .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 10px 8px; margin-bottom: 12px; background: #24223a; border: 3px solid #15132e; border-radius: 14px; }
+  .name { grid-column: 1 / -1; font-weight: 800; font-size: 17px; }
+  .name small { font-weight: 600; color: #a7a3d6; margin-left: 8px; font-size: 12px; }
+  .tier { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tier svg { width: 72px; height: 72px; overflow: visible; }
+  .tier span { font-size: 11px; font-weight: 800; }
+  .spin { transform-box: fill-box; transform-origin: center; animation: spin 18s linear infinite; }
+  .spin.back { animation-direction: reverse; animation-duration: 26s; }
+  .pulse { animation: pulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; transform: scale(0.96); } 50% { opacity: 0.75; transform: scale(1.04); } }
+</style>
+</head>
+<body>
+<h1>Rank sigils: three ways to make high tiers feel stronger</h1>
+<p class="sub">Novice → Archmage. Flat geometry only (lines, rings, points), no shine or cartoon shading. Spinning and pulsing parts move on the live page.</p>
+<div id="rows"></div>
+<script>
+const T = ['#c98a4b', '#c7ccd8', '#ffd23f', '#7fe3d6', '#9cc4ff']
+const NAMES = ['Novice', 'Apprentice', 'Mage', 'High Mage', 'Archmage']
+const INK = '#15132e'
+const C = 50 // centre of a 100x100 box
+const pt = (a, r) => [C + r * Math.cos(a), C + r * Math.sin(a)]
+const poly = (n, r, turn = -Math.PI / 2) => Array.from({ length: n }, (_, k) => pt(turn + (k * 2 * Math.PI) / n, r)).map(([x, y], k) => `${k ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ') + ' Z'
+const dots = (n, r, size, col, turn = 0) => Array.from({ length: n }, (_, k) => pt(turn + (k * 2 * Math.PI) / n, r)).map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${size}" fill="${col}"/>`).join('')
+// The core every option shares: the sigil from the current badge (shape gains a side per tier).
+const core = (i, col) => {
+  const sides = [3, 4, 5, 6, 8][i]
+  return `<circle cx="${C}" cy="${C}" r="30" fill="${INK}" stroke="${col}" stroke-width="5"/>
+    ${i >= 1 ? `<circle cx="${C}" cy="${C}" r="22" fill="none" stroke="${col}" stroke-width="2.5"/>` : ''}
+    <path d="${poly(sides, 17)}" fill="none" stroke="${col}" stroke-width="3.2" stroke-linejoin="round"/>
+    ${i >= 2 ? dots(8, 26, i >= 4 ? 2.8 : 2, col) : ''}
+    <circle cx="${C}" cy="${C}" r="${4 + i}" fill="${col}"/>`
+}
+// Spikes that break out of the circle: n points from r1 to r2.
+const spikes = (n, r1, r2, w, col, turn = -Math.PI / 2) => Array.from({ length: n }, (_, k) => {
+  const a = turn + (k * 2 * Math.PI) / n
+  const [x1, y1] = pt(a - w, r1), [x2, y2] = pt(a, r2), [x3, y3] = pt(a + w, r1)
+  return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)} L${x3.toFixed(1)} ${y3.toFixed(1)} Z" fill="${col}" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/>`
+}).join('')
+
+const options = {
+  'A. Breaking the seal': {
+    note: 'Low tiers stay inside the circle; from Mage, points break out of it, more and longer each tier',
+    draw: (i, col) => {
+      const extra = [
+        '',
+        spikes(4, 30, 37, 0.12, col, -Math.PI / 4),
+        spikes(4, 30, 42, 0.14, col),
+        spikes(8, 30, 43, 0.1, col) ,
+        `<g class="spin">${dots(16, 46, 1.6, col)}</g>` + spikes(8, 30, 48, 0.1, col) + spikes(8, 30, 39, 0.12, col, -Math.PI / 2 + Math.PI / 8),
+      ][i]
+      return extra + core(i, col)
+    },
+  },
+  'B. Crowned crest': {
+    note: 'The frame grows like an emblem: notches, side wings, then a crown of points on top',
+    draw: (i, col) => {
+      const wing = (side) => {
+        const s = side
+        const h = [0, 0, 12, 16, 20][i]
+        return `<path d="M${C + s * 28} ${C - 6} L${C + s * (40 + i * 2)} ${C - h} L${C + s * (36 + i)} ${C + 2} L${C + s * (42 + i * 2)} ${C + h * 0.6} L${C + s * 27} ${C + 12} Z" fill="${col}" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>`
+      }
+      const crown = i >= 3 ? spikes(i === 4 ? 5 : 3, 29, i === 4 ? 46 : 42, 0.16, col, -Math.PI / 2).replace(/<path/g, '<path') : ''
+      const crownMask = i >= 3 ? '' : ''
+      const notches = i >= 1 ? spikes(i >= 2 ? 8 : 4, 30, 35, 0.09, col, -Math.PI / 2 + Math.PI / (i >= 2 ? 8 : 4)) : ''
+      const base = i >= 4 ? `<path d="M${C - 14} ${C + 33} L${C} ${C + 44} L${C + 14} ${C + 33} Z" fill="${col}" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>` : ''
+      return (i >= 2 ? wing(-1) + wing(1) : '') + crownMask + crown + base + notches + core(i, col)
+    },
+  },
+  'C. Arcane orbit': {
+    note: 'Rings of runes circle the sigil, more and faster each tier, with a soft pulse at the top',
+    draw: (i, col) => {
+      const orbit1 = i >= 1 ? `<g class="spin"><circle cx="${C}" cy="${C}" r="38" fill="none" stroke="${col}" stroke-width="1.2" stroke-dasharray="3 6" opacity="0.8"/>${dots(i >= 2 ? 3 : 2, 38, 3.2, col)}</g>` : ''
+      const orbit2 = i >= 3 ? `<g class="spin back"><circle cx="${C}" cy="${C}" r="45" fill="none" stroke="${col}" stroke-width="1" opacity="0.5"/>${dots(i >= 4 ? 6 : 4, 45, 2.4, col, 0.4)}</g>` : ''
+      const halo = i >= 3 ? `<circle class="pulse" cx="${C}" cy="${C}" r="${34 + (i - 3) * 6}" fill="${col}" opacity="0.4" filter="url(#blur)"/>` : ''
+      const rays = i >= 4 ? spikes(4, 30, 40, 0.1, col, -Math.PI / 2) : ''
+      return halo + orbit2 + orbit1 + rays + core(i, col)
+    },
+  },
+}
+
+document.getElementById('rows').innerHTML = `<svg width="0" height="0" style="position:absolute"><defs><filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter></defs></svg>` +
+  Object.entries(options).map(([name, o]) =>
+    `<div class="row"><div class="name">${name}<small>${o.note}</small></div>${T.map((col, i) =>
+      `<div class="tier"><svg viewBox="0 0 100 100">${o.draw(i, col)}</svg><span style="color:${col}">${NAMES[i]}</span></div>`).join('')}</div>`).join('')
+</script>
+</body>
+</html>

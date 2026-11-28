@@ -2,7 +2,7 @@
 // the left in the title font, a full-width control in the middle (end words under a slider), and the exact
 // value in a box on the right. Used by the in-match menu and home Settings.
 import { useState, type ReactNode } from 'react'
-import { PUSH_MAX, PUSH_MIN, SIGN_DELAY_MAX, getDrawingZoom, getPushGrowth, getSignDelay, setDrawingZoom, setPushGrowth, setSignDelay } from './settings'
+import { ALLY_VIEW_MAX, ALLY_VIEW_MIN, PUSH_MAX, PUSH_MIN, SIGN_DELAY_MAX, getAllyView, getDrawingZoom, setAllyView, getPushGrowth, getSignDelay, setDrawingZoom, setPushGrowth, setSignDelay } from './settings'
 import { getVolume, play, setVolume } from './sfx'
 
 export function SlabSlider(p: { label: string; min: number; max: number; value: number; lo: string; hi: string; unit?: string; step?: number; show?: string; onChange: (v: number) => void; onRelease?: () => void; hint?: string; children?: ReactNode }) {
@@ -68,6 +68,26 @@ export function DrawingZoomSlab() {
       onChange={(v) => {
         setOn(v === 'on')
         setDrawingZoom(v === 'on')
+      }}
+    />
+  )
+}
+
+/** 2v2: how big your teammate's view is (their strip on a phone, their drawing on a computer). */
+export function AllyViewSlab() {
+  const [px, setPx] = useState(getAllyView)
+  return (
+    <SlabSlider
+      label="Teammate view"
+      min={ALLY_VIEW_MIN}
+      max={ALLY_VIEW_MAX}
+      value={px}
+      lo="Small"
+      hi="Big"
+      hint="In 2v2, how much room your teammate's name, status and drawing get."
+      onChange={(v) => {
+        setPx(v)
+        setAllyView(v)
       }}
     />
   )

@@ -80,6 +80,8 @@ type Person = {
 }
 
 const PEOPLE: Record<string, Person> = {
+  // The Apprentice (Nov 27): every new player's portrait. A plain indigo hat, a friendly smile, nothing earned yet.
+  apprentice: { bg: '#3d3a78', hi: '#9d9ad6', skin: '#efc8a2', shade: '#d4a57c', hat: { kind: 'wizard', color: '#6c63ff', shade: '#4a43c4', band: '#ffd23f' }, hair: { kind: 'fringe', color: '#6b4a2e' }, eyes: 'normal', mouth: 'smile' },
   // Old Bram, the groundskeeper: bald, bushy grey beard, sleepy eyes, a rock.
   pebble: { bg: '#4f6e3a', hi: '#9fd27f', skin: '#e0b48a', shade: '#c08d62', hair: { kind: 'tufts', color: '#c9c9c9' }, beard: { kind: 'bushy', color: '#d9d9d9' }, eyes: 'narrow', mouth: 'smile', prop: 'rock' },
   // Pip, first-year: spiky yellow hair, wide eyes, big grin, a lightning bolt.

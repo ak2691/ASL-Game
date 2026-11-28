@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+.git
+.github
+.claude
+ml
+sfx_source
+plans
+deploy
+strokes-*.json
+*.md

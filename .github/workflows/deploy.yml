@@ -1,0 +1,66 @@
+# main -> checks -> image pushed to GitHub's registry (ghcr.io, free) -> the server pulls it and restarts the game
+# once no match is running (deploy/update.sh). Setup: deploy/README.md, step 7.
+# The deploy job uses the "production" environment: add yourself as a required reviewer there and every deploy
+# waits for your click (recommended, since a restart ends matches in progress).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # "Run workflow" button: deploy main again by hand
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false # never cut a deploy off halfway
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  push-image:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/ak2691/asl-game:${{ steps.tag.outputs.tag }}
+            ghcr.io/ak2691/asl-game:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: push-image
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+      - name: Copy the server files
+        run: scp deploy/compose.yaml deploy/Caddyfile deploy/update.sh deploy/backup.sh deploy/fetch-secrets.sh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:asl/"
+      - name: Update (waits for running matches, up to 10 min)
+        run: ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "chmod +x asl/*.sh && asl/update.sh ${{ needs.push-image.outputs.tag }}"

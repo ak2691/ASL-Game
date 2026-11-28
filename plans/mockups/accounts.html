@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Accounts and matchmaking mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #2d2a5a; --alt: #3d3a78; --panel: #2b2840; --sub: #9d9ad6; --text: #fffaf0; --main: #ffd23f;
+    --you: #5ee06b; --foe: #ff5470; --ink: #15132e; --blue: #6c63ff; --teal: #2ec4b6; --orange: #ff9f1c;
+    --title: 'Lilita One', 'Nunito', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 20px 60px; font-family: 'Nunito', sans-serif; font-weight: 700; color: var(--text);
+    background: radial-gradient(circle at 20% 15%, #3d3a78 0 12%, transparent 12.5%) 0 0 / 160px 160px, #22204a; }
+  h1, .t { font-family: var(--title); font-weight: normal; letter-spacing: 0.02em; -webkit-text-stroke: 0.14em var(--ink); paint-order: stroke fill; text-shadow: 0 0.12em 0 var(--ink); }
+  h1 { margin: 0 0 6px; font-size: 34px; text-align: center; }
+  .intro { max-width: 760px; margin: 0 auto 26px; text-align: center; color: var(--sub); }
+  .grid { display: flex; flex-wrap: wrap; gap: 30px; justify-content: center; }
+  figure { margin: 0; width: 340px; }
+  figcaption { margin-top: 10px; color: var(--sub); font-size: 14px; line-height: 1.35; }
+  figcaption b { color: var(--text); font-family: var(--title); font-weight: normal; font-size: 18px; display: block; }
+  .phone { position: relative; height: 640px; border: 4px solid var(--ink); border-radius: 22px; overflow: hidden; box-shadow: 0 8px 0 var(--ink);
+    background: radial-gradient(circle at 20% 15%, #3d3a78 0 12%, transparent 12.5%) 0 0 / 120px 120px, var(--bg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .phone > * { flex-shrink: 0; }
+  .bricks { background: repeating-linear-gradient(0deg, transparent 0 26px, rgba(0,0,0,.18) 26px 29px), repeating-linear-gradient(90deg, transparent 0 54px, rgba(0,0,0,.14) 54px 57px), #3b2f5c; }
+  button, .btn { font: inherit; font-weight: 800; color: #fff; background: var(--blue); border: 3px solid var(--ink); border-radius: 8px; padding: 9px 12px; cursor: pointer;
+    box-shadow: 0 5px 0 var(--ink), inset 0 -5px 0 rgba(0,0,0,.22), inset 0 4px 0 rgba(255,255,255,.28); text-align: center; }
+  .big { font-family: var(--title); font-weight: normal; font-size: 24px; padding: 12px; letter-spacing: .02em; -webkit-text-stroke: .1em var(--ink); paint-order: stroke fill; }
+  .yellow { background: var(--main); color: var(--ink); -webkit-text-stroke: 0; }
+  .green { background: #3fbf55; } .red { background: var(--foe); } .gray { background: #5d5a8c; }
+  .row { display: flex; gap: 10px; } .row > * { flex: 1; }
+  .card { background: var(--alt); border: 3px solid var(--ink); border-radius: 14px; padding: 12px; }
+  .label { font-family: var(--title); font-weight: normal; font-size: 17px; color: var(--text); }
+  .sub { color: var(--sub); font-size: 13px; }
+  .center { text-align: center; }
+  /* Home mode bars (as the real home screen) */
+  .mode { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 3px solid var(--ink); border-radius: 10px; box-shadow: 0 5px 0 var(--ink); }
+  .mode .ic { width: 36px; height: 36px; border-radius: 8px; border: 2px solid var(--ink); background: rgba(255,255,255,.25); display: grid; place-items: center; font-size: 18px; }
+  .mode .t { font-size: 21px; } .mode .sub { color: rgba(255,255,255,.85); font-size: 12px; }
+  /* Portrait */
+  .pt { width: 44px; height: 44px; border-radius: 10px; border: 3px solid var(--ink); background: linear-gradient(#8f7bff, #5b4bd8); display: grid; place-items: center; font-size: 22px; flex: none; }
+  .pt.lg { width: 76px; height: 76px; font-size: 40px; border-radius: 14px; }
+  /* Tier shield */
+  .tier { display: inline-flex; align-items: center; gap: 8px; }
+  .shield { width: 34px; height: 38px; flex: none; }
+  /* Tabs: chunky slabs, the chosen one raised and yellow */
+  .tabs { display: flex; gap: 6px; } .tabs > div { flex: 1; text-align: center; padding: 8px 0; border: 3px solid var(--ink); border-radius: 8px 8px 4px 4px; background: #4a4690; font-family: var(--title); font-size: 18px; color: var(--sub); }
+  .tabs > .on { background: var(--main); color: var(--ink); box-shadow: 0 4px 0 var(--ink); transform: translateY(-3px); }
+  .seg { display: flex; gap: 8px; } .seg > div { flex: 1; padding: 10px; text-align: center; border: 3px solid var(--ink); border-radius: 10px; background: var(--panel); }
+  .seg > .on { background: var(--blue); box-shadow: 0 4px 0 var(--ink); }
+  .seg .t { font-size: 26px; } .seg .sub { color: #d8d5ff; }
+  .slot { display: flex; align-items: center; gap: 10px; padding: 8px; border: 3px dashed #6f6bb8; border-radius: 10px; color: var(--sub); }
+  .slot.filled { border: 3px solid var(--ink); background: var(--panel); color: var(--text); }
+  .bar { height: 16px; border: 3px solid var(--ink); border-radius: 10px; background: var(--panel); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--main); }
+  .stat { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 2px solid rgba(0,0,0,.2); font-size: 14px; }
+  .stat:last-child { border-bottom: 0; }
+  .stat b { font-family: var(--title); font-weight: normal; font-size: 19px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 3px 8px; border: 2px solid var(--ink); border-radius: 6px; font-size: 13px; background: var(--panel); }
+  .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--ink); flex: none; }
+  .scroll { overflow: hidden; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .m { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 3px solid var(--ink); border-radius: 10px; background: var(--panel); font-size: 13px; }
+  .m .res { width: 30px; font-family: var(--title); font-size: 18px; }
+  .m .chg { margin-left: auto; font-family: var(--title); font-size: 18px; }
+  .back { position: absolute; left: 12px; bottom: 12px; padding: 5px 10px; font-size: 14px; background: var(--foe); }
+  .sign { font-size: 26px; line-height: 1; }
+</style>
+</head>
+<body>
+<h1>Accounts and matchmaking</h1>
+<p class="intro">Mockups for <code>plans/accounts.md</code>. Phone size; desktop uses the same pieces wider. Numbers and names are examples.</p>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="shield" viewBox="0 0 34 38"><path d="M17 2 L31 7 V18 C31 27 24 33 17 36 C10 33 3 27 3 18 V7 Z" stroke="#15132e" stroke-width="3" /><path d="M17 9 L20 15 L27 16 L22 21 L23 28 L17 25 L11 28 L12 21 L7 16 L14 15 Z" fill="#fffaf0" stroke="#15132e" stroke-width="1.5" /></symbol>
+  </defs>
+</svg>
+
+<div class="grid">
+
+  <!-- 1. Sign in -->
+  <figure>
+    <div class="phone" style="justify-content:center; gap:16px">
+      <div class="t center" style="font-size:40px">ASL Wizard</div>
+      <div class="card center" style="display:flex; flex-direction:column; gap:12px">
+        <div class="label" style="font-size:22px">Sign in</div>
+        <div class="sub">For Ranked, a profile, friends, and your progress on every device.</div>
+        <button class="big" style="background:#fff; color:#15132e; -webkit-text-stroke:0; font-size:20px">G&nbsp; Continue with Google</button>
+        <button class="big" style="background:#5865f2; font-size:20px">Continue with Discord</button>
+        <div class="sub">No password to remember. We only get your name and email, and never show the email.</div>
+      </div>
+      <button class="gray">Play as a guest</button>
+      <div class="sub center">Guests can play everything except Ranked.</div>
+    </div>
+    <figcaption><b>1. Sign in</b>Two buttons, no passwords. Guests skip it.</figcaption>
+  </figure>
+
+  <!-- 2. Pick a name -->
+  <figure>
+    <div class="phone" style="justify-content:center">
+      <div class="t center" style="font-size:30px">Make your wizard</div>
+      <div class="card" style="display:flex; flex-direction:column; gap:10px">
+        <div class="label">Name</div>
+        <div style="padding:10px; border:3px solid var(--ink); border-radius:8px; background:var(--panel); font-size:18px">Ember_Hands<span style="color:var(--you)"> ✓</span></div>
+        <div class="sub">3 to 16 letters, numbers or _. You can change it every 30 days.</div>
+        <div class="label">Portrait</div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px">
+          <div class="pt" style="width:auto;height:58px;box-shadow:0 0 0 3px var(--main)">🧙</div>
+          <div class="pt" style="width:auto;height:58px;background:linear-gradient(#ff8a5b,#d1495b)">🔥</div>
+          <div class="pt" style="width:auto;height:58px;background:linear-gradient(#7fd8ff,#3b8fd8)">❄️</div>
+          <div class="pt" style="width:auto;height:58px;background:linear-gradient(#a3e36b,#4f9d3a)">🪨</div>
+          <div class="pt" style="width:auto;height:58px;opacity:.35">🔒</div>
+          <div class="pt" style="width:auto;height:58px;opacity:.35">🔒</div>
+          <div class="pt" style="width:auto;height:58px;opacity:.35">🔒</div>
+          <div class="pt" style="width:auto;height:58px;opacity:.35">🔒</div>
+        </div>
+        <div class="sub">Beat Tower wizards to unlock their portraits.</div>
+      </div>
+      <button class="big yellow">Start</button>
+    </div>
+    <figcaption><b>2. Name and portrait</b>Once, after the first sign-in. Portraits are the game's wizard art (emoji here as stand-ins).</figcaption>
+  </figure>
+
+  <!-- 3. Home -->
+  <figure>
+    <div class="phone">
+      <div style="display:flex; align-items:center; gap:10px">
+        <div class="pt">🧙</div>
+        <div style="flex:1"><div class="label">Ember_Hands</div><div class="tier sub"><svg class="shield" style="width:18px;height:20px;fill:#c0c7d6"><use href="#shield"/></svg>Adept 2</div></div>
+        <button style="padding:6px 10px">Friends <span style="background:var(--foe); border:2px solid var(--ink); border-radius:6px; padding:0 5px">2</span></button>
+      </div>
+      <div class="t" style="font-size:40px; margin:14px 0 4px">ASL Wizard</div>
+      <div class="mode" style="background:var(--foe)"><div class="ic">🏰</div><div><div class="t">The Tower</div><div class="sub">Climb its floors alone or with a friend</div></div></div>
+      <div class="mode" style="background:var(--blue)"><div class="ic">⚔️</div><div><div class="t">Play</div><div class="sub">Casual, Ranked or a custom game</div></div></div>
+      <div class="mode" style="background:var(--teal)"><div class="ic">🎯</div><div><div class="t">Training dummy</div><div class="sub">Practice your spells, no pressure</div></div></div>
+      <div class="mode" style="background:var(--orange)"><div class="ic">📖</div><div><div class="t">Tutorial</div><div class="sub">Learn to cast</div></div></div>
+    </div>
+    <figcaption><b>3. Home, signed in</b>Duel becomes Play. Your portrait and rank open your profile; Friends shows requests waiting.</figcaption>
+  </figure>
+
+  <!-- 4. Play: Ranked with party -->
+  <figure>
+    <div class="phone bricks">
+      <div class="tabs"><div>Casual</div><div class="on">Ranked</div><div>Custom</div></div>
+      <div class="seg"><div><div class="t">1v1</div><div class="sub">Adept 2</div></div><div class="on"><div class="t">2v2</div><div class="sub">Placement 3 of 5</div></div></div>
+      <div class="card" style="display:flex; flex-direction:column; gap:8px">
+        <div class="label">Your party</div>
+        <div class="slot filled"><div class="pt">🧙</div><div style="flex:1"><div>Ember_Hands</div><div class="sub">Leader</div></div><span class="sub">Camera ✓</span></div>
+        <div class="slot filled"><div class="pt" style="background:linear-gradient(#7fd8ff,#3b8fd8)">❄️</div><div style="flex:1"><div>FrostByte</div><div class="sub">Conjurer 1</div></div><span class="sub">Camera ✓</span></div>
+        <div class="row"><button class="gray">Invite a friend</button><button class="gray">Party code</button></div>
+      </div>
+      <div class="sub center">Solo? Queue anyway and get a teammate.</div>
+      <div style="flex:1"></div>
+      <div class="row" style="flex:none"><button class="back" style="position:static; flex:none">⌂ Home</button><button class="big yellow">Find match</button></div>
+    </div>
+    <figcaption><b>4. Play: Ranked 2v2 with a party</b>Tabs for Casual, Ranked, Custom. Party of two; the leader queues once both cameras are on.</figcaption>
+  </figure>
+
+  <!-- 5. Searching / Match found -->
+  <figure>
+    <div class="phone bricks" style="justify-content:center; gap:16px">
+      <div class="card center" style="display:flex; flex-direction:column; gap:10px; opacity:.45">
+        <div class="label">Finding a Ranked 1v1</div>
+        <div class="t" style="font-size:36px">0:24</div>
+        <div class="sub">Looking for wizards near Adept 2</div>
+        <button class="gray">Cancel</button>
+      </div>
+      <div class="card center" style="display:flex; flex-direction:column; gap:12px; background:var(--panel); box-shadow:0 6px 0 var(--ink)">
+        <div class="t" style="font-size:34px">Match found!</div>
+        <div class="row" style="align-items:center">
+          <div><div class="pt lg" style="margin:auto">🧙</div><div class="label">You</div><div class="sub">Adept 2</div></div>
+          <div class="t" style="flex:none; font-size:26px">VS</div>
+          <div><div class="pt lg" style="margin:auto; background:linear-gradient(#ff8a5b,#d1495b)">🔥</div><div class="label">Cinder</div><div class="sub">Adept 3</div></div>
+        </div>
+        <div class="bar"><i style="width:70%"></i></div>
+        <div class="row"><button class="red">Decline</button><button class="green big" style="font-size:22px">Accept</button></div>
+        <div class="sub">7 s left. Your camera is on.</div>
+      </div>
+    </div>
+    <figcaption><b>5. Searching, then Match found</b>A timer while the queue looks; a 10 s Accept when it finds someone. Missing it twice: out of the queue for 2 minutes.</figcaption>
+  </figure>
+
+  <!-- 6. Result -->
+  <figure>
+    <div class="phone" style="gap:14px">
+      <div class="t center" style="font-size:52px; color:var(--you); margin-top:30px; transform:rotate(-2deg)">You win</div>
+      <div class="card center" style="display:flex; flex-direction:column; gap:8px">
+        <div class="tier" style="justify-content:center"><svg class="shield" style="fill:#c0c7d6"><use href="#shield"/></svg><span class="label" style="font-size:24px">Adept 2</span></div>
+        <div class="t" style="font-size:30px; color:var(--you)">+18</div>
+        <div class="bar"><i style="width:82%"></i></div>
+        <div class="sub">1,482 rating. 18 more to Adept 3.</div>
+      </div>
+      <div class="card" style="font-size:14px">
+        <div class="stat"><span>Fastest cast</span><b>0.9 s</b></div>
+        <div class="stat"><span>Parries landed</span><b>3</b></div>
+        <div class="stat"><span>Finished with</span><b style="color:#ff7a3d">Meteor</b></div>
+      </div>
+      <div class="label">Quick chat</div>
+      <div class="row">
+        <button class="gray"><span class="sign">🤟</span><br>Good game</button>
+        <button class="gray"><span class="sign">👍</span><br>Nice parry</button>
+        <button class="gray"><span class="sign">👏</span><br>Well played</button>
+      </div>
+      <div class="row"><button class="red">Report</button><button class="yellow">Play again</button></div>
+    </div>
+    <figcaption><b>6. Ranked result</b>Rating change and progress to the next step, a few stats from this match, quick chat shown as ASL sign emotes.</figcaption>
+  </figure>
+
+  <!-- 7. Profile -->
+  <figure>
+    <div class="phone" style="overflow-y:auto; scrollbar-width:none">
+      <div style="display:flex; gap:12px; align-items:center">
+        <div class="pt lg">🧙</div>
+        <div><div class="t" style="font-size:26px">Ember_Hands</div><div class="sub">Wizard since Nov 2026</div>
+          <div class="chips" style="margin-top:6px"><span class="chip">🏆 First Win</span><span class="chip">🪞 Reflected a Meteor</span></div></div>
+      </div>
+      <div class="row">
+        <div class="card center"><div class="sub">Ranked 1v1</div><svg class="shield" style="fill:#c0c7d6"><use href="#shield"/></svg><div class="label">Adept 2</div><div class="sub">1,482. Peak Adept 3</div></div>
+        <div class="card center"><div class="sub">Ranked 2v2</div><svg class="shield" style="fill:#7a7799"><use href="#shield"/></svg><div class="label">Placement</div><div class="sub">3 of 5 played</div></div>
+      </div>
+      <div class="card">
+        <div class="label">Spellcasting</div>
+        <div class="stat"><span>Fastest cast, sign to throw</span><b>0.9 s</b></div>
+        <div class="stat"><span>Favorite element</span><b style="color:#ff7a3d">Fire, 41%</b></div>
+        <div class="stat"><span>Drawings that read right</span><b>87%</b></div>
+        <div class="stat"><span>Parries landed</span><b>112</b></div>
+      </div>
+      <div class="card">
+        <div class="label">Record</div>
+        <div class="stat"><span>Ranked record</span><b>38 W 29 L</b></div>
+        <div class="stat"><span>Win rate</span><b>57%</b></div>
+        <div class="stat"><span>Best win streak</span><b>7</b></div>
+        <div class="stat"><span>Tower wizards beaten</span><b>9 of 14</b></div>
+        <div class="stat"><span>Duo Tower, highest floor</span><b>6</b></div>
+      </div>
+      <div class="label">Recent matches</div>
+      <div class="m"><span class="res" style="color:var(--you)">W</span><span>Ranked 1v1 vs Cinder</span><span class="chg" style="color:var(--you)">+18</span></div>
+      <div class="m"><span class="res" style="color:var(--foe)">L</span><span>Ranked 2v2 with FrostByte</span><span class="chg" style="color:var(--foe)">-14</span></div>
+    </div>
+    <figcaption><b>7. Profile (scrolls)</b>Tiers per queue, the ASL stats no other game has (cast speed, read rate), record, Tower progress, badges, recent matches.</figcaption>
+  </figure>
+
+  <!-- 8. Friends -->
+  <figure>
+    <div class="phone">
+      <div class="t" style="font-size:30px">Friends</div>
+      <div class="row"><div style="flex:3; padding:9px; border:3px solid var(--ink); border-radius:8px; background:var(--panel); color:var(--sub)">Add by name…</div><button style="flex:1">Add</button></div>
+      <div class="card" style="display:flex; flex-direction:column; gap:8px">
+        <div class="label">Requests</div>
+        <div class="m"><div class="pt" style="width:34px;height:34px;font-size:16px;background:linear-gradient(#a3e36b,#4f9d3a)">🪨</div><span>StoneSigner</span><button class="green" style="margin-left:auto; padding:4px 10px">✓</button><button class="red" style="padding:4px 10px">✕</button></div>
+      </div>
+      <div class="label">Online</div>
+      <div class="m"><div class="pt" style="width:34px;height:34px;font-size:16px;background:linear-gradient(#7fd8ff,#3b8fd8)">❄️</div><div><div>FrostByte</div><div class="sub" style="display:flex;gap:5px;align-items:center"><span class="dot" style="background:var(--you)"></span>In the menus</div></div><button style="margin-left:auto; padding:5px 10px">Invite</button></div>
+      <div class="m"><div class="pt" style="width:34px;height:34px;font-size:16px;background:linear-gradient(#ff8a5b,#d1495b)">🔥</div><div><div>Cinder</div><div class="sub" style="display:flex;gap:5px;align-items:center"><span class="dot" style="background:var(--main)"></span>In a Ranked match</div></div></div>
+      <div class="label">Offline</div>
+      <div class="m" style="opacity:.6"><div class="pt" style="width:34px;height:34px;font-size:16px">🌊</div><div>TideTurner</div></div>
+      <div class="card" style="margin-top:auto; display:flex; flex-direction:column; gap:6px">
+        <div class="label">Chat with FrostByte</div>
+        <div class="sub">FrostByte: ranked 2v2?</div>
+        <div class="sub" style="color:var(--text)">You: one more tower floor first</div>
+        <div style="padding:7px; border:3px solid var(--ink); border-radius:8px; background:var(--panel); color:var(--sub); font-size:13px">Message…</div>
+      </div>
+    </div>
+    <figcaption><b>8. Friends and chat</b>Add by name, requests, online status, invite to party. Free text only with friends; strangers get quick chat.</figcaption>
+  </figure>
+
+</div>
+</body>
+</html>

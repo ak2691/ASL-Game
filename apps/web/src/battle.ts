@@ -18,6 +18,7 @@ export interface OppCast {
   name: string | null // known once their spell is ready
   color: string
   phase: 'charge' | 'draw' | 'ready'
+  shape?: string // the readied spell's shape (online), for short labels
   points: Pt01[] // their drawing so far, as fractions of `view`
   // The box the points are in: a player's visible camera view (width / height), shown filling your
   // panel the way their camera filled theirs ('cover'); the AI's square box, shown whole ('contain').
@@ -29,6 +30,7 @@ export interface Snapshot extends CombatView {
   enemyCast: OppCast | null
   running: boolean
   conn?: Record<Fid, 'away' | 'left'> // online: fighters whose player is disconnected (seat held) or gone
+  names?: Record<Fid, string> // online: each player's name (Nov 28: shown instead of "You" / "Opponent")
   hint?: string | null // practice intro bots: the element that counters what it's charging
   say?: { key: Bark; n: number; i?: number } | null // practice: something it says (the text lives in Ladder.tsx); n counts up per line
 }

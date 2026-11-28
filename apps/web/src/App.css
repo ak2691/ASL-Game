@@ -1285,14 +1285,15 @@ html[data-theme] .hp-bar.charged { box-shadow: 0 0 0 2px var(--charge), 0 0 6px 
 .team-card.foe .hud-row { min-width: 0; }
 .duel .enemy-canvas { top: var(--hud-live, 100px); height: auto; }
 @media (max-height: 500px) and (orientation: landscape) {
-  html[data-theme] .duel .side-hud { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto; grid-template-rows: 30px auto auto;
-    gap: 4px 10px; align-items: center; padding: 6px 10px 8px; }
+  /* Nov 28: same order as every other size (name and HP on top, the bar under them), just tighter. */
+  html[data-theme] .duel .side-hud { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 20px 24px auto auto;
+    gap: 3px 10px; align-items: center; padding: 5px 10px 6px; }
   .duel .side-hud > .fighter, .duel .side-hud .fighter-name { display: contents; }
-  .duel .side-hud .fighter-label { grid-row: 1; grid-column: 1; }
-  .duel .side-hud .hp-bar { grid-row: 1; grid-column: 2; min-width: 0; }
-  .duel .side-hud .hp-count { grid-row: 1; grid-column: 3; margin-left: 0; }
-  .duel .side-hud .fighter-status { grid-row: 2; grid-column: 1 / -1; }
-  .duel .side-hud > .hud-row { grid-row: 3; grid-column: 1 / -1; justify-self: start; min-width: 0; max-width: 100%; }
+  .duel .side-hud .fighter-label { grid-row: 1; grid-column: 1; min-width: 0; }
+  .duel .side-hud .hp-count { grid-row: 1; grid-column: 2; margin-left: 0; }
+  .duel .side-hud .hp-bar { grid-row: 2; grid-column: 1 / -1; min-width: 0; }
+  .duel .side-hud .fighter-status { grid-row: 3; grid-column: 1 / -1; }
+  .duel .side-hud > .hud-row { grid-row: 4; grid-column: 1 / -1; justify-self: start; min-width: 0; max-width: 100%; }
   .duel .side-hud > .hud-row .sub-line { white-space: nowrap; font-size: 13px; }
   html[data-theme] .team-card.foe .side-hud { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 22px 26px auto; gap: 3px 6px; }
   .team-card.foe .side-hud .hp-count { grid-row: 1; grid-column: 2; }
@@ -1439,3 +1440,272 @@ html[data-theme] .duel .team-card .hp-bar { height: clamp(26px, 4vmin, 44px); }
   .solo-stage .tower .window { width: 38px; height: 38px; border-radius: 19px 19px 4px 4px; }
   .solo-stage .tower .portrait { width: 32px; height: 32px; }
 }
+
+/* Accounts (Nov 27): sign in, "Make your wizard", and the home corner chip (plans/mockups/accounts.html). */
+html[data-theme] .home > .account-chip, .home > .account-chip { position: absolute; top: 12px; left: 12px; z-index: 3; width: auto; max-width: 58vw; display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 5px; font-size: 18px; background: #4a4690; }
+.account-chip .portrait { width: 34px; height: 34px; flex: none; border-radius: 7px; border: 2px solid var(--ink, #15132e); }
+.account-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--title, inherit); font-weight: normal; }
+.account-card { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 460px; margin: 0 auto; }
+.account-lead { margin: 0; font-size: 17px; }
+.account-note { margin: 0; color: var(--sub); font-size: 14px; }
+.account-error { margin: 0; color: var(--foe, #ff5470); }
+.account-label { font-family: var(--title, inherit); font-weight: normal; font-size: 19px; }
+.account-card input { min-width: 0; padding: 9px 10px; font: inherit; font-size: 18px; color: var(--text, #fffaf0); background: var(--panel, #2b2840); border: 3px solid var(--ink, #15132e); border-radius: 8px; }
+.account-row { display: flex; gap: 10px; }
+.account-row > * { flex: 1; }
+.signin-btn { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px; font-family: var(--title, inherit); font-size: 21px; text-decoration: none; cursor: pointer;
+  border: 3px solid var(--ink, #15132e); border-radius: 8px; box-shadow: 0 5px 0 var(--ink, #15132e), inset 0 -5px 0 rgba(0, 0, 0, 0.18), inset 0 4px 0 rgba(255, 255, 255, 0.28); }
+.signin-btn svg { width: 24px; height: 24px; flex: none; }
+.signin-btn.google { background: #fff; color: #15132e; }
+.signin-btn.discord { background: #5865f2; color: #fff; }
+.signin-btn:not(.off):active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink, #15132e); }
+.signin-btn.off { opacity: 0.45; cursor: not-allowed; }
+.account-dev { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 3px dashed #6f6bb8; border-radius: 10px; }
+.portrait-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+html[data-theme] .portrait-pick, .portrait-pick { aspect-ratio: 1; padding: 0; overflow: hidden; border-radius: 10px; background: var(--panel, #2b2840); }
+.portrait-pick .portrait { display: block; width: 100%; height: 100%; }
+html[data-theme] .portrait-pick.on, .portrait-pick.on { outline: 4px solid var(--main, #ffd23f); outline-offset: 1px; }
+html[data-theme] .account-save, .account-save { font-size: 24px; background: var(--main, #ffd23f); color: var(--ink, #15132e); }
+html[data-theme] .account-guest, html[data-theme] .account-out, .account-guest, .account-out { background: #5d5a8c; }
+.account-chip .chip-person { width: 26px; height: 26px; flex: none; margin-left: 4px; }
+/* Phones: the title sits in the top-left corner, so the chip is a square beside Spellbook and Settings: your
+   portrait, or the person icon before you sign in (its name stays as the button's label). */
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
+  html[data-theme] .home > .account-chip, .home > .account-chip { left: auto; right: 120px; width: 46px; height: 46px; padding: 3px; justify-content: center; }
+  .account-chip span { display: none; }
+  .account-chip .portrait { width: 100%; height: 100%; }
+  .account-chip .chip-person { margin: 0; }
+}
+/* A Tower wizard you haven't beaten: a dark silhouette with a lock (their portrait unlocks when you win). */
+html[data-theme] .portrait-pick.locked, .portrait-pick.locked { position: relative; cursor: not-allowed; transform: none; box-shadow: none; }
+.portrait-pick.locked .portrait { filter: brightness(0) opacity(0.45) !important; }
+.portrait-pick.locked::after { content: ''; position: absolute; inset: 0; margin: auto; width: 40%; height: 40%;
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239d9ad6' stroke-width='2.6' stroke-linecap='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E"); }
+
+/* Play (Nov 27): Casual, Ranked, Custom tabs over the old Duel menu (mockup 4 in plans/mockups/accounts.html). */
+.play-menu { display: flex; flex-direction: column; gap: 14px; width: min(440px, 100%); }
+.play-tabs { display: flex; gap: 6px; }
+html[data-theme] .play-tabs button, .play-tabs button { flex: 1; padding: 8px 0; font-family: var(--title, inherit); font-weight: normal; font-size: 19px; color: var(--sub); background: #4a4690;
+  border-radius: 8px 8px 4px 4px; box-shadow: 0 3px 0 var(--ink, #15132e); }
+html[data-theme] .play-tabs button.on, .play-tabs button.on { color: var(--ink, #15132e); background: var(--main, #ffd23f); transform: translateY(-3px); box-shadow: 0 5px 0 var(--ink, #15132e); }
+.play-panel { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.play-sizes { display: flex; gap: 8px; width: 100%; }
+html[data-theme] .play-sizes button, .play-sizes button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; background: var(--panel, #2b2840); box-shadow: 0 3px 0 var(--ink, #15132e); }
+html[data-theme] .play-sizes button.on, .play-sizes button.on { background: #6c63ff; box-shadow: 0 5px 0 var(--ink, #15132e); }
+.play-sizes b { font-family: var(--title, inherit); font-weight: normal; font-size: 26px; }
+.play-sizes small { font-size: 13px; color: #d8d5ff; }
+.play-you { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 3px solid var(--ink, #15132e); border-radius: 10px; background: var(--panel, #2b2840); }
+.play-you .portrait { width: 44px; height: 44px; flex: none; border-radius: 8px; border: 2px solid var(--ink, #15132e); }
+.play-you span { display: flex; flex-direction: column; }
+.play-you b { font-family: var(--title, inherit); font-weight: normal; font-size: 18px; }
+.play-you small { color: var(--sub); font-size: 13px; }
+html[data-theme] .play-find, .play-find { width: 100%; font-family: var(--title, inherit); font-weight: normal; font-size: 26px; padding: 12px; background: var(--main, #ffd23f); color: var(--ink, #15132e); }
+.play-line { margin: 0; text-align: center; }
+.play-line.dim { color: var(--sub); font-size: 14px; }
+.play-searching { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.play-clock { font-family: var(--title, inherit); font-weight: normal; font-size: 40px; }
+html[data-theme] .play-cancel, .play-cancel { background: #5d5a8c; }
+.match-found { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; padding: 16px; border: 3px solid var(--ink, #15132e); border-radius: 14px;
+  background: var(--panel, #2b2840); box-shadow: 0 6px 0 var(--ink, #15132e); }
+.match-vs { display: flex; align-items: center; justify-content: space-around; width: 100%; }
+.match-vs > span { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.match-vs .portrait { width: 76px; height: 76px; border-radius: 14px; border: 3px solid var(--ink, #15132e); }
+.match-vs b { font-family: var(--title, inherit); font-weight: normal; font-size: 18px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.match-vs small { color: var(--sub); font-size: 13px; }
+.match-vs-mark { font-size: 28px !important; }
+.match-bar { width: 100%; height: 16px; border: 3px solid var(--ink, #15132e); border-radius: 10px; background: #1d1b33; overflow: hidden; }
+.match-bar > i { display: block; height: 100%; background: var(--main, #ffd23f); transition: width 0.25s linear; }
+.match-buttons { display: flex; gap: 10px; width: 100%; }
+.match-buttons button { flex: 1; font-family: var(--title, inherit); font-weight: normal; font-size: 22px; padding: 10px; }
+html[data-theme] .match-decline, .match-decline { background: var(--foe, #ff5470); }
+html[data-theme] .match-accept, .match-accept { background: #3fbf55; }
+/* Ranked (Nov 27): tier shields in metal colors, and the rating change after a match (mockup 6). */
+.rank-badge { flex: none; }
+.rated-card { display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(420px, 100%); padding: 12px; border: 3px solid var(--ink, #15132e); border-radius: 14px;
+  background: var(--panel, #2b2840); box-shadow: 0 5px 0 var(--ink, #15132e); }
+.rated-tier { display: flex; align-items: center; gap: 8px; }
+.rated-title { font-family: var(--title, inherit); font-weight: normal; font-size: 24px; }
+.rated-diff { font-family: var(--title, inherit); font-weight: normal; font-size: 32px; -webkit-text-stroke: 0.12em var(--ink, #15132e); paint-order: stroke fill; }
+.rated-diff.up { color: var(--you, #5ee06b); }
+.rated-diff.down { color: var(--foe, #ff5470); }
+
+/* Profile (mockup 7): one column, phone first. */
+.profile, .profile-actions, .profile-back { width: 100%; max-width: 460px; margin: 0 auto; }
+.profile { display: flex; flex-direction: column; gap: 12px; }
+.profile-head { display: flex; align-items: center; gap: 12px; }
+.profile-head .portrait { width: 72px; height: 72px; flex: none; border-radius: 12px; border: 3px solid var(--ink, #15132e); }
+.profile-name { margin: 0; font-family: var(--title, inherit); font-weight: normal; font-size: 30px; overflow-wrap: anywhere; }
+.profile-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-badge { padding: 4px 10px; border: 3px solid var(--ink, #15132e); border-radius: 8px; background: var(--panel, #2b2840); font-family: var(--title, inherit); font-size: 16px; }
+.profile-rank { flex-direction: row; align-items: center; gap: 14px; }
+.profile-tier { display: block; font-family: var(--title, inherit); font-weight: normal; font-size: 24px; }
+.profile-stat { display: flex; justify-content: space-between; gap: 12px; font-size: 16px; }
+.profile-stat b { text-align: right; }
+.profile-match { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: baseline; font-size: 16px; }
+.profile-match small { display: block; }
+.profile-match .win { color: var(--you, #6be38a); }
+.profile-match .loss { color: var(--foe, #ff5470); }
+html[data-theme] .profile-link, .profile-link { padding: 0; border: 0; box-shadow: none; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+@media (min-width: 900px) {
+  .profile, .profile-actions, .profile-back { max-width: 560px; }
+  .profile-stat, .profile-match { font-size: 18px; }
+}
+
+/* Quick chat (Nov 27): a bubble under the sender's name; the picker is a grid of lines. */
+.fighter { position: relative; }
+.chat-bubble.quick-chat { z-index: 4; pointer-events: none; animation: quick-chat-fade 4s ease forwards; }
+@keyframes quick-chat-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+.quick-chat-lines { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quick-chat-lines button { font-size: 18px; }
+
+/* Party (Nov 27): under the queue panel. */
+.party-panel { margin-top: 12px; }
+.party-title { font-family: var(--title, inherit); font-weight: normal; font-size: 22px; }
+.party-members { display: flex; gap: 14px; flex-wrap: wrap; }
+.party-member { display: grid; grid-template-columns: 44px auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; }
+.party-member .portrait { grid-row: span 2; width: 44px; height: 44px; border-radius: 8px; border: 3px solid var(--ink, #15132e); }
+.party-member small { color: var(--sub); }
+.party-member.away { opacity: 0.55; }
+.party-code { font-family: var(--title, inherit); font-weight: normal; font-size: 26px; letter-spacing: 0.04em; }
+.match-team { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.match-vs.two .portrait { width: 52px; height: 52px; }
+.match-team > span { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+
+/* Friends (Nov 27) */
+html[data-theme] .home > .friends-chip, .home > .friends-chip { position: absolute; top: 70px; left: 12px; z-index: 3; width: auto; display: flex; align-items: center; gap: 8px; padding: 6px 12px; }
+.friends-chip svg { width: 26px; height: 26px; flex: none; }
+.friends-chip span { font-family: var(--title, inherit); font-weight: normal; }
+.friend-unread { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--foe, #ff5470); color: #fff; font-style: normal; font-weight: 800; font-size: 13px; line-height: 22px; text-align: center; }
+.friends-chip .friend-unread { position: absolute; top: -8px; right: -8px; border: 2px solid var(--ink, #15132e); }
+.invite-toast { position: absolute; top: 124px; left: 12px; z-index: 4; max-width: min(340px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 3px solid var(--ink, #15132e); border-radius: 12px; background: var(--sub-alt, #2b2840); box-shadow: 0 5px 0 var(--ink, #15132e); }
+.invite-line { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
+html[data-theme] .friends-yes, .friends-yes { background: var(--main, #ffd23f); color: var(--ink, #15132e); }
+.friends, .friend-chat, .friends-note { width: 100%; max-width: 520px; margin: 0 auto; }
+.friends { display: flex; flex-direction: column; gap: 12px; }
+.friends-add input { flex: 2; min-width: 0; padding: 9px 10px; font: inherit; font-size: 18px; color: var(--text, #fffaf0); background: var(--panel, #2b2840); border: 3px solid var(--ink, #15132e); border-radius: 8px; }
+.friends-note { margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; background: var(--panel, #2b2840); cursor: pointer; }
+.friends-note.bad { color: var(--foe, #ff5470); }
+.friend-row { display: flex; align-items: center; gap: 10px; }
+html[data-theme] .friend-who, .friend-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0; border: 0; box-shadow: none; background: none; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.friend-who:disabled { cursor: default; opacity: 1; }
+.friend-who .portrait { width: 44px; height: 44px; flex: none; border-radius: 8px; border: 3px solid var(--ink, #15132e); }
+.friend-who span { min-width: 0; display: flex; flex-direction: column; }
+.friend-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-who small { color: var(--sub); }
+.friend-row.online .friend-who small, .friend-row.queue .friend-who small { color: var(--you, #6be38a); }
+.friend-row.match .friend-who small { color: var(--main, #ffd23f); }
+.friend-row.offline .portrait { opacity: 0.5; }
+.friend-acts { display: flex; gap: 6px; flex: none; }
+.friend-acts button { padding: 6px 12px; font-size: 15px; }
+.friend-chat { display: flex; flex-direction: column; gap: 10px; }
+.chat-log { display: flex; flex-direction: column; gap: 6px; height: min(52vh, 460px); overflow-y: auto; padding: 10px; border-radius: 12px; background: var(--sub-alt, #2b2840); overscroll-behavior: contain; }
+.chat-msg { align-self: flex-start; max-width: 80%; margin: 0; padding: 7px 12px; border-radius: 12px; background: var(--panel, #3a3760); overflow-wrap: anywhere; }
+.chat-msg.mine { align-self: flex-end; background: #4b6bd6; color: #fff; }
+.chat-send input { flex: 3; min-width: 0; padding: 9px 10px; font: inherit; font-size: 17px; color: var(--text, #fffaf0); background: var(--panel, #2b2840); border: 3px solid var(--ink, #15132e); border-radius: 8px; }
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
+  html[data-theme] .home > .friends-chip, .home > .friends-chip { top: 66px; left: auto; right: 120px; width: 46px; height: 46px; padding: 3px; justify-content: center; }
+  .friends-chip span { display: none; }
+  .invite-toast { top: 122px; left: auto; right: 12px; }
+}
+.friends-search { display: flex; flex-direction: column; gap: 8px; }
+.friends-search input { min-width: 0; padding: 9px 10px; font: inherit; font-size: 18px; color: var(--text, #fffaf0); background: var(--panel, #2b2840); border: 3px solid var(--ink, #15132e); border-radius: 8px; }
+.search-results { max-height: min(50vh, 440px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Queued match setup (Nov 27): Ready under the countdown. */
+.setup-ready { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; pointer-events: auto; }
+html[data-theme] .setup-btn, .setup-btn { min-width: 160px; font-size: 22px; background: var(--main, #ffd23f); color: var(--ink, #15132e); }
+.setup-line { font-family: var(--title, inherit); font-weight: normal; font-size: 18px; }
+/* Profile actions (Back, Add friend, More) on a phone: one line each. */
+.friends > .account-row button { white-space: nowrap; font-size: 16px; padding-left: 8px; padding-right: 8px; }
+html[data-theme] .profile-link, .profile-link { display: inline; min-height: 0; height: auto; line-height: inherit; vertical-align: baseline; transform: none; }
+
+/* Letter avatars (Nov 28): a colored square with the first letter, sized by whatever box a portrait had. */
+.avatar { display: inline-grid; place-items: center; container-type: size; color: #fff; overflow: hidden; }
+.avatar > span { font-family: var(--title, inherit); font-size: 58cqh; line-height: 1; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+
+/* The setup countdown (Nov 28): a card in the middle of your side of the arena. */
+.setup-overlay { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none; }
+.setup-card { pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 200px; padding: 14px 22px;
+  border: 3px solid var(--ink, #15132e); border-radius: 16px; background: rgba(21, 19, 46, 0.86); box-shadow: 0 6px 0 var(--ink, #15132e); }
+.setup-count { font-size: 44px; line-height: 1; }
+/* The card is in the middle of your own half (phones: the top half), over your camera. */
+.setup-help { max-width: 220px; text-align: center; color: var(--sub); font-size: 13px; }
+.setup-who { list-style: none; margin: 2px 0 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.setup-who li { display: flex; justify-content: space-between; gap: 14px; }
+.setup-who li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+.setup-who li b { color: var(--sub); font-weight: 800; }
+.setup-who li.ok b { color: var(--you, #6be38a); }
+
+/* Long names in the room list (Nov 28): the name shrinks with "…"; HP and Ready keep their size. */
+html[data-theme] .room-seat-name, .room-seat-name { flex: 1 1 auto; min-width: 0; }
+.room-seat-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-seat > .room-hp, .room-seat > .room-ready, .room-seat > .room-hp-chip, .room-seat > :not(.room-seat-name) { flex: none; }
+
+/* Room list row (Nov 28): name, then a small HP box and a ready check pushed to the right. */
+html .room-seat .room-hp, html .room-seat .room-hp-chip { margin-left: auto; }
+html .room-hp-chip { padding: 2px 6px; gap: 3px; }
+html[data-theme] .room-hp-chip .hp-box b { font-size: 11px; }
+html .room-seat .room-hp-chip .hp-box input { width: 3.2ch; font-size: 15px; }
+.room-ready { margin-left: 0; display: inline-grid; place-items: center; }
+.room-ready svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.room-ready svg circle { opacity: 0.45; }
+.room-ready.on svg circle { opacity: 1; fill: color-mix(in srgb, currentColor 22%, transparent); }
+.room-ready.away { opacity: 0.6; }
+
+/* 2v2 (Nov 28): the setup card sits high in your half, clear of your teammate's card at the bottom. */
+.duel-side.you:has(> .team-card.ally) .setup-overlay { align-content: start; padding-top: clamp(56px, 12%, 110px); }
+/* Phones in portrait: a compact teammate card (name, HP, status), without the element power row. */
+@media (max-width: 800px) and (orientation: portrait) {
+  .team-card.ally { left: 8px; bottom: 8px; width: min(210px, 56%); padding: 5px 7px; gap: 3px; border-radius: 10px; }
+  .team-card.ally .power-grid { display: none; }
+  html[data-theme] .duel .team-card.ally .hp-bar { height: 16px; }
+  html[data-theme] .duel .team-card.ally .fighter-name { min-height: 0; }
+  .team-card.ally .hp-count { font-size: 11px; }
+}
+html[data-theme] .lobby-card .room-seat, .room-seat { flex-wrap: nowrap; }
+html[data-theme] .room-seat-name, .room-seat-name { overflow: hidden; }
+.room-seat-text { display: block; max-width: 100%; }
+
+/* The teammate's casting inside their card (Nov 28): a small live view of their stroke, and what it is. */
+.ally-view { position: relative; height: 100px; border-radius: 8px; overflow: hidden; background: radial-gradient(ellipse at center, var(--sub-alt), var(--bg) 75%); }
+.ally-view .ally-cast { position: absolute; left: 6px; bottom: 4px; font-family: var(--title, inherit); font-size: 14px; -webkit-text-stroke: 3px #15132e; paint-order: stroke fill; white-space: nowrap; }
+.ally-view .ally-cast small { font-size: 12px; color: #fffaf0; }
+@media (max-width: 800px) and (orientation: portrait) {
+  .ally-view { height: 78px; }
+  .ally-view .ally-cast { font-size: 12px; }
+}
+.ally-view .enemy-canvas path { vector-effect: non-scaling-stroke; stroke-width: 4px; }
+.ally-view .enemy-canvas { position: absolute; inset: 0; top: 0; bottom: 0; width: 100%; height: 100%; margin: 0; }
+.ally-view .enemy-canvas svg { width: 100%; height: 100%; display: block; }
+
+/* Teammate card on phones (Nov 28; landscape too, any screen under 500 px tall): compact and slightly see-through, at the bottom left of your half
+   like the desktop card. Name and HP on one line, then their drawing (height: the "Teammate view" setting). */
+.ally-minis { display: none; }
+@media (max-width: 800px) and (orientation: portrait), (max-height: 500px) {
+  .duel-side.you > .team-card.ally { display: none; }
+  /* Under your own drawing (Nov 28: seeing what you draw comes first): the camera canvas sits above it. */
+  .ally-minis { display: flex; flex-direction: column; gap: 6px; position: absolute; left: 8px; bottom: 8px; width: min(44%, 168px); z-index: 1; }
+  /* The camera is mirrored; mirroring the box would put video and drawing in one layer, so here the video and the
+     drawing are mirrored on their own: the card sits between them (over your video, under your drawing). */
+  .duel-side.you:has(> .ally-minis) > .camera { transform: none; }
+  .duel-side.you:has(> .ally-minis) > .camera video { transform: scaleX(-1); }
+  .duel-side.you:has(> .ally-minis) > .camera canvas { position: absolute; z-index: 2; transform: scaleX(-1); }
+  .ally-mini { position: relative; padding: 4px 6px 6px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 78%, transparent); overflow: hidden; }
+  .ally-mini.out { filter: grayscale(1); opacity: 0.6; }
+  .am-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; font-family: var(--title, inherit); font-size: 13px; }
+  .am-name { min-width: 0; max-width: 9ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .am-hp { flex: none; margin-left: auto; color: var(--you); }
+  .am-hp small { font-size: 10px; opacity: 0.8; color: #fffaf0; }
+  .am-view { position: relative; height: var(--ally-h, 72px); margin-top: 3px; border-radius: 7px; overflow: hidden; background: color-mix(in srgb, var(--sub-alt) 70%, transparent); }
+  .am-view .enemy-canvas { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; background: none; border-radius: 0; }
+  .am-view .enemy-canvas svg { width: 100%; height: 100%; display: block; }
+  .am-view .enemy-canvas path { vector-effect: non-scaling-stroke; stroke-width: 4px; }
+  .am-cast { position: absolute; left: 6px; bottom: 3px; z-index: 1; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--title, inherit); font-size: 14px; -webkit-text-stroke: 3px #15132e; paint-order: stroke fill; }
+  .am-cast small { color: #fffaf0; font-size: 12px; }
+  /* The setup card sits above it. */
+  .duel-side.you:has(> .ally-minis) .setup-overlay { align-content: start; padding-top: clamp(48px, 8%, 90px); }
+}
+/* Desktop and landscape: the teammate card's drawing follows the same setting. */
+.ally-view { height: calc(var(--ally-h, 72px) * 1.4); }

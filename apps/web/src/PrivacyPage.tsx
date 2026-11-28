@@ -19,6 +19,18 @@ export function PrivacyPage({ onHome }: { onHome: () => void }) {
           <li>The camera turns off when you leave a match or close the page.</li>
         </ul>
       </section>
+
+      <section className="info-card">
+        <h2>Accounts</h2>
+        <ul className="info-list">
+          <li>An account is optional. Guests can play everything except Ranked.</li>
+          <li>If you sign in with Google or Discord, we get your name and email from them. We never show your email to anyone.</li>
+          <li>Other players see your wizard name and your match results.</li>
+          <li>We don't get or store any password. You stay signed in with a cookie that only our server can read.</li>
+          <li>There's no text chat. In matches you can send preset quick chat lines, which aren't saved.</li>
+          <li>When you report someone, we keep your reason so we can look into it.</li>
+        </ul>
+      </section>
     </main>
   )
 }

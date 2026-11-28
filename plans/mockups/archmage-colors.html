@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Archmage color options</title>
+<style>
+  body { margin: 0; padding: 10px; background: #1d1b2e; color: #fffaf0; font-family: system-ui, sans-serif; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  p.sub { margin: 0 0 12px; color: #a7a3d6; font-size: 13px; }
+  h2 { font-size: 15px; margin: 14px 0 6px; color: #a7a3d6; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .opt { padding: 8px 4px; background: #24223a; border: 3px solid #15132e; border-radius: 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .opt b { font-size: 13px; text-align: center; }
+  .pair { display: flex; align-items: center; gap: 6px; }
+  .pair svg.big { width: 66px; height: 66px; }
+  .pair svg.small { width: 24px; height: 24px; }
+  .ladder { display: flex; gap: 1px; }
+  .ladder svg { width: 22px; height: 22px; }
+</style>
+</head>
+<body>
+<h1>Archmage: color pairs</h1>
+<p class="sub">Ring and runes in the first color; points, inner shape and core in the second. Under each: the ladder, Novice to Archmage.</p>
+<div id="g"></div>
+<script>
+const INK = '#15132e', C = 50
+const TIERS = ['#c98a4b', '#c7ccd8', '#ffd23f', '#7fe3d6']
+const pt = (a, r) => [C + r * Math.cos(a), C + r * Math.sin(a)]
+const path = (ps) => ps.map(([x, y], k) => `${k ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ') + ' Z'
+function badge(t, col, accent) {
+  const sides = [3, 4, 5, 6, 8][t]
+  const shape = path(Array.from({ length: sides }, (_, k) => pt(-Math.PI / 2 + (k * 2 * Math.PI) / sides, 17)))
+  const sets = [[], [[4, 37, 0.12, -Math.PI / 4]], [[4, 42, 0.14, -Math.PI / 2]], [[8, 43, 0.1, -Math.PI / 2]], [[8, 39, 0.12, -Math.PI / 2 + Math.PI / 8], [8, 48, 0.1, -Math.PI / 2]]][t]
+  const a2 = accent ?? col
+  let out = ''
+  sets.forEach(([n, o, w, turn], si) => {
+    for (let k = 0; k < n; k++) { const a = turn + (k * 2 * Math.PI) / n; out += `<path d="${path([pt(a - w, 30), pt(a, o), pt(a + w, 30)])}" fill="${si === 1 ? a2 : col}" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/>` }
+  })
+  out += `<circle cx="${C}" cy="${C}" r="30" fill="${INK}" stroke="${col}" stroke-width="5"/>`
+  if (t >= 1) out += `<circle cx="${C}" cy="${C}" r="22" fill="none" stroke="${col}" stroke-width="2.5"/>`
+  out += `<path d="${shape}" fill="none" stroke="${a2}" stroke-width="3.2" stroke-linejoin="round"/>`
+  if (t >= 2) for (let k = 0; k < 8; k++) { const [x, y] = pt(Math.PI / 8 + (k * Math.PI) / 4, 26); out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${t >= 4 ? 2.8 : 2}" fill="${col}"/>` }
+  out += `<circle cx="${C}" cy="${C}" r="${4 + t}" fill="${a2}"/>`
+  return out
+}
+const groups = {
+  'Single colors (for comparison)': [
+    ['Pale blue (now)', '#9cc4ff'],
+    ['Royal violet', '#b26bff'],
+    ['Arcane magenta', '#ff4fd8'],
+  ],
+  'Two colors': [
+    ['Violet + gold', '#b26bff', '#ffd23f'],
+    ['Violet + cyan', '#b26bff', '#5ff3ff'],
+    ['Magenta + gold', '#ff4fd8', '#ffd23f'],
+    ['Magenta + cyan', '#ff4fd8', '#5ff3ff'],
+    ['Deep blue + white', '#4a6bff', '#fffaf0'],
+    ['Indigo + rose', '#6c63ff', '#ff8fb8'],
+    ['Emerald + gold', '#2ee59d', '#ffd23f'],
+    ['Crimson + gold', '#ff3b5c', '#ffd23f'],
+    ['Obsidian + gold', '#3a3550', '#ffd23f'],
+    ['Silver + violet', '#e8ecf5', '#b26bff'],
+    ['Sunset (orange + pink)', '#ff8a3d', '#ff4fd8'],
+    ['Aurora (teal + violet)', '#5ff3ff', '#b26bff'],
+  ],
+}
+document.getElementById('g').innerHTML = Object.entries(groups).map(([title, opts]) => `<h2>${title}</h2><div class="grid">${opts.map(([name, col, accent]) => `
+  <div class="opt"><b style="color:${accent ?? col}">${name}</b>
+    <div class="pair"><svg class="big" viewBox="0 0 100 100">${badge(4, col, accent)}</svg><svg class="small" viewBox="0 0 100 100">${badge(4, col, accent)}</svg></div>
+    <div class="ladder">${TIERS.map((c, i) => `<svg viewBox="0 0 100 100">${badge(i, c)}</svg>`).join('')}<svg viewBox="0 0 100 100">${badge(4, col, accent)}</svg></div>
+  </div>`).join('')}</div>`).join('')
+</script>
+</body>
+</html>

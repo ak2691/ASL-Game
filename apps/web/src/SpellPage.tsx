@@ -7,16 +7,18 @@ import { directionLetter, passesGate } from './rules'
 import { getTracker, type Handed } from './trackers'
 import { BadFrameGuard, LandmarkSmoother } from './smoothing'
 import { Spellbook } from './Spellbook'
-import { DrawingZoomSlab, PushSlab, SignDelaySlab, SlabChoice, SlabSection, SlabSlider, VolumeSlab } from './SettingRows'
+import { AllyViewSlab, DrawingZoomSlab, PushSlab, SignDelaySlab, SlabChoice, SlabSection, SlabSlider, VolumeSlab } from './SettingRows'
 import { loadShapeModel, pathLength, readStroke, shapeFeatures, type Pt } from './shapes'
-import { BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
+import { BEATS, canQuick, COMBO, COMBOS_ON, COUNTER, ELEMENTS, chargeInfo, shortCharge, shortShape, QUICK, isValidSpell, shapesFor, signsFor, COMBO_SHAPE, COMBO_MIX, spellName, isMixCounter, mixCounter, elementOfSign } from './spells'
 import { Tower, chatLine } from './Ladder'
+import { PlayMenu, RatedCard } from './PlayMenu'
+import { markBeaten } from './account'
 import { DummyArena, LADDER, PracticeArena, beaterOf, dummyTimes, wizardCastMs, shapePoints, type Arena, type Difficulty, type Snapshot } from './battle'
 import { HAND_ICONS, HAND_WORDS } from './statusIcons'
 import { BoltLayer, Impacts, ParryRings, StatusFx, StatusRow, canActState, setLocalBoltClock, useShake } from './effects'
 import { INTERRUPT_LOCK_MS, PARRY_POWER, PARRY_WINDOW_MS, type Bolt, type Fid, type Side } from './combat'
 import { TeamArena, type TeamSnapshot } from './team'
-import { HP_MAX, HP_MIN, TEAM_MAX } from './protocol'
+import { HP_MAX, HP_MIN, QUICK_CHAT, TEAM_MAX } from './protocol'
 import { pencil, play, useFightSfx } from './sfx'
 import { ALL_DUMMY_SPELLS, DRAW_HAND_KEY, getDrawingZoom, getPushGrowth, getSignDelay, loadDrawHand, loadDummyPool, saveDummyPool, DUMMY_POOL2_KEY, loadDummyTwo, saveDummyTwo, loadDummyPace, saveDummyPace, CAST_PCT, SPELL_PCT, GAP_MS, type DummyPace, loadDummyAids, saveDummyAids, type DummyAids, loadChatter, saveChatter } from './settings'
 import { DummySpells } from './DummySpells'
@@ -193,7 +195,7 @@ const MAJORITY_SWITCH = 0.6 // share of the hand that must be on the other side 
 /** A team card's spells: what it threw or what hit it (heals only on whoever they healed). */
 const cardBolts = (bolts: Bolt[], id: Fid) => bolts.filter((b) => (b.kind === 'heal' ? b.to === id : b.to === id || b.by === id))
 
-export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mode; onHome: () => void; onMode?: (m: Mode) => void }) {
+export function SpellPage({ hand, mode, onHome, onMode, onAccount }: { hand: Hand; mode: Mode; onHome: () => void; onMode?: (m: Mode) => void; onAccount?: () => void }) {
   const net = mode === 'online' || mode === 'duo' // the fight runs on the game server
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -207,7 +209,7 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   }
   const [seeing, setSeeing] = useState('')
   const [drawing, setDrawing] = useState(false)
-  const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave' | 'dummy' | 'forfeit'>(null)
+  const [menu, setMenu] = useState<null | 'main' | 'help' | 'leave' | 'dummy' | 'forfeit' | 'chat'>(null)
   const menuRef = useRef(menu)
   menuRef.current = menu
   const [camInfo, setCamInfo] = useState<CameraInfo | null>(null)
@@ -301,6 +303,33 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
     }),
     [],
   )
+  // Quick chat (Nov 27): preset lines from the menu; each shows for CHAT_SHOW_MS by the sender's name.
+  // Muting hides other people's lines (yours still show to you).
+  const [chatMuted, setChatMuted] = useState(() => localStorage.getItem(CHAT_MUTE_KEY) === '1')
+  const chatApi = useMemo(
+    () => ({
+      say: (line: number) => (online.current?.say(line), setMenu(null)),
+      setMuted: (on: boolean) => {
+        setChatMuted(on)
+        try {
+          localStorage.setItem(CHAT_MUTE_KEY, on ? '1' : '0')
+        } catch {
+          /* fine */
+        }
+      },
+      onBack: () => setMenu('main'),
+    }),
+    [],
+  )
+  /** The newest quick chat line from this fighter (as you see them), while it's showing. */
+  const chatOf = (side: Fid) => {
+    if (!net || !lobby) return null
+    for (let i = lobby.chat.length - 1; i >= 0; i--) {
+      const c = lobby.chat[i]
+      if (c.from === side && clock - c.at < CHAT_SHOW_MS && (c.you || !chatMuted)) return c
+    }
+    return null
+  }
   const dummyPools = useMemo((): [string[], string[]] => [dummyPool, dummyPool2], [dummyPool, dummyPool2])
   // Tutorial "Try it": the dummy throws heavy Earth for you to parry, or two dummies to aim at.
   // Nothing here is saved: leaving the try puts the dummy back the way it was.
@@ -433,7 +462,9 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
     turnOnCamera()
     setCountdownEnds(performance.now() + 3000)
   }
-  // Duel: the camera turns on only in the arena (countdown or fight), never in the lobby, Ready included.
+  // Quick match (Nov 27): queueing never touches the camera; it turns on in the 10 s countdown before the fight.
+  const findMatch = useCallback((mode: 'casual' | 'ranked', size: '1v1' | '2v2') => online.current?.findMatch(mode, size), [])
+  // Duel: the camera turns on only in the arena (countdown or fight), never in the lobby, Ready included
   useEffect(() => {
     if (net && !camOn && (lobby?.phase === 'countdown' || lobby?.phase === 'fighting')) turnOnCamera()
   }, [lobby?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -442,7 +473,7 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   const onlineEnds = net && lobby?.phase === 'countdown' ? lobby.countdownEnds : null
   useEffect(() => {
     const left = secsLeft(countdownEnds ?? onlineEnds)
-    if (left > 0 && left !== lastTick.current) play('countdown_tick', { vol: 0.6 })
+    if (left > 0 && left <= 3 && left !== lastTick.current) play('countdown_tick', { vol: 0.6 })
     lastTick.current = left
     if (countdownEnds && clock >= countdownEnds) {
       setCountdownEnds(null)
@@ -457,13 +488,13 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
     if (net) goOnline()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once, on open (mode never changes: the page is keyed by it)
   // Aiming with the zone your signing hand is in. Two enemies: left zone the left one, right zone the right one.
-  // With a teammate, heals and buffs: your signing hand's own side is you, the other side your teammate.
+  // With a teammate, heals, buffs and Shroud: your signing hand's own side is you, the other side your teammate.
   // (Read from a ref: the camera loop keeps the closure of an earlier render.)
   const sidesRef = useRef<{ foes: Fid[]; allies: Fid[] }>({ foes: [], allies: [] })
   const zoneTarget = (z: Zone, el: string | null, shape: string): Fid | null => {
-    if (!el || shape === 'veil') return null
+    if (!el) return null
     const { foes: fs, allies: al } = sidesRef.current
-    if (el === 'A' && shape !== COUNTER) {
+    if ((el === 'A' && shape !== COUNTER) || shape === 'veil') {
       if (!al.length) return null // no teammate: on you
       const own: Zone = drawHandRef.current === 'right' ? 'left' : 'right'
       return z === own ? 'player' : al[0]
@@ -1121,8 +1152,13 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
     return (
     <div className="fighter">
       {/* Name left, HP number right (Nov 26: out of the bar, so the bar shows only health and the charge). */}
+      {chatOf(side) && (
+        <p className="chat-bubble quick-chat" key={chatOf(side)!.n}>
+          {QUICK_CHAT[chatOf(side)!.line]}
+        </p>
+      )}
       <div className="fighter-name">
-        <span className="fighter-label">{name ?? (side === 'player' ? 'You' : oppName)}</span>
+        <span className="fighter-label" title={name ?? fight.names?.[side]}>{name ?? fight.names?.[side] ?? (side === 'player' ? 'You' : oppName)}</span>
         <span className="hp-count">
           <small>HP</small>
           {/* A 2v2 foe card is narrow: just the HP left. */}
@@ -1170,6 +1206,10 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   // Before the online arena is attached (first frames), `fight` is the placeholder dummy's and counts as idle:
   // otherwise the bare arena with HP bars flashes before the tower.
   const duoIdle = mode === 'duo' && !(fight.running && arena.current === online.current) && lobby?.phase !== 'countdown' && lobby?.phase !== 'fighting' && !(lobby?.phase === 'over' && clock - overAt.current <= RESULT_MS)
+  // The setup countdown before an online fight (Nov 28): shown on your side, with your camera's state.
+  const setupOn = net && !fight.running && !duoIdle && lobby?.phase === 'countdown'
+  const camBlocked = status.startsWith("Couldn't") && !DEBUG
+  const camReady = status === '' || DEBUG // ?debug (dev only): play without a camera
   const online2 = net && fight.fighters.length > 2 && !duoIdle // an online team match (1v2, 2v1, 2v2)
   const isTeam = ((mode === 'dummy' || mode === 'tutorial') && twoFoes) || online2
   const parryTimer = mode === 'dummy' ? aids.parryTimer : mode === 'tutorial' || isTeam // the parry rings (and Too early / Too late on a miss)
@@ -1179,6 +1219,8 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   sidesRef.current = { foes, allies }
   aimOnRef.current = foes.length >= 2 || allies.length > 0
   const nameOf = (id: Fid) => {
+    const real = fight.names?.[id]
+    if (real) return real // online: their actual name (Nov 28), yours too
     if (id === 'player') return 'You'
     if (id.startsWith('ally')) return 'Teammate'
     const bot = tf.bots?.[id]
@@ -1203,6 +1245,55 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
     return foes.filter(alive).sort((a, b) => fight.hp[a] - fight.hp[b])[0] ?? null
   }
   const myTarget = isTeam && myR ? targetFor(myR.el, myR.shape) : null
+  /** What a teammate is casting, in words: the spell once ready (and who it's aimed at), else their element. */
+  const castWords = (id: Fid, cast: NonNullable<Snapshot['enemyCast']>) => {
+    const el = fight.charge[id] ?? (cast.el !== '?' ? cast.el : null)
+    const what = cast.name ?? (el ? chargeInfo(el).name : cast.points.length ? 'Drawing' : 'Charging')
+    // Who it's aimed at, once ready: the foe's side as you see them (Nov 28: short, whatever their names).
+    const at = cast.phase === 'ready' && fight.aim?.[id] && fight.aim[id] !== id ? fight.aim[id] : null
+    const where = !at ? null : at === 'player' ? 'you' : at === foes[0] ? 'Left' : at === foes[1] ? 'Right' : nameOf(at)
+    return { what, at: where }
+  }
+  /** Portrait phones (Nov 28): your teammate as a compact, slightly see-through card at the bottom left of your
+   *  half (like the desktop card): their name and HP on one line, then their drawing, with their status in its top
+   *  right and what they're casting, and at whom once ready, in its bottom left. */
+  const allyMini = (id: Fid) => {
+    const cast = fight.running ? tf.casts?.[id] ?? null : null
+    const hp = fight.hp[id]
+    // As short as it goes (Nov 28): "F", "Mag F+E"; once ready, the shape too ("F Heavy") and where ("→ R").
+    let label: string | null = null
+    let at: string | null = null
+    if (cast) {
+      const el = fight.charge[id] ?? (cast.el !== '?' ? cast.el : null)
+      label = el ? shortCharge(el) : cast.points.length ? '…' : null
+      if (cast.phase === 'ready') {
+        if (cast.shape && label && shortShape(cast.shape)) label = `${label} ${shortShape(cast.shape)}`
+        const w = castWords(id, cast).at
+        at = w === 'you' ? 'you' : w === 'Left' ? 'L' : w === 'Right' ? 'R' : w
+      }
+    }
+    return (
+      <div key={id} data-fid={id} className={`ally-mini ${hp <= 0 ? 'out' : ''}`}>
+        <div className="am-head">
+          <span className="am-name" title={nameOf(id)}>{nameOf(id)}</span>
+          <span className="am-hp">
+            <small>HP</small> {Math.ceil(hp)}
+          </span>
+        </div>
+        <div className="am-view">
+          <EnemyCanvas cast={cast} fit />
+          {label && (
+            <span className="am-cast" style={{ color: cast!.color }}>
+              {label}
+              {at && <small> → {at}</small>}
+            </span>
+          )}
+        </div>
+        {/* Hits on them flash here like on any fighter (no status icons or power on phones: Nov 28). */}
+        {fxOn && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
+      </div>
+    )
+  }
   const allyCard = (id: Fid) => {
     const cast = fight.running ? tf.casts?.[id] ?? null : null
     const out = fight.hp[id] <= 0
@@ -1212,6 +1303,18 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
         <div className="hud-row">
           <OppStatus fight={fight} id={id} cast={cast} />
         </div>
+        {/* Your teammate's casting (Nov 28), so a 2v2 can be coordinated without talking: their stroke as they
+            draw, their charge or readied spell, and who it's aimed at. Only while they're casting, so the card
+            stays a single row the rest of the time. */}
+        {cast && (
+          <div className="ally-view">
+            <EnemyCanvas cast={cast} zoom />
+            <span className="ally-cast" style={{ color: cast.color }}>
+              {castWords(id, cast).what}
+              {castWords(id, cast).at && <small> {castWords(id, cast).at === 'you' ? 'on you' : `at ${castWords(id, cast).at}`}</small>}
+            </span>
+          </div>
+        )}
         {fxOn && <StatusFx side={id} view={fight} />}
         {fxOn && <Impacts side="player" bolts={cardBolts(fight.bolts, id)} />}
       </div>
@@ -1263,6 +1366,8 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   if ((fight.over ?? null) !== lastOver.current) {
     if (fight.over) practiceOverAt.current = clock
     if (fight.over && mode === 'practice') queueMicrotask(() => setReview(true))
+    // A Tower wizard beaten: saved (your account, or this browser), and their portrait unlocks.
+    if (fight.over === 'player' && mode === 'practice') queueMicrotask(() => void markBeaten(difficulty))
     lastOver.current = fight.over ?? null
   }
   const floorIdx = LADDER.findIndex((b) => b.id === difficulty)
@@ -1272,6 +1377,10 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   // which shows for RESULT_MS before going back to the lobby).
   // Before the first word from the server there's no lobby info yet: still the lobby screen (never the arena).
   const askForfeit = useCallback(() => setMenu('forfeit'), [])
+  // Play's Ranked tab: "Sign in" goes to the account page (stable, so the memoized Play menu never redraws for it).
+  const accountRef = useRef(onAccount)
+  accountRef.current = onAccount
+  const signIn = useCallback(() => accountRef.current?.(), [])
   // The opponent's drawing starts right below their HUD, at its real height (Nov 26): status and power rows
   // take only the room they need, and the drawing area moves down when they grow, so nothing ever covers it.
   const hudWatch = useMemo(
@@ -1324,7 +1433,7 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
 
       {showLobby &&
         (lobby ? (
-          <LobbyScreen lobby={lobby} joinCode={joinCode} setJoinCode={setJoinCode} arena={online.current} onReconnect={goOnline} onHome={goHome} />
+          <LobbyScreen lobby={lobby} joinCode={joinCode} setJoinCode={setJoinCode} arena={online.current} onReconnect={goOnline} onHome={goHome} onSignIn={onAccount ? signIn : undefined} onFind={findMatch} />
         ) : (
           <section className="lobby-screen">
             <div className="lobby-card">
@@ -1383,13 +1492,45 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
               <p>You cast spells with your hands, so this needs your camera. Your video stays on your device. It's never saved or shown to anyone.</p>
               <button onClick={turnOnCamera}>Turn on camera</button>
             </div>
-          ) : (
+          ) : setupOn ? null : (
             status && <p className="status side-status">{status}</p>
+          )}
+          {/* Every online match (Nov 27, Custom too Nov 28): a 20 s setup, on your own side (it's your camera it
+              waits for, and its problems show here). Try a sign or a line meanwhile (white, counts for nothing);
+              Ready (once the camera runs) cuts it to 3 s when everyone has pressed it. */}
+          {setupOn && (
+            <div className="setup-overlay">
+              <div className="setup-card">
+                <b className="countdown setup-count">{Math.max(1, Math.ceil(((lobby!.countdownEnds ?? clock) - clock) / 1000))}</b>
+                {(lobby!.countdownEnds ?? 0) - clock > 3500 && (
+                  <>
+                    {lobby!.seats[lobby!.you]?.ready ? (
+                      <b className="setup-line">You're ready</b>
+                    ) : (
+                      <button className="setup-btn" disabled={!camReady} onClick={() => online.current?.ready()}>
+                        {camReady ? 'Ready' : camBlocked ? 'Camera blocked' : 'Starting camera'}
+                      </button>
+                    )}
+                    {camBlocked && <small className="setup-help">Allow the camera for this site in your browser, then reload.</small>}
+                    {/* Who you're waiting for: each player, Ready (camera on and pressed) or still setting up. */}
+                    <ul className="setup-who">
+                      {lobby!.seats.map((s, i) => (
+                        <li key={i} className={s.ready ? 'ok' : ''}>
+                          <span>{s.name ?? (i === lobby!.you ? 'You' : 'Opponent')}</span>
+                          <b>{s.ready ? 'Ready' : s.here ? 'Setting up' : 'Reconnecting'}</b>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </div>
           )}
           {fxOn && <StatusFx side="player" view={fight} />}
           {fxOn && <Impacts side="player" bolts={isTeam ? cardBolts(fight.bolts, 'player') : fight.bolts} />}
           {fxOn && parryTimer && <ParryRings side="player" bolts={isTeam ? fight.bolts.filter((b) => b.to === 'player') : fight.bolts} windowMs={PARRY_WINDOW_MS} />}
           {isTeam && allies.map(allyCard)}
+          {isTeam && allies.length > 0 && <div className="ally-minis">{allies.map(allyMini)}</div>}
           {isTeam && myR && fight.running && zoneTarget('left', myR.el, myR.shape) !== null && (
             <div className="aim-zones" style={{ '--aim': chargeInfo(myR.el).color, gridTemplateColumns: signLeft ? '1fr 2fr' : '2fr 1fr' } as React.CSSProperties}>
               {(['left', 'right'] as Zone[]).map((z) => (
@@ -1452,11 +1593,6 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
               <DuoPanel lobby={lobby} arena={online.current} joinCode={joinCode} setJoinCode={setJoinCode} lastOver={fight.over} onReconnect={goOnline} />
             </div>
           )}
-          {net && !fight.running && !duoIdle && (
-            <div className="stage-center">
-              {lobby?.phase === 'countdown' && <b className="countdown">{Math.max(1, Math.ceil(((lobby.countdownEnds ?? clock) - clock) / 1000))}</b>}
-            </div>
-          )}
           {!isTeam && fxOn && <StatusFx side="enemy" view={fight} />}
           {!isTeam && fxOn && <Impacts side="enemy" bolts={fight.bolts} />}
         </div>
@@ -1508,6 +1644,12 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
                   End match
                 </button>
               )}
+              {net && lobby?.code && (
+                <button className="pm-tile" onClick={() => setMenu('chat')}>
+                  <Icon d="M4 5h16v11H9l-5 4z" />
+                  Quick chat
+                </button>
+              )}
               <button className="pm-tile stop" onClick={() => (inRoom || inPracticeMatch ? setMenu('leave') : goHome())}>
                 <Icon d="M3 11l9-8 9 8 M5 9v12h5v-6h4v6h5V9" />
                 Home
@@ -1520,6 +1662,7 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
             </SlabSection>
             <SlabSection title="Display">
               <DrawingZoomSlab />
+              <AllyViewSlab />
             </SlabSection>
             <SlabSection title="Sound">
               <VolumeSlab />
@@ -1577,6 +1720,13 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
           </div>
         </div>
       )}
+      {menu === 'chat' && (
+        <div className="menu-overlay" onClick={() => setMenu(null)}>
+          <div className="menu-card pause-menu" onClick={(e) => e.stopPropagation()}>
+            <QuickChat muted={chatMuted} {...chatApi} />
+          </div>
+        </div>
+      )}
       {menu === 'help' && (
         <div className="book-overlay">
           <Spellbook inMatch onHome={() => setMenu('main')} />
@@ -1586,6 +1736,29 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
   )
 }
 
+const CHAT_SHOW_MS = 4000
+const CHAT_MUTE_KEY = 'quick-chat-muted'
+
+/** Quick chat lines to pick from (memoized: the fight keeps redrawing the page behind it). */
+const QuickChat = memo(function QuickChat({ muted, say, setMuted, onBack }: { muted: boolean; say: (line: number) => void; setMuted: (on: boolean) => void; onBack: () => void }) {
+  return (
+    <>
+      <b className="leave-title">Quick chat</b>
+      <div className="quick-chat-lines">
+        {QUICK_CHAT.map((t, i) => (
+          <button key={t} onClick={() => say(i)}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <button className="btn-stay" onClick={() => setMuted(!muted)}>
+        {muted ? 'Show chat' : 'Mute chat'}
+      </button>
+      <button onClick={onBack}>Back</button>
+    </>
+  )
+})
+
 /** The opponent's drawing in its true shape: points are fractions of a box `view.aspect` wide / tall
  *  (a player's visible camera view, or the AI's square), drawn without stretching. A player's view
  *  fills this half the way their camera filled theirs (cover); the AI's box is shown whole.
@@ -1594,21 +1767,23 @@ export function SpellPage({ hand, mode, onHome, onMode }: { hand: Hand; mode: Mo
 const FRAME_H = 1000
 const ZOOM_MAX = 2.5
 const ZOOM_FILL = 0.75 // a zoomed drawing fills this much of the visible area
-function EnemyCanvas({ cast, zoom = false }: { cast: Snapshot['enemyCast']; zoom?: boolean }) {
+/** fit (Nov 28, the phone teammate panel): show the whole drawing, scaled to fill the box, however wide or short
+ *  the box is (never cropped), whatever the Drawing zoom setting. */
+function EnemyCanvas({ cast, zoom = false, fit = false }: { cast: Snapshot['enemyCast']; zoom?: boolean; fit?: boolean }) {
   const fw = FRAME_H * (cast?.view.aspect ?? 16 / 9)
   const pts = cast?.points ?? []
   const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(p.x * fw).toFixed(1)} ${(p.y * FRAME_H).toFixed(1)}`).join(' ')
-  const meet = cast?.view.fit === 'contain'
+  const meet = fit || cast?.view.fit === 'contain'
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<[number, number] | null>(null)
   useEffect(() => {
-    if (!zoom || !box.current || typeof ResizeObserver === 'undefined') return
+    if (!(zoom || fit) || !box.current || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(([e]) => setSize([e.contentRect.width, e.contentRect.height]))
     ro.observe(box.current)
     return () => ro.disconnect()
-  }, [zoom])
+  }, [zoom, fit])
   let transform = 'none'
-  if (zoom && getDrawingZoom() && size && pts.length > 1) {
+  if ((fit || (zoom && getDrawingZoom())) && size && pts.length > 1) {
     const xs = pts.map((p) => p.x * fw)
     const ys = pts.map((p) => p.y * FRAME_H)
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
@@ -1746,8 +1921,10 @@ function LobbyScreen(props: {
   arena: OnlineArena | null
   onReconnect: () => void
   onHome: () => void
+  onSignIn?: () => void
+  onFind: (mode: 'casual' | 'ranked', size: '1v1' | '2v2') => void
 }) {
-  const { lobby, joinCode, setJoinCode, arena, onReconnect, onHome } = props
+  const { lobby, joinCode, setJoinCode, arena, onReconnect, onHome, onSignIn, onFind } = props
   const me = lobby.seats[lobby.you]
   const inRoom = (lobby.phase === 'lobby' || lobby.phase === 'over') && !!lobby.code
   let body: ReactNode = null
@@ -1762,36 +1939,26 @@ function LobbyScreen(props: {
       body = <button onClick={onReconnect}>Reconnect</button>
       break
     case 'menu':
-      body = (
-        <div className="lobby-join">
-          <form
-            className="row"
-            onSubmit={(e) => {
-              e.preventDefault()
-              arena?.join(joinCode)
-            }}
-          >
-            <input className="code-input" value={joinCode} maxLength={4} placeholder="CODE" autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" aria-label="Room code" onChange={(e) => setJoinCode(e.target.value.toUpperCase())} />
-            <button type="submit" disabled={joinCode.length !== 4}>
-              Join
-            </button>
-          </form>
-          <span className="sub-line">or</span>
-          <button onClick={() => arena?.create()}>Create room</button>
-        </div>
-      )
+      // Play: Casual, Ranked, Custom (Duel's join/create lives in Custom).
+      body = <PlayMenu arena={arena} joinCode={joinCode} setJoinCode={setJoinCode} onSignIn={onSignIn} queue={lobby.queue} onFind={onFind} you={lobby.name} party={lobby.party} />
       break
   }
   if (inRoom)
     body = (
       <>
-        <div className="lobby-code">
-          <span className="sub-line">Room code</span>
-          <b className="room-code">{lobby.code}</b>
-        </div>
+        {/* A queue match has no code to share, and no HP or team settings (the server refuses them too). */}
+        {!lobby.quick && (
+          <div className="lobby-code">
+            <span className="sub-line">Room code</span>
+            <b className="room-code">{lobby.code}</b>
+          </div>
+        )}
+        {lobby.rated && <RatedCard rated={lobby.rated} />}
         <RoomTeams lobby={lobby} arena={arena} />
         <div className="lobby-actions">
-          {lobby.seats.length < 2 ? (
+          {lobby.ranked ? (
+            <span className="sub-line">Ranked matches don't rematch. Find another from Play.</span>
+          ) : lobby.seats.length < 2 ? (
             <span className="sub-line">Share the code. Up to 4 players, 2 per team.</span>
           ) : (
             <span className="ready-wrap">
@@ -1809,7 +1976,7 @@ function LobbyScreen(props: {
   return (
     <section className="lobby-screen">
       <div className="lobby-card">
-        <b className="lobby-title">Custom game</b>
+        {lobby.phase !== 'menu' && <b className="lobby-title">{lobby.duo ? 'Duo Tower' : lobby.ranked ? 'Ranked match' : lobby.quick ? 'Casual match' : 'Custom game'}</b>}
         {body}
         {lobby.awayUntil !== null && <span className="note-line">A player disconnected. Their seat is held 15 s.</span>}
         {lobby.note && <span className="note-line">{lobby.note}</span>}
@@ -1908,7 +2075,6 @@ function LobbyHp({ hp, who, onSet }: { hp: number; who: string; onSet: (v: numbe
       onClick={(e) => e.currentTarget.querySelector('input')?.focus()}
       onFocus={(e) => (e.target as HTMLInputElement).select?.()}>
       <HpBox hp={hp} onSet={onSet} />
-      <span aria-hidden>✎</span>
     </span>
   )
 }
@@ -1999,7 +2165,7 @@ function DuoPanel(props: { lobby: LobbyInfo | null; arena: OnlineArena | null; j
 }
 
 function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | null }) {
-  const host = lobby.you === lobby.host
+  const host = lobby.you === lobby.host && !lobby.quick
   const team = (t: 'player' | 'enemy', label: string) => {
     const seats = lobby.seats.map((s, i) => ({ ...s, i })).filter((s) => s.team === t)
     return (
@@ -2007,21 +2173,27 @@ function RoomTeams({ lobby, arena }: { lobby: LobbyInfo; arena: OnlineArena | nu
         <b className="room-team-name">{label}</b>
         {seats.map((s) => (
           <div key={s.i} className={`room-seat ${s.here ? '' : 'away'} ${s.i === lobby.you ? 'mine' : ''}`}>
-            {/* Everyone by the name the others see (Nov 26); yours gets a "You" tag. */}
+            {/* Everyone by the name the others see (Nov 26); yours is the outlined seat (Nov 28: no "You" tag,
+                so long names keep their room). */}
             <span className="room-seat-name">
-              Player {s.i + 1}
-              {s.i === lobby.you && <i className="you-tag">You</i>}
+              <span className="room-seat-text" title={s.name ?? undefined}>{s.name ?? `Player ${s.i + 1}`}</span>
             </span>
             {host ? (
               <LobbyHp hp={s.hp} who={s.i === lobby.you ? 'you' : `player ${s.i + 1}`} onSet={(v) => arena?.setHp(s.i, v)} />
             ) : (
               <span className="room-hp">{s.hp} HP</span>
             )}
-            <span className={`room-ready ${s.ready ? 'on' : ''}`}>{s.ready ? 'Ready' : s.here ? 'Not ready' : 'Away'}</span>
+            {/* Ready as a check (Nov 28: words took the names' room); away is a dash. */}
+            <span className={`room-ready ${s.ready ? 'on' : ''} ${s.here ? '' : 'away'}`} role="img" aria-label={s.ready ? 'Ready' : s.here ? 'Not ready' : 'Away'} title={s.ready ? 'Ready' : s.here ? 'Not ready' : 'Away'}>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <circle cx="10" cy="10" r="8.5" />
+                {s.ready ? <path d="M5.5 10.5 L8.7 13.5 L14.5 7" /> : !s.here && <path d="M6 10 H14" />}
+              </svg>
+            </span>
           </div>
         ))}
         {!seats.length && <span className="sub-line">Empty</span>}
-        {lobby.seats[lobby.you]?.team !== t && seats.length < TEAM_MAX && (
+        {!lobby.quick && lobby.seats[lobby.you]?.team !== t && seats.length < TEAM_MAX && (
           <button className="small" onClick={() => arena?.switchTeam()}>
             Join this team
           </button>

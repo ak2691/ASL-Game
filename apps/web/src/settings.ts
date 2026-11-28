@@ -83,6 +83,32 @@ export function setDrawingZoom(on: boolean) {
   }
 }
 
+// 2v2 teammate view size (Nov 28): the height of the teammate's drawing panel on portrait phones, in px (the desktop card's
+// drawing grows with it). Applied as the CSS variable --ally-h on the page.
+export const ALLY_VIEW_MIN = 44
+export const ALLY_VIEW_MAX = 130
+const ALLY_KEY = 'spells-ally-view'
+let allyView = (() => {
+  try {
+    const v = Number(localStorage.getItem(ALLY_KEY))
+    return v >= ALLY_VIEW_MIN && v <= ALLY_VIEW_MAX ? v : 72
+  } catch {
+    return 72
+  }
+})()
+const applyAllyView = () => typeof document !== 'undefined' && document.documentElement.style.setProperty('--ally-h', `${allyView}px`)
+applyAllyView()
+export const getAllyView = () => allyView
+export function setAllyView(px: number) {
+  allyView = Math.min(ALLY_VIEW_MAX, Math.max(ALLY_VIEW_MIN, Math.round(px)))
+  applyAllyView()
+  try {
+    localStorage.setItem(ALLY_KEY, String(allyView))
+  } catch {
+    /* not saved */
+  }
+}
+
 // Training dummy: which spells it may throw when attacking, as "element:shape" ("F:line", "A:star", ...).
 export const DUMMY_POOL_KEY = 'spells-dummy-pool'
 export const DUMMY_ELEMENTS = ['F', 'I', 'W', 'E', 'L', 'A', 'U']
