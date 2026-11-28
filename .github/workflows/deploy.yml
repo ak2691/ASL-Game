@@ -60,6 +60,17 @@ jobs:
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+      - name: Check the host key (prints no secrets)
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          echo "DEPLOY_HOST length: ${#HOST} (an IP like 3.14.159.26 is 7-15)"
+          echo "known_hosts lines: $(grep -vc '^#' ~/.ssh/known_hosts || true)"
+          echo "known_hosts key types: $(grep -v '^#' ~/.ssh/known_hosts | awk '{print $2}' | tr '\n' ' ')"
+          if ssh-keygen -F "$HOST" -f ~/.ssh/known_hosts > /dev/null; then echo "Host found in known_hosts"; else echo "Host NOT in known_hosts"; fi
+          echo "Server offers: $(ssh-keyscan -T 10 "$HOST" 2>/dev/null | awk '{print $2}' | tr '\n' ' ')"
+          ssh-keyscan -T 10 "$HOST" 2>/dev/null | grep -v '^#' | ssh-keygen -lf - | awk '{print "server  ", $2, $4}'
+          grep -v '^#' ~/.ssh/known_hosts | ssh-keygen -lf - | awk '{print "expected", $2, $4}'
       - name: Copy the server files
         run: scp deploy/compose.yaml deploy/Caddyfile deploy/update.sh deploy/backup.sh deploy/fetch-secrets.sh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:asl/"
       - name: Update (waits for running matches, up to 10 min)
