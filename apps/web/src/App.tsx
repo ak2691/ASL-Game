@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { Hand } from './recognition'
 import { SpellPage, type Mode } from './SpellPage'
@@ -8,6 +8,10 @@ import { PrivacyPage } from './PrivacyPage'
 import { HomeCorner } from './HomeCorner'
 import { HomeBackdrop } from './HomeBackdrop'
 import { Portrait } from './Ladder'
+import { AccountChip, AccountPage } from './AccountPage'
+import { loadMe, useMe } from './account'
+import { FriendsPage } from './FriendsPage'
+import { dismissInvite, setFriendsOn, useFriends, waitingCount } from './friends'
 import './App.css'
 
 // The letter model was trained on mirrored copies, so either hand works; we normalize to right.
@@ -16,10 +20,11 @@ const SLIDE_OUT_MS = 180 // matches page-slide-out in App.css
 
 export default function App() {
   // A refresh goes back home, except mid online room (the server puts you back in your seat).
-  const [mode, setMode] = useState<Mode | 'guide' | 'privacy' | null>(() => getOnlineFlag())
+  // Back from a failed sign-in (?signin=failed): the account page says so.
+  const [mode, setMode] = useState<Page | null>(() => getOnlineFlag() ?? (new URLSearchParams(location.search).has('signin') ? 'account' : null))
   // Every page change: the old screen slides out first, then the new one slides in (TETR.IO-style); the
   // background stays put.
-  const slideTo = (m: Mode | 'guide' | 'privacy' | null) => {
+  const slideTo = (m: Page | null) => {
     if (document.body.classList.contains('page-leaving')) return
     document.body.classList.add('page-leaving')
     setTimeout(() => {
@@ -29,6 +34,16 @@ export default function App() {
       document.body.classList.remove('page-leaving')
     }, SLIDE_OUT_MS)
   }
+  // Who's signed in. A new account (no name yet) goes straight to "Make your wizard".
+  const me = useMe()
+  useEffect(() => void loadMe(), [])
+  const needsName = !!me?.account && !me.account.username
+  // Friends (Nov 27): their socket is open whenever you're signed in with a name.
+  const named = !!me?.account?.username
+  useEffect(() => setFriendsOn(named), [named])
+  useEffect(() => {
+    if (needsName) setMode((m) => (m === null ? 'account' : m))
+  }, [needsName])
   // One backdrop behind every page, kept mounted across page changes so a transition never shows the bare page
   // background. Game screens hide it (CSS), except while one is sliding out.
   return (
@@ -38,9 +53,13 @@ export default function App() {
         <Spellbook onHome={() => slideTo(null)} />
       ) : mode === 'privacy' ? (
         <PrivacyPage onHome={() => slideTo(null)} />
+      ) : mode === 'friends' ? (
+        <FriendsPage onHome={() => slideTo(null)} onPlay={() => slideTo('online')} />
+      ) : mode === 'account' ? (
+        <AccountPage onHome={() => slideTo(null)} />
       ) : mode ? (
         // onMode is the Tower's Solo / Duo switch: you stay in the tower, so it swaps at once (no slide; Nov 27).
-        <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => slideTo(null)} onMode={(m) => setMode(m)} />
+        <SpellPage key={mode} hand={HAND} mode={mode} onHome={() => slideTo(null)} onMode={(m) => setMode(m)} onAccount={() => slideTo('account')} />
       ) : (
         <Home slideTo={slideTo} />
       )}
@@ -48,9 +67,13 @@ export default function App() {
   )
 }
 
-function Home({ slideTo }: { slideTo: (m: Mode | 'guide' | 'privacy') => void }) {
+type Page = Mode | 'guide' | 'privacy' | 'account' | 'friends'
+
+function Home({ slideTo }: { slideTo: (m: Page) => void }) {
   return (
     <main className="home">
+      <AccountChip onOpen={() => slideTo('account')} />
+      <FriendsChip onOpen={() => slideTo('friends')} onJoin={() => slideTo('online')} />
       <HomeCorner onGuide={() => slideTo('guide')} />
       <div className="home-brand">
         <img className="hero-logo" src="/logo.svg" alt="" />
@@ -83,13 +106,13 @@ function Home({ slideTo }: { slideTo: (m: Mode | 'guide' | 'privacy') => void })
 
 
 const ICON = { fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-/** The home menu, in order. Practice AI is "The Tower" (its floors are the ladder); Online is "Duel". */
+/** The home menu, in order. Practice AI is "The Tower" (its floors are the ladder); Online is "Play" (was Duel). */
 const MODES: { mode: Mode; name: string; line: string; icon: React.ReactNode }[] = [
   { mode: 'practice', name: 'The Tower', line: 'Climb its floors alone or with a friend', icon: <Portrait id="ascendant" /> },
   {
     mode: 'online',
-    name: 'Duel',
-    line: 'Fight a friend with a room code',
+    name: 'Play',
+    line: 'Casual, Ranked or a custom game',
     icon: (
       <svg viewBox="0 0 40 40">
         <path d="M8 32 L28 12 M12 32 L8 28 M32 32 L12 12 M28 32 L32 28" {...ICON} />
@@ -120,3 +143,40 @@ const MODES: { mode: Mode; name: string; line: string; icon: React.ReactNode }[]
     ),
   },
 ]
+
+/** Home's Friends button (signed in): friend requests as a number; a party invite pops up by it. */
+function FriendsChip({ onOpen, onJoin }: { onOpen: () => void; onJoin: () => void }) {
+  const me = useMe()
+  const f = useFriends()
+  if (!me?.account?.username) return null
+  const n = waitingCount(f)
+  return (
+    <>
+      <button className="friends-chip" onClick={onOpen} aria-label={n ? `Friends, ${n} waiting` : 'Friends'}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+          <circle cx="9" cy="8" r="3.5" />
+          <path d="M2.5 20c.8-3.8 3.4-6 6.5-6s5.7 2.2 6.5 6" />
+          <circle cx="17" cy="9" r="2.8" />
+          <path d="M17 14c2.4 0 4.1 1.7 4.6 4.5" />
+        </svg>
+        <span>Friends</span>
+        {n > 0 && <i className="friend-unread">{n}</i>}
+      </button>
+      {f.invite && (
+        <div className="invite-toast" role="alert">
+          <span>
+            <b>{f.invite.from}</b> invited you to their party.
+          </span>
+          <div className="account-row">
+            <button className="friends-yes" onClick={onJoin}>
+              Open Play
+            </button>
+            <button className="account-out" onClick={dismissInvite}>
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}

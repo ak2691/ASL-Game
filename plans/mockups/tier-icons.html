@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tier icon options</title>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; padding: 20px; background: #1d1b2e; color: #fffaf0; font-family: Nunito, sans-serif; }
+  h1 { font-family: 'Lilita One'; font-weight: normal; margin: 0 0 4px; font-size: 28px; }
+  p.sub { margin: 0 0 18px; color: #a7a3d6; }
+  .row { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; gap: 8px; padding: 12px 14px; margin-bottom: 10px; background: #2b2840; border: 3px solid #15132e; border-radius: 16px; box-shadow: 0 5px 0 #15132e; }
+  .name { grid-column: 1 / -1; font-family: 'Lilita One'; font-size: 20px; }
+  .name small { display: inline; margin-left: 8px; display: block; font-family: Nunito; font-size: 12px; color: #a7a3d6; font-weight: 600; }
+  .tier { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .tier svg { width: 56px; height: 56px; }
+  .tier span { font-size: 11px; font-weight: 800; text-align: center; }
+  .head { display: none; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 0 14px 6px; color: #a7a3d6; font-size: 13px; font-weight: 800; text-align: center; }
+</style>
+</head>
+<body>
+<h1>Tier icons: five directions</h1>
+<p class="sub">Same five tiers and colors in each row (Novice → Archmage). Each grows more detailed as you climb.</p>
+<div class="head"><span></span><span>Novice</span><span>Apprentice</span><span>Mage</span><span>High Mage</span><span>Archmage</span></div>
+<div id="rows"></div>
+<script>
+const T = [
+  { c: '#c98a4b', d: '#8a5a2b' },
+  { c: '#c7ccd8', d: '#8a90a3' },
+  { c: '#ffd23f', d: '#c99a12' },
+  { c: '#7fe3d6', d: '#3fa99b' },
+  { c: '#9cc4ff', d: '#5b86d6' },
+]
+const INK = '#15132e'
+const star = (cx, cy, r, fill) => {
+  let p = ''
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; p += `${i ? 'L' : 'M'}${(cx + rr * Math.cos(a)).toFixed(1)} ${(cy + rr * Math.sin(a)).toFixed(1)} ` }
+  return `<path d="${p}Z" fill="${fill}" stroke="${INK}" stroke-width="1.5"/>`
+}
+const styles = {
+  'Shield (now)': { note: 'Classic rank badge; reads instantly', draw: (t, i) =>
+    `<path d="M32 4 L56 12 V32 C56 47 45 56 32 61 C19 56 8 47 8 32 V12 Z" fill="${t.c}" stroke="${INK}" stroke-width="4"/>${star(32, 30, 12, '#fffaf0')}` },
+  'Crystal orb': { note: 'A scrying orb on a stand; more glow per tier', draw: (t, i) =>
+    `${i >= 3 ? `<circle cx="32" cy="27" r="${25 + i}" fill="${t.c}" opacity="0.25"/>` : ''}
+     <path d="M18 54 H46 L42 46 H22 Z" fill="#6b4a2b" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+     <circle cx="32" cy="27" r="19" fill="${t.c}" stroke="${INK}" stroke-width="4"/>
+     <path d="M22 22 A12 12 0 0 1 32 14" stroke="#fffaf0" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.9"/>
+     ${i >= 1 ? star(37, 30, 4 + i, '#fffaf0') : ''}
+     ${i >= 4 ? `${star(25, 34, 3.5, '#fffaf0')}${star(43, 20, 3, '#fffaf0')}` : ''}` },
+  'Rune sigil': { note: 'A magic circle that gains rings and runes', draw: (t, i) => {
+    const rings = [`<circle cx="32" cy="32" r="26" fill="${INK}" stroke="${t.c}" stroke-width="4"/>`]
+    if (i >= 1) rings.push(`<circle cx="32" cy="32" r="19" fill="none" stroke="${t.c}" stroke-width="2.5"/>`)
+    const n = [3, 4, 5, 6, 8][i]
+    let pts = ''
+    for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + (k * 2 * Math.PI) / n; pts += `${k ? 'L' : 'M'}${(32 + 15 * Math.cos(a)).toFixed(1)} ${(32 + 15 * Math.sin(a)).toFixed(1)} ` }
+    let runes = ''
+    if (i >= 2) for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; const x = 32 + 22.5 * Math.cos(a), y = 32 + 22.5 * Math.sin(a); runes += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${i >= 4 ? 2.6 : 1.8}" fill="${t.c}"/>` }
+    return rings.join('') + `<path d="${pts}Z" fill="none" stroke="${t.c}" stroke-width="3" stroke-linejoin="round"/>` + runes + `<circle cx="32" cy="32" r="${4 + i}" fill="${t.c}"/>`
+  } },
+  'Wizard hat': { note: 'Taller and more decorated each tier', draw: (t, i) => {
+    const h = 22 + i * 5
+    return `<ellipse cx="32" cy="52" rx="${22 + i}" ry="7" fill="${t.d}" stroke="${INK}" stroke-width="3.5"/>
+      <path d="M18 51 Q24 ${52 - h * 0.6} ${30 - i} ${54 - h} Q${40 + i} ${52 - h * 0.55} 46 51 Z" fill="${t.c}" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round"/>
+      ${i >= 1 ? `<path d="M19 47 Q32 51 45 47" stroke="${INK}" stroke-width="${3 + i * 0.4}" fill="none"/>` : ''}
+      ${i >= 2 ? star(31, 38 - i * 2, 4 + i * 0.6, '#fffaf0') : ''}
+      ${i >= 3 ? `<circle cx="${30 - i}" cy="${54 - h}" r="3" fill="#fffaf0" stroke="${INK}" stroke-width="1.5"/>` : ''}
+      ${i >= 4 ? `${star(38, 30, 3, '#fffaf0')}${star(26, 44, 2.6, '#fffaf0')}` : ''}`
+  } },
+  'Spell tome': { note: 'A spellbook with a richer cover and gems', draw: (t, i) =>
+    `<rect x="12" y="10" width="40" height="46" rx="4" fill="${t.d}" stroke="${INK}" stroke-width="3.5"/>
+     <rect x="15" y="13" width="34" height="40" rx="3" fill="${t.c}"/>
+     <rect x="12" y="10" width="7" height="46" rx="2" fill="${t.d}" stroke="${INK}" stroke-width="2"/>
+     ${i >= 1 ? `<rect x="22" y="18" width="24" height="30" rx="2" fill="none" stroke="${INK}" stroke-width="2" opacity="0.6"/>` : ''}
+     ${i >= 2 ? `<path d="M34 25 L40 33 L34 41 L28 33 Z" fill="#fffaf0" stroke="${INK}" stroke-width="1.8"/>` : `<circle cx="34" cy="33" r="4" fill="#fffaf0" stroke="${INK}" stroke-width="1.5"/>`}
+     ${i >= 3 ? `<circle cx="25" cy="21" r="2.4" fill="#fffaf0"/><circle cx="43" cy="21" r="2.4" fill="#fffaf0"/><circle cx="25" cy="45" r="2.4" fill="#fffaf0"/><circle cx="43" cy="45" r="2.4" fill="#fffaf0"/>` : ''}
+     ${i >= 4 ? `<path d="M52 18 H57 V48 H52" fill="none" stroke="${INK}" stroke-width="2.5"/>${star(34, 33, 3.5, t.c)}` : ''}` },
+}
+const names = ['Novice', 'Apprentice', 'Mage', 'High Mage', 'Archmage']
+document.getElementById('rows').innerHTML = Object.entries(styles).map(([name, s]) =>
+  `<div class="row"><div class="name">${name}<small>${s.note}</small></div>${T.map((t, i) => `<div class="tier"><svg viewBox="0 0 64 64">${s.draw(t, i)}</svg><span style="color:${t.c}">${names[i]}</span></div>`).join('')}</div>`).join('')
+</script>
+</body>
+</html>

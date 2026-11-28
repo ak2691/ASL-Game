@@ -74,6 +74,7 @@
 /* Home: tilted title, each menu button its own bright color. */
 [data-theme='cartoon'] .home { gap: 18px; }
 [data-theme='cartoon'] .home .logo {
+  font-family: 'Kavoon', var(--title); /* Nov 27: the home title only ("Spellbook" pick); everything else stays Lilita One */
   font-size: clamp(48px, 10vw, 96px);
   color: var(--main);
   transform: rotate(-4deg);
@@ -430,6 +431,6 @@
   [data-theme='cartoon'] .home { justify-content: flex-end; padding-top: 16px; }
   [data-theme='cartoon'] .home > .home-brand { position: absolute; top: 12px; left: 14px; flex-direction: row; align-items: center; gap: 6px; }
   [data-theme='cartoon'] .home .home-brand .hero-logo { height: 46px; margin: 0; }
-  [data-theme='cartoon'] .home .home-brand .logo { font-size: 1.9rem; margin: 0; white-space: nowrap; }
+  [data-theme='cartoon'] .home .home-brand .logo { font-size: 1.65rem; /* Nov 27: was 1.9rem; Kavoon runs wider than Lilita One */ margin: 0; white-space: nowrap; }
 }
 [data-theme='cartoon'] .team-card .enemy-ink { stroke-width: 15px; } /* non-scaling on 2v2 cards: a 3px ink edge round the 9px stroke */

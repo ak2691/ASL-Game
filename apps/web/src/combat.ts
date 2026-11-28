@@ -240,7 +240,31 @@ export interface CombatView {
   over: Side | null // the winning team
 }
 
+/** One fighter's match, counted as it happens (saved with online match results; plans/accounts.md "Profile"). */
+export interface FighterStats {
+  casts: number // spells thrown (counterspells and interrupts included)
+  byElement: Record<string, number> // casts per charge (element, or combo)
+  bySpell: Record<string, number> // casts per spell name ("Meteor", "Ice", ...)
+  fastestMs: number | null // quickest charge-to-throw
+  castMsTotal: number // for the average: castMsTotal / casts
+  drawings: number // drawings read as a spell (readied)
+  fizzles: number // drawings that fizzled (not a spell, wrong for the charge, too fast)
+  parries: number // parries that caught a spell (reflected or destroyed)
+  parryMisses: number
+  silences: number // stuns you landed (counterspells, interrupts)
+  dealt: number
+  taken: number
+  healed: number
+}
+const newStats = (): FighterStats => ({ casts: 0, byElement: {}, bySpell: {}, fastestMs: null, castMsTotal: 0, drawings: 0, fizzles: 0, parries: 0, parryMisses: 0, silences: 0, dealt: 0, taken: 0, healed: 0 })
+const bump = (r: Record<string, number>, k: string) => (r[k] = (r[k] ?? 0) + 1)
+
 export class Combat {
+  /** Per-fighter match stats (online results). */
+  stats: Record<Fid, FighterStats> = {}
+  /** The spell that knocked out the last fighter (the result's "finished with"). */
+  finisher: string | null = null
+  private lastSpellOn: Record<Fid, string> = {} // the last spell that landed on each fighter
   hp: Record<Fid, number> = {}
   private fighters: FighterSpec[]
   private ids: Fid[]
@@ -312,6 +336,7 @@ export class Combat {
       this.chill[f.id] = null
       this.knocked[f.id] = 0
       this.dealt[f.id] = 0
+      this.stats[f.id] = newStats()
       this.shield[f.id] = null
       this.mirrorUntil[f.id] = 0
       this.doomAt[f.id] = 0
@@ -359,8 +384,9 @@ export class Combat {
   /** Who `id`'s spell goes to. A set aim (still valid) wins; else heals and buffs go to the most hurt
    *  ally (you on a tie), attacks to whoever last hit you, else the enemy with the least HP. */
   targetOf(id: Fid, el: string, shape: string): Fid | null {
-    if (shape === 'veil') return id // Shroud is always on yourself
     const a = this.aimAt[id]
+    // Shroud (Nov 27): on a teammate you aim at, else on yourself.
+    if (shape === 'veil') return a && a !== id && this.team[a] === this.team[id] && !this.isOut(a) ? a : id
     if (el === 'A' && shape !== COUNTER) {
       if (a && this.team[a] === this.team[id] && !this.isOut(a)) return a
       const share = (x: Fid) => (this.maxHp[x] === Infinity ? 1 : this.hp[x] / this.maxHp[x])
@@ -409,6 +435,11 @@ export class Combat {
     if (this.maxHp[side] === Infinity) return -delta // the dummy takes no damage
     const before = this.hp[side]
     this.hp[side] = Math.max(0, Math.min(this.maxHp[side], before + delta))
+    const moved = this.hp[side] - before
+    if (moved < 0) {
+      if (this.stats[side]) this.stats[side].taken -= moved
+      if (by && this.stats[by] && this.team[by] !== this.team[side]) this.stats[by].dealt -= moved
+    } else if (moved > 0 && this.stats[side]) this.stats[side].healed += moved
     if (this.hp[side] <= 0) this.knockOut(side, now)
     return before - this.hp[side]
   }
@@ -421,7 +452,10 @@ export class Combat {
     this.ticking = this.ticking.filter((t) => t.side !== side)
     if (this.ids.length > 2) this.float(side, 'Out!', '#999', now)
     const t = this.team[side]
-    if (this.ids.every((x) => this.team[x] !== t || this.isOut(x))) this.winner = other(t)
+    if (this.ids.every((x) => this.team[x] !== t || this.isOut(x))) {
+      this.winner = other(t)
+      this.finisher = this.lastSpellOn[side] ?? null
+    }
   }
 
   /** A direct hit on `target`: Ice's chill mark adds its bonus and is used up. */
@@ -508,6 +542,7 @@ export class Combat {
   }
 
   private silence(side: Fid, ms: number, now: number, by: Fid | null = null) {
+    if (by && this.stats[by] && by !== side) this.stats[by].silences++
     this.silencedUntil[side] = Math.max(this.silencedUntil[side], now + ms)
     this.stunBy[side] = by
     this.charge[side] = null
@@ -517,6 +552,7 @@ export class Combat {
 
   /** A fizzle: no throws for a moment, and the charge is lost (sign again, any element). */
   private fizzle(side: Fid, now: number) {
+    if (this.stats[side]) this.stats[side].fizzles++
     this.fizzledUntil[side] = now + FIZZLE_LOCK_MS
     this.charge[side] = null
   }
@@ -614,10 +650,12 @@ export class Combat {
     if (shape === COUNTER && c?.mix?.length === 2) {
       const el = mixCounter(c.mix)
       this.ready[side] = { el, shape, at: now }
+      this.stats[side].drawings++
       return { el, shape }
     }
     if (shape && shape !== QUICK && c && isValidSpell(c.el, shape)) {
       this.ready[side] = { el: c.el, shape, at: now }
+      this.stats[side].drawings++
       return { el: c.el, shape }
     }
     if (shape && !c) this.note(side, 'Fizzle', 'No element charged', '#888', false, now)
@@ -678,6 +716,17 @@ export class Combat {
     const target = this.targetOf(caster, el, shape)
     if (!target) return 'invalid' // nobody left to hit
     const color = chargeInfo(el).color
+    const st = this.stats[caster]
+    const since = this.charge[caster]?.since
+    if (st) {
+      st.casts++
+      bump(st.byElement, el)
+      bump(st.bySpell, spellName(el, shape))
+      if (since !== undefined) {
+        st.castMsTotal += now - since
+        st.fastestMs = Math.min(st.fastestMs ?? Infinity, now - since)
+      }
+    }
     this.charge[caster] = null // throwing uses up your charge
     this.ready[caster] = null
     this.note(caster, spellName(el, shape), FORMS[shape] ?? '', color, true, now)
@@ -765,6 +814,7 @@ export class Combat {
       this.loss[side][PARRY_POWER] = { n: Math.min(POWER_MAX_STACKS, this.lossOf(side, PARRY_POWER, now) + 1), at: now }
       this.float(side, 'Parry missed', '#999', now)
       this.note(side, 'Parry missed', `${this.parryOff(side, now)}staggered ${PARRY_MISS_MS / 1000} s`, '#999', false, now)
+      this.stats[side].parryMisses++
       return 'missed'
     }
     // Parry power (Nov 25): each landed parry lowers your parry's power like casting lowers an element's, so the next
@@ -798,6 +848,7 @@ export class Combat {
       this.note(side, 'Reflected!', `${f.bolt.name} sent back at ${Math.round(power * 100)}%${parryPower < 1 ? `, ${Math.round((1 - parryPower) * 100)}% got through` : ''}`, '#ffffff', true, now)
       result = 'reflected'
     }
+    this.stats[side].parries++
     return result
   }
 
@@ -829,6 +880,7 @@ export class Combat {
   /** A thrown spell arrives: damage and effects happen now, in time with its impact animation. */
   private land(caster: Fid, target: Fid, el: string, shape: string, now: number, bolt: Bolt) {
     bolt.landed = true
+    this.lastSpellOn[target] = bolt.name
     // Team modes: its target went out while it flew. It goes on to one of their teammates, if any.
     if (this.isOut(target)) {
       const next = this.ids.find((x) => this.team[x] === this.team[target] && !this.isOut(x))
@@ -947,8 +999,8 @@ export class Combat {
     }
 
     if (shape === 'veil') {
-      this.shroudUntil[caster] = now + this.dur(SHROUD_MS, SHROUD_MIN_MS)
-      this.float(caster, 'Shrouded', color, now)
+      this.shroudUntil[target] = now + this.dur(SHROUD_MS, SHROUD_MIN_MS)
+      this.float(target, 'Shrouded', color, now)
       return
     }
 

@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     // Online play: the game server (server/, port 8787) handles /ws. In production it's the same host.
-    proxy: { '/ws': { target: 'ws://localhost:8787', ws: true } },
+    // Sign-in (/auth) and the account API (/api) are the game server's too.
+    proxy: { '/ws': { target: 'ws://localhost:8787', ws: true }, '/auth': 'http://localhost:8787', '/api': 'http://localhost:8787' },
   },
 })

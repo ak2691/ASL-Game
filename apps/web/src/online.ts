@@ -2,10 +2,11 @@
 // state for the page, relays your casting steps, and builds the opponent's cast from theirs.
 import { MAX_HP, POWER_DECAY_MS, POWER_FLOOR, POWER_STEP, type CombatView, type Fid } from './combat'
 import { spellOf, type Arena, type OppCast, type Pt01 } from './battle'
-import { COUNTDOWNS, type ClientMsg, type DuoRoom, type OppEvent, type SeatInfo, type ServerMsg, type StateFields } from './protocol'
+import { COUNTDOWNS, type ClientMsg, type DuoRoom, type OppEvent, type PartyInfo, type QueueInfo, type SeatInfo, type ServerMsg, type StateFields } from './protocol'
 import type { BotInfo } from './duo'
 import type { TeamSnapshot } from './team'
 import { chargeInfo, spellName } from './spells'
+import { loadMe } from './account'
 
 export type OnlinePhase = 'connecting' | 'reconnecting' | 'menu' | 'lobby' | 'countdown' | 'fighting' | 'over' | 'offline'
 
@@ -21,6 +22,34 @@ export interface LobbyInfo {
   note: string | null // errors, "a player left"
   forfeit: { votes: number; needed: number; mine: boolean } | null // your team's forfeit vote, if one is going
   duo: DuoRoom | null // a Duo Tower room (you two against a pair of bots)
+  quick: boolean // this room was made by quick match
+  ranked: boolean // ...for Ranked (rated, no rematch)
+  rated: { before: number; after: number; games: number; won: boolean } | null // your rating change from the last Ranked match
+  name: string | null // what others see you as (your wizard name, or "Guest48213")
+  guest: boolean
+  queue: Queue // quick match: off, searching, or a match found
+  party: PartyInfo | null // your party (2 players), or none
+  chat: ChatLine[] // recent quick chat lines in your room, oldest first (the last few)
+}
+/** A quick chat line someone in your room sent. at = performance.now() when it came. */
+export interface ChatLine {
+  n: number
+  from: Fid | null
+  name: string
+  line: number
+  you: boolean
+  at: number
+}
+/** Quick match on this side: times are performance.now(). */
+export type Queue =
+  | { state: 'off'; note?: string }
+  | { state: 'searching'; since: number; mode: 'casual' | 'ranked'; size: '1v1' | '2v2' }
+  | { state: 'found'; endsAt: number; others: Extract<QueueInfo, { state: 'found' }>['others']; you: boolean }
+
+function localQueue(q: QueueInfo): Queue {
+  if (q.state === 'searching') return { state: 'searching', since: performance.now(), mode: q.mode, size: q.size }
+  if (q.state === 'found') return { state: 'found', endsAt: performance.now() + q.ms, others: q.others, you: q.you }
+  return q
 }
 
 const EMPTY_VIEW: CombatView = {
@@ -123,6 +152,7 @@ export class OnlineArena implements Arena {
   private powerEnds: Record<Fid, Record<string, number>> | null = null // performance.now() time each weakened element is back to full
   private frozenAt: number | null = null // paused: countdowns hold at this time
   private conn: Record<Fid, 'away' | 'left'> = {}
+  private names: Record<Fid, string> = {} // players' names by fighter id (online)
   private casts: Record<Fid, OppCast | null> = {} // everyone else's spell in progress, by their id as you see them
   private bots: Record<Fid, BotInfo> = {} // Duo Tower: the pair, as the server runs them
   private botPts = new Map<string, Pt01[]>() // each bot cast's drawing (the server sends just its shape and progress)
@@ -141,6 +171,14 @@ export class OnlineArena implements Arena {
     note: null,
     forfeit: null,
     duo: null,
+    quick: false,
+    ranked: false,
+    rated: null,
+    queue: { state: 'off' },
+    party: null,
+    chat: [],
+    name: null,
+    guest: true,
   }
 
   readonly duo: boolean // opened from the Tower's Duo: it makes and joins Duo Tower rooms only
@@ -199,6 +237,37 @@ export class OnlineArena implements Arena {
   switchTeam() {
     this.send({ t: 'team' })
   }
+  // Quick match
+  findMatch(mode: 'casual' | 'ranked' = 'casual', size: '1v1' | '2v2' = '1v1') {
+    this.info = { ...this.info, note: null }
+    this.send({ t: 'queue', mode, size })
+  }
+  // Parties (2 players; the leader queues 2v2 for both)
+  makeParty() {
+    this.info = { ...this.info, note: null }
+    this.send({ t: 'party', op: 'create' })
+  }
+  joinParty(code: string) {
+    this.info = { ...this.info, note: null }
+    this.send({ t: 'party', op: 'join', code })
+  }
+  leaveParty() {
+    this.send({ t: 'party', op: 'leave' })
+  }
+  /** Quick chat: a QUICK_CHAT line to everyone in your room. */
+  say(line: number) {
+    this.send({ t: 'chat', line })
+  }
+  private chatN = 0
+  cancelMatch() {
+    this.send({ t: 'unqueue' })
+  }
+  acceptMatch() {
+    this.send({ t: 'accept' })
+  }
+  declineMatch() {
+    this.send({ t: 'decline' })
+  }
   /** Host: the Duo Tower floor to fight. */
   setFloor(floor: number) {
     this.send({ t: 'floor', floor })
@@ -218,6 +287,7 @@ export class OnlineArena implements Arena {
   private onMessage(m: ServerMsg) {
     switch (m.t) {
       case 'welcome':
+        this.info = { ...this.info, name: m.name, guest: m.guest }
         // Not resumed = fresh start (or our seat expired): show the menu.
         if (!m.resumed) this.info = { ...this.info, phase: 'menu', code: null, seats: [] }
         return
@@ -226,12 +296,15 @@ export class OnlineArena implements Arena {
         const was = this.info.phase
         // Mid-fight lobby updates (someone reconnecting) don't end the fight; the result arrives in 'state'.
         // After a fight, keep showing the result until someone readies up.
-        const phase = was === 'fighting' ? 'fighting' : was === 'over' && !m.seats.some((s) => s.ready) ? 'over' : 'lobby'
-        this.info = { ...this.info, phase, code: m.code, seats: m.seats, you: m.you, host: m.host, countdownEnds: null, duo: m.duo ?? null }
+        // During the setup countdown, updates only say who's Ready: the countdown keeps going.
+        const counting = !!m.counting && was === 'countdown'
+        const phase = counting ? 'countdown' : was === 'fighting' ? 'fighting' : was === 'over' && !m.seats.some((s) => s.ready) ? 'over' : 'lobby'
+        this.info = { ...this.info, chat: m.code === this.info.code ? this.info.chat : [], phase, code: m.code, seats: m.seats, you: m.you, host: m.host, countdownEnds: counting ? this.info.countdownEnds : null, duo: m.duo ?? null, quick: !!m.quick, ranked: !!m.ranked }
         if (!m.seats.some((s) => !s.here)) this.info.awayUntil = null
         return
       }
       case 'countdown':
+        this.info = { ...this.info, rated: null }
         this.resetView()
         this.casts = {}
         this.sentAim = undefined
@@ -263,6 +336,25 @@ export class OnlineArena implements Arena {
       case 'error':
         this.info = { ...this.info, note: m.msg }
         return
+      case 'rated':
+        this.info = { ...this.info, rated: { before: m.before, after: m.after, games: m.games, won: m.won } }
+        void loadMe() // the Play menu and profile show the new standing
+        return
+      case 'queue': {
+        // Keep the searching clock running when the server only repeats it (so the timer doesn't restart).
+        const was = this.info.queue
+        const queue = m.queue.state === 'searching' && was.state === 'searching' && was.mode === m.queue.mode && was.size === m.queue.size ? was : localQueue(m.queue)
+        this.info = { ...this.info, queue }
+        return
+      }
+      case 'party':
+        this.info = { ...this.info, party: m.party }
+        return
+      case 'chat': {
+        const line: ChatLine = { n: ++this.chatN, from: m.from, name: m.name, line: m.line, you: m.you, at: performance.now() }
+        this.info = { ...this.info, chat: [...this.info.chat, line].slice(-4) }
+        return
+      }
     }
   }
 
@@ -273,6 +365,7 @@ export class OnlineArena implements Arena {
     this.frozenAt = null
     this.conn = {}
     this.bots = {}
+    this.names = {}
   }
 
   /** The server sends only what changed. Countdowns come as end times on its clock (`at` = its now);
@@ -289,7 +382,7 @@ export class OnlineArena implements Arena {
       this.info = { ...this.info, paused: d.paused }
     }
     const base = this.frozenAt ?? now
-    const { conn, bots, power, ...rest } = d
+    const { conn, bots, power, names, ...rest } = d
     delete rest.paused
     if (power) this.powerEnds = Object.fromEntries(Object.entries(power).map(([id, r]) => [id, Object.fromEntries(Object.entries(r).map(([el, end]) => [el, base + (end - at)]))]))
     for (const k of COUNTDOWNS) {
@@ -301,6 +394,7 @@ export class OnlineArena implements Arena {
     this.view = { ...this.view, ...rest }
     if (conn) this.conn = conn
     if (bots) this.bots = bots
+    if (names) this.names = names
   }
 
   /** The fight now, with each countdown's ms left worked out from its end time. */
@@ -333,7 +427,7 @@ export class OnlineArena implements Arena {
         return
       }
       case 'readied':
-        set({ ...(cur ?? base(ev.el)), el: ev.el, color: colorOf(ev.el), phase: 'ready', name: spellName(ev.el, ev.shape) })
+        set({ ...(cur ?? base(ev.el)), el: ev.el, color: colorOf(ev.el), phase: 'ready', name: spellName(ev.el, ev.shape), shape: ev.shape })
         return
       case 'cleared':
         set(cur && cur.el !== '?' ? { ...cur, phase: 'charge', points: [], name: null } : null)
@@ -390,7 +484,7 @@ export class OnlineArena implements Arena {
       else if (o?.phase === 'charge' && !this.view.charge[id]) this.casts[id] = null
     }
     const casts = { ...this.casts, ...this.botCasts() }
-    return { ...this.viewNow(), casts, enemyCast: casts.enemy ?? null, conn: this.conn, bots: this.bots, running: this.info.phase === 'fighting' }
+    return { ...this.viewNow(), casts, enemyCast: casts.enemy ?? null, conn: this.conn, bots: this.bots, names: this.names, running: this.info.phase === 'fighting' }
   }
 
   /** The bots' spells in progress, drawn here from what the server says (shape and how far along). */

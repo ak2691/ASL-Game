@@ -1,0 +1,58 @@
+# Checks every push and pull request: lint, typecheck and build the web app, then build the real Docker image
+# and start it (no database: guests only) to make sure the server comes up and serves the game.
+name: CI
+
+on:
+  push:
+    branches-ignore: [main] # main runs the same checks inside deploy.yml
+  pull_request:
+  workflow_call: # deploy.yml reuses this
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }} # a Deploy run's checks never cancel, or get cancelled by, CI
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            server/package-lock.json
+      - run: npm ci --prefix apps/web
+      - run: npm run lint --prefix apps/web
+      - run: npm run build --prefix apps/web # tsc -b (typecheck) + vite build
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: asl-game:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start it and check it answers
+        run: |
+          docker run -d --name game -p 8787:8787 asl-game:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8787/healthz && break
+            sleep 1
+          done
+          curl -fsS http://localhost:8787/healthz | grep -q '"ok":true'
+          curl -fsS http://localhost:8787/ | grep -qi '<html'
+      - name: Server log
+        if: always()
+        run: docker logs game || true

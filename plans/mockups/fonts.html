@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Font options</title>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Luckiest+Guy&family=Kavoon&family=Henny+Penny&family=Uncial+Antiqua&family=Nunito:wght@600;700;800&family=Fredoka:wght@500;600;700&family=Baloo+2:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg: #2d2a5a; --alt: #3d3a78; --panel: #2b2840; --sub: #9d9ad6; --text: #fffaf0; --main: #ffd23f; --ink: #15132e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 60px; color: var(--text); font-family: 'Nunito', sans-serif; font-weight: 700;
+    background: radial-gradient(circle at 20% 15%, #3d3a78 0 12%, transparent 12.5%) 0 0 / 160px 160px, var(--bg); }
+  .stroke { -webkit-text-stroke: 0.14em var(--ink); paint-order: stroke fill; text-shadow: 0 0.12em 0 var(--ink); letter-spacing: 0.02em; font-weight: normal; }
+  h1 { font-family: 'Lilita One'; text-align: center; margin: 0 0 4px; font-size: 32px; }
+  h2 { font-family: 'Lilita One'; margin: 34px 0 6px; font-size: 26px; text-align: center; }
+  .note { text-align: center; color: var(--sub); max-width: 760px; margin: 0 auto 20px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
+  .opt { width: 360px; background: var(--alt); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 6px 0 var(--ink); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .opt .name { font-family: 'Lilita One'; font-size: 22px; }
+  .opt .why { color: var(--sub); font-size: 14px; text-align: center; }
+  .brand { display: flex; align-items: center; gap: 6px; height: 130px; }
+  .brand img { width: 74px; height: 74px; }
+  .logo { color: var(--main); font-size: 52px; transform: rotate(-4deg); line-height: 1; white-space: nowrap; }
+  button { font-family: 'Lilita One'; font-size: 20px; color: #fff; background: #6c63ff; border: 3px solid var(--ink); border-radius: 8px; padding: 8px 14px; width: 220px;
+    box-shadow: 0 5px 0 var(--ink), inset 0 -5px 0 rgba(0,0,0,.22), inset 0 4px 0 rgba(255,255,255,.28); -webkit-text-stroke: .1em var(--ink); paint-order: stroke fill; }
+  .body-sample { width: 360px; background: var(--panel); border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 6px 0 var(--ink); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .body-sample .t { font-family: 'Lilita One'; font-size: 24px; }
+  .body-sample .label { font-family: 'Lilita One'; font-size: 18px; color: #ffd24d; }
+  .body-sample p { margin: 0; font-size: 15px; line-height: 1.35; }
+  .body-sample .sub { color: var(--sub); font-size: 13px; }
+  .stat { display: flex; justify-content: space-between; border-bottom: 2px solid rgba(0,0,0,.25); padding: 4px 0; font-size: 14px; }
+  .stat b { font-family: 'Lilita One'; font-weight: normal; font-size: 18px; }
+  .tag { font-family: 'Lilita One'; font-size: 13px; color: var(--sub); text-align: center; }
+</style>
+</head>
+<body>
+<h1 class="stroke">Font options</h1>
+<p class="note">Buttons, banners and numbers stay in Lilita One (unchanged). Only the home title, and the small body text, are up for change.</p>
+
+<h2 class="stroke">Home title</h2>
+<div class="grid">
+  <div class="opt"><div class="name">A. Brawler (now)</div><div class="brand"><img src="../../apps/web/public/logo.svg" alt="" /><div class="logo stroke" style="font-family:'Lilita One'">ASL Wizard</div></div><button>Play</button><div class="why">Lilita One. The Brawl Stars style chunk the whole game already uses. Safe, but the title looks like every button.</div></div>
+  <div class="opt"><div class="name">B. Spellbook</div><div class="brand"><img src="../../apps/web/public/logo.svg" alt="" /><div class="logo stroke" style="font-family:'Kavoon'">ASL Wizard</div></div><button>Play</button><div class="why">Kavoon. As chunky as Lilita, with brush swashes that read as magic. Sits on the same buttons without clashing.</div></div>
+  <div class="opt"><div class="name">C. Blockbuster</div><div class="brand"><img src="../../apps/web/public/logo.svg" alt="" /><div class="logo stroke" style="font-family:'Luckiest Guy'; font-size:48px">ASL Wizard</div></div><button>Play</button><div class="why">Luckiest Guy. Big cartoon game logo (Fortnite style), all capitals. Loud and fun, less wizardly.</div></div>
+  <div class="opt"><div class="name">D. Storybook</div><div class="brand"><img src="../../apps/web/public/logo.svg" alt="" /><div class="logo stroke" style="font-family:'Henny Penny'; font-size:46px">ASL Wizard</div></div><button>Play</button><div class="why">Henny Penny. A fairy tale cover. The most whimsical; thinner, so the ink outline eats into it.</div></div>
+  <div class="opt"><div class="name">E. Old magic</div><div class="brand"><img src="../../apps/web/public/logo.svg" alt="" /><div class="logo stroke" style="font-family:'Uncial Antiqua'; font-size:42px">ASL Wizard</div></div><button>Play</button><div class="why">Uncial Antiqua. Fantasy manuscript letters. The most "wizard", but serious next to the cartoon buttons.</div></div>
+</div>
+
+<h2 class="stroke">Body text</h2>
+<div class="grid">
+  <div class="body-sample" style="font-family:'Nunito'; font-weight:700"><div class="tag">1. Nunito (now)</div><div class="t stroke">Meteor</div><p>Fire signature. Four spikes on a ball, then push to throw.</p><div class="stat"><span>Damage</span><b>42</b></div><div class="stat"><span>Parry window</span><b>0.18 s</b></div><div class="sub">Beat Tower wizards to unlock their portraits.</div></div>
+  <div class="body-sample" style="font-family:'Fredoka'; font-weight:600"><div class="tag">2. Fredoka</div><div class="t stroke">Meteor</div><p>Fire signature. Four spikes on a ball, then push to throw.</p><div class="stat"><span>Damage</span><b>42</b></div><div class="stat"><span>Parry window</span><b>0.18 s</b></div><div class="sub">Beat Tower wizards to unlock their portraits.</div></div>
+  <div class="body-sample" style="font-family:'Baloo 2'; font-weight:600"><div class="tag">3. Baloo 2</div><div class="t stroke">Meteor</div><p>Fire signature. Four spikes on a ball, then push to throw.</p><div class="stat"><span>Damage</span><b>42</b></div><div class="stat"><span>Parry window</span><b>0.18 s</b></div><div class="sub">Beat Tower wizards to unlock their portraits.</div></div>
+</div>
+</body>
+</html>

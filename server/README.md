@@ -12,7 +12,11 @@ npm run dev --prefix apps/web      # web app; Vite forwards /ws to :8787
 
 Test online play with two tabs. Add `?debug` to the URL to get cast buttons, so a tab can play without a camera.
 
-## Deploy on Render
+## Deploy on AWS
+
+Production (accounts, Ranked, HTTPS on your domain): see `deploy/README.md` (Lightsail + Docker + GitHub Actions).
+
+## Deploy on Render (quick test builds, no database)
 
 Easiest: **New → Blueprint** → pick the repo. It reads `render.yaml` (free plan, Node 20, build and start commands below).
 
